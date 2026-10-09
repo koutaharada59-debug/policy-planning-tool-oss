@@ -343,7 +343,7 @@ async function completion({ request, env, user, params }) {
     if (prep?.final_status !== "done") throw new HttpError(400, "先に「発表・提出」タブの最終提出を「提出済み」にしてください");
     await env.DB.prepare("UPDATE projects SET completion_requested_at = ?, completion_requested_by = ?, updated_at = ? WHERE id = ?")
       .bind(now, user.id, now, project.id).run();
-    await notify(env, leaders, `【${project.name}】最終提出が済みました。確認して、PJの完了を承認してください`, `#/projects/${project.id}`, { except: user.id });
+    await notify(env, leaders, `【承認待ち】${project.name}：最終提出が済みました。確認して、PJの完了を承認してください`, `#/projects/${project.id}`);
     return { ok: true };
   }
   if (!user.isAdmin) throw new HttpError(403, "PJの完了を承認できるのは部門長・副部門長です");

@@ -120,7 +120,7 @@ async function savePresentation({ request, env, user, params }) {
   if (next.final_status === "done" && project.status === "active" && !project.completion_requested_at) {
     await env.DB.prepare("UPDATE projects SET completion_requested_at = ?, completion_requested_by = ? WHERE id = ?").bind(now, user.id, project.id).run();
     await notify(env, [...idList(env.HEAD_IDS), ...idList(env.ADMIN_IDS)],
-      `【${project.name}】最終提出が済みました。確認して、PJの完了を承認してください`, `#/projects/${project.id}`, { except: user.id });
+      `【承認待ち】${project.name}：最終提出が済みました。確認して、PJの完了を承認してください`, `#/projects/${project.id}`);
     completion = "requested";
   }
   return { ok: true, completion };
