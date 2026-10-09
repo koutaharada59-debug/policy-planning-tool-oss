@@ -130,7 +130,7 @@ export async function renderPresentationTab(body, projectId) {
     <h2 class="section-title">③ 最終提出</h2>
     <form class="card form" id="final-form">
       <p class="small">${dates.finalBy ? `提出期限：<strong>${fmtDate(dates.finalBy)}</strong>（発表から約1カ月） ${prep.final_status === "done" ? "" : dueBadge(dates.finalBy)}` : ""}</p>
-      <p class="muted small">フィードバックをもとに改めてリサーチし、提言書に直接修正を加え、読み合わせてから改訂版を党本部へ提出します。状態を「提出済み」にして保存すると、部門長・副部門長に完了の承認を依頼します（部門長・副部門長が保存したときは、そのままPJが完了になります）。</p>
+      <p class="muted small">フィードバックをもとに改めてリサーチし、提言書に直接修正を加え、読み合わせてから改訂版を党本部へ提出します。状態を「提出済み」にして保存すると、部門長・副部門長に完了の承認を依頼します。承認されるとPJが完了になります。</p>
       ${feedback.some((f) => f.status !== "done") ? `<p class="caution small">まだ反映していないフィードバックが ${feedback.filter((f) => f.status !== "done").length}件 あります。</p>` : ""}
       <div class="grid-3">
         <label>状態<select name="final_status" ${ro}>
@@ -150,17 +150,14 @@ export async function renderPresentationTab(body, projectId) {
   const savePrep = (form, extra = {}) => async (e) => {
     e.preventDefault();
     const button = e.submitter;
-    // 最終提出を「提出済み」にするときは、確認してから（部門長・副部門長に完了の承認を依頼する／部門長なら完了になる）
+    // 最終提出を「提出済み」にするときは、確認してから（部門長・副部門長に完了の承認を依頼する。誰が保存しても承認待ちになる）
     const pj = data.project;
-    if (form.id === "final-form" && form.final_status.value === "done" && pj.status === "active" && (state.me.isAdmin || !pj.completion_requested_at)
-      && !await confirmDialog(state.me.isAdmin
-        ? "最終提出を「提出済み」として保存しますか？\nこのPJは完了になり、PJメンバーにお知らせが届きます。"
-        : "最終提出を「提出済み」として保存しますか？\n部門長・副部門長に、PJの完了の承認を依頼するお知らせが届きます。", { ok: "提出済みとして保存する" })) return;
+    if (form.id === "final-form" && form.final_status.value === "done" && pj.status === "active" && !pj.completion_requested_at
+      && !await confirmDialog("最終提出を「提出済み」として保存しますか？\n部門長・副部門長に、PJの完了の承認を依頼するお知らせが届きます。", { ok: "提出済みとして保存する" })) return;
     busy(button, () => api(`/api/projects/${projectId}/presentation`, { method: "PUT", body: { ...formData(form), ...extra, version: prep.version } }))
       .then((res) => {
         markSaved(form);
-        toast(res.completion === "done" ? "最終提出を保存し、PJを完了にしました"
-          : res.completion === "requested" ? "最終提出を保存し、部門長に完了の承認を依頼しました" : "保存しました");
+        toast(res.completion === "requested" ? "最終提出を保存し、部門長に完了の承認を依頼しました" : "保存しました");
         // 完了・承認待ちの表示（PJ画面の上）も出し直す
         if (res.completion) location.reload(); else reload();
       }).catch(() => {});

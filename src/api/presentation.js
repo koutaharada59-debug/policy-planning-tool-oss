@@ -114,24 +114,14 @@ async function savePresentation({ request, env, user, params }) {
     ).bind(...values, project.id, version).run();
   }
   assertUpdated(res, "発表準備");
-  // 最終提出を「提出済み」にして保存したら、そのままPJの完了へ進める：
-  // メンバーなら部門長・副部門長に完了の承認を依頼する。部門長・副部門長が保存したなら、そのまま完了にする
+  // 最終提出を「提出済み」にして保存したら、部門長・副部門長に完了の承認を依頼する（誰が保存しても、承認待ちになる）
+  // 前から「提出済み」だったPJも、まだ依頼していなければ、保存したときに依頼する
   let completion = null;
-  // （前から「提出済み」だったPJも、まだ依頼していなければ、保存したときに依頼する）
-  if (next.final_status === "done" && project.status === "active" && (user.isAdmin || !project.completion_requested_at)) {
-    if (user.isAdmin) {
-      await env.DB.prepare(
-        `UPDATE projects SET status = 'done', completed_at = ?1, completed_by = ?2, completion_requested_at = COALESCE(completion_requested_at, ?1),
-           updated_at = ?1, version = version + 1 WHERE id = ?3`
-      ).bind(now, user.id, project.id).run();
-      await notifyProject(env, project, "🎉 最終提出が済み、PJが完了しました。おつかれさまでした！", "", user.id, { dm: true });
-      completion = "done";
-    } else if (!project.completion_requested_at) {
-      await env.DB.prepare("UPDATE projects SET completion_requested_at = ?, completion_requested_by = ? WHERE id = ?").bind(now, user.id, project.id).run();
-      await notify(env, [...idList(env.HEAD_IDS), ...idList(env.ADMIN_IDS)],
-        `【${project.name}】最終提出が済みました。確認して、PJの完了を承認してください`, `#/projects/${project.id}`, { except: user.id });
-      completion = "requested";
-    }
+  if (next.final_status === "done" && project.status === "active" && !project.completion_requested_at) {
+    await env.DB.prepare("UPDATE projects SET completion_requested_at = ?, completion_requested_by = ? WHERE id = ?").bind(now, user.id, project.id).run();
+    await notify(env, [...idList(env.HEAD_IDS), ...idList(env.ADMIN_IDS)],
+      `【${project.name}】最終提出が済みました。確認して、PJの完了を承認してください`, `#/projects/${project.id}`, { except: user.id });
+    completion = "requested";
   }
   return { ok: true, completion };
 }
