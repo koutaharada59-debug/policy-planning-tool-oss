@@ -841,3 +841,27 @@ label.chip-check[hidden]{display:none}
 .staff-pj label{display:flex;flex-direction:column;gap:4px;font-weight:700;font-size:13px}
 .staff-pj label.check{flex-direction:row;font-weight:500}
 #staff-warn .warn{color:var(--warn);font-weight:700}
+
+/* 発表のタイマー：いちばん上に、スクロールしても残る。発表・フィードバックを分けて測り、目標に近づくと色が変わる */
+.present-timer{--pt-color:rgb(46,157,91);position:sticky;top:96px;z-index:15;display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;
+  margin:0 0 -6px;padding:8px 12px;background:#fff;border:2px solid var(--pt-color);border-radius:14px 14px 0 0;box-shadow:0 2px 8px #0001;transition:border-color 1s}
+.present-timer + .present-head{border-top-left-radius:0;border-top-right-radius:0}
+.pt-kind{width:auto;min-height:34px;padding:4px 8px;font-size:13px;font-weight:700}
+.pt-phase{--pt-color:rgb(46,157,91);display:flex;align-items:baseline;gap:6px;opacity:.55}
+.pt-phase.is-active{opacity:1}
+.pt-phase.is-done{opacity:.8}
+.pt-label{font-size:12px;font-weight:700;color:var(--muted)}
+.pt-time{font-size:22px;font-weight:800;font-variant-numeric:tabular-nums;color:var(--pt-color);transition:color 1s}
+.pt-target{font-size:12px;color:var(--muted)}
+.pt-target select{width:auto;min-height:28px;padding:2px 6px;font-size:12px}
+.pt-note{font-size:12px;font-weight:700;color:var(--pt-color)}
+.pt-actions{display:flex;gap:6px;margin-left:auto}
+.pt-actions .small{min-height:34px;padding:4px 12px}
+.present-timer.is-running .pt-phase.is-active .pt-label::before{content:"● ";color:var(--pt-color);animation:timer-blink 1s steps(2) infinite}
+:fullscreen .present-timer{top:0}
+@media (max-width:760px){
+  .present-timer{top:60px;gap:6px 10px;padding:6px 10px}
+  .pt-time{font-size:19px}
+  .pt-actions{width:100%;margin-left:0}
+  .pt-actions .pt-main{flex:1}
+}

@@ -1,5 +1,5 @@
 // 発表する：PJを選ぶ → 概要・本文ドキュメント・キーワード・発表時の注意点を映す
-import { api, esc, state, avatar, fmtDate, embedUrl, busy, toast, stageNoOf, pjPicker, pickItem, timerHtml, bindTimer, bindFold } from "../lib.js";
+import { api, esc, state, avatar, fmtDate, embedUrl, busy, toast, stageNoOf, pjPicker, pickItem, bindFold, ratioColor, fmtClock } from "../lib.js";
 import { rolesSummary, FB_STATUS } from "./presentation.js";
 
 export async function renderPresentList(el) {
@@ -26,6 +26,7 @@ export async function renderPresent(el, id) {
   el.innerHTML = `
     <nav class="breadcrumb"><a href="#/">ホーム</a> / <a href="#/present">発表する</a> / ${esc(p.name)}</nav>
     <div class="present" id="present">
+      ${presentTimerHtml(p.id)}
       <header class="present-head card">
         <div class="row">
           <span class="stage-pill">${esc(type.label)}・工程${p.current_stage} ${esc(stage?.name || "")}</span>
@@ -48,7 +49,6 @@ export async function renderPresent(el, id) {
       </section>` : ""}
 
       <section class="card">
-        ${timerHtml(`present-${p.id}`, { target: true })}
         <div class="section-head"><h2>ドキュメント</h2>
           ${docs.length > 1 ? `<span class="seg" role="tablist">${docs.map(([k, label], i) =>
             `<button type="button" class="small ${i ? "" : "primary"}" data-doc="${k}" aria-selected="${!i}">${label}</button>`).join("")}</span>` : ""}</div>
@@ -71,7 +71,7 @@ export async function renderPresent(el, id) {
 
   bindNotes(el, id, prepData);
   bindFold(el);
-  bindTimer(el, `present-${p.id}`);
+  bindPresentTimer(el, p.id);
   el.querySelectorAll("[data-doc]").forEach((b) => b.addEventListener("click", () => {
     el.querySelectorAll("[data-doc]").forEach((x) => { x.classList.toggle("primary", x === b); x.setAttribute("aria-selected", x === b); });
     el.querySelectorAll("[data-doc-view]").forEach((v) => (v.hidden = v.dataset.docView !== b.dataset.doc));
@@ -173,3 +173,101 @@ function bindNotes(el, projectId, prepData) {
     }).catch(() => {});
   });
 }
+
+// ---------- 発表のタイマー：発表時間とフィードバック時間を分けて測る ----------
+// 「発表スタート」→「発表終わり」でフィードバックの計測に切り替わる。目標時間に近づくと色が変わる（緑 → 青 → 赤 → 紫）
+// 状態は画面を開いているあいだだけ覚える（PJごと。別の画面へ移って戻っても続きから）
+const PRESENT_KINDS = {
+  seicho: { label: "政調MTG", present: 15, fb: 15 },
+  other: { label: "その他の発表", present: 10, fb: 10 },
+};
+const MINUTES = [3, 5, 7, 10, 15, 20, 25, 30, 40, 45, 60];
+const presentTimers = new Map();
+
+function presentTimerHtml(projectId) {
+  return `<div class="present-timer" data-ptimer="${projectId}">
+    <select class="pt-kind" aria-label="発表の種類">${Object.entries(PRESENT_KINDS).map(([k, v]) => `<option value="${k}">${v.label}</option>`).join("")}</select>
+    ${[["present", "発表"], ["fb", "フィードバック"]].map(([k, label]) => `
+      <div class="pt-phase" data-phase="${k}">
+        <span class="pt-label">${label}</span>
+        <b class="pt-time">0:00</b>
+        <span class="pt-target">/ <select data-target="${k}" aria-label="${label}の目標時間">${MINUTES.map((m) => `<option value="${m}">${m}分</option>`).join("")}</select></span>
+        <small class="pt-note"></small>
+      </div>`).join("")}
+    <span class="pt-actions">
+      <button type="button" class="primary small pt-main"></button>
+      <button type="button" class="small pt-pause" aria-label="一時停止"></button>
+      <button type="button" class="small pt-reset" aria-label="最初から">↺</button>
+    </span>
+  </div>`;
+}
+
+function bindPresentTimer(root, projectId) {
+  const box = root.querySelector(`[data-ptimer="${projectId}"]`);
+  if (!box) return;
+  let t = presentTimers.get(projectId);
+  if (!t) {
+    t = { kind: "seicho", targets: { present: PRESENT_KINDS.seicho.present, fb: PRESENT_KINDS.seicho.fb },
+      phase: "idle", present: { elapsed: 0, startedAt: null }, fb: { elapsed: 0, startedAt: null } };
+    presentTimers.set(projectId, t);
+  }
+  const kindSel = box.querySelector(".pt-kind");
+  const main = box.querySelector(".pt-main");
+  const pause = box.querySelector(".pt-pause");
+  const now = (c) => c.elapsed + (c.startedAt ? Date.now() - c.startedAt : 0);
+  const running = () => Boolean(t.present.startedAt || t.fb.startedAt);
+  const stop = (c) => { c.elapsed = now(c); c.startedAt = null; };
+
+  const draw = () => {
+    kindSel.value = t.kind;
+    for (const k of ["present", "fb"]) {
+      const c = t[k];
+      const ms = now(c);
+      const target = t.targets[k] * 60000;
+      const ph = box.querySelector(`[data-phase="${k}"]`);
+      ph.querySelector(`[data-target="${k}"]`).value = String(t.targets[k]);
+      ph.querySelector(".pt-time").textContent = fmtClock(ms);
+      ph.style.setProperty("--pt-color", ratioColor(ms / target));
+      ph.classList.toggle("is-active", t.phase === k);
+      ph.classList.toggle("is-done", (k === "present" && ["fb", "done"].includes(t.phase)) || (k === "fb" && t.phase === "done"));
+      ph.querySelector(".pt-note").textContent = !ms ? "" : ms > target ? `${fmtClock(ms - target)} 超過` : `残り ${fmtClock(target - ms)}`;
+    }
+    const active = t.phase === "fb" ? t.fb : t.present;
+    box.style.setProperty("--pt-color", ratioColor(now(active) / (t.targets[t.phase === "fb" ? "fb" : "present"] * 60000)));
+    box.classList.toggle("is-running", running());
+    main.textContent = { idle: "▶ 発表スタート", present: "✅ 発表終わり", fb: "✅ フィードバック終わり", done: "おつかれさまでした" }[t.phase];
+    main.disabled = t.phase === "done";
+    pause.hidden = !["present", "fb"].includes(t.phase);
+    pause.textContent = running() ? "⏸" : "▶";
+  };
+
+  kindSel.addEventListener("change", () => {
+    t.kind = kindSel.value;
+    t.targets = { present: PRESENT_KINDS[t.kind].present, fb: PRESENT_KINDS[t.kind].fb };
+    draw();
+  });
+  box.querySelectorAll("[data-target]").forEach((sel) => sel.addEventListener("change", () => {
+    t.targets[sel.dataset.target] = Number(sel.value);
+    draw();
+  }));
+  main.addEventListener("click", () => {
+    if (t.phase === "idle") { t.phase = "present"; t.present.startedAt = Date.now(); }
+    else if (t.phase === "present") { stop(t.present); t.phase = "fb"; t.fb.startedAt = Date.now(); }
+    else if (t.phase === "fb") { stop(t.fb); t.phase = "done"; }
+    draw();
+  });
+  pause.addEventListener("click", () => {
+    const c = t.phase === "fb" ? t.fb : t.present;
+    if (c.startedAt) stop(c); else c.startedAt = Date.now();
+    draw();
+  });
+  box.querySelector(".pt-reset").addEventListener("click", () => {
+    t.phase = "idle";
+    t.present = { elapsed: 0, startedAt: null };
+    t.fb = { elapsed: 0, startedAt: null };
+    draw();
+  });
+  draw();
+  const tick = setInterval(() => (document.body.contains(box) ? draw() : clearInterval(tick)), 1000);
+}
+

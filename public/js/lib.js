@@ -354,6 +354,10 @@ export function syncTimerStart(key, since) {
   t.startedAt = Math.min(since, Date.now());
 }
 
+// 目標時間に対する割合（1＝目標ちょうど）で色を出す。緑 → 目標に近づくと青 → 目標を過ぎると赤 → 1.5倍で紫
+export const ratioColor = (ratio) => timeColor(ratio * 60);
+export const fmtClock = (ms) => fmtElapsed(ms);
+
 export function bindTimer(root, key, { auto = false, since = null } = {}) {
   const box = root.querySelector(`[data-timer="${CSS.escape(key)}"]`);
   if (!box) return;
