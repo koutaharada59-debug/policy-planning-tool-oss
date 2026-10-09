@@ -148,6 +148,7 @@ function bindHearingForm(el, types, existing, h, onSubmit) {
     // 送る前に「保存済み」にしておく（送ったあと別の画面へ移るため）。失敗したら書きかけに戻す
     markSaved(form);
     busy(e.submitter, () => onSubmit({ ...formData(form), version: h?.version })).catch(() => { form.dataset.saved = ""; });
+    // （確認画面で「キャンセル」を押したときも、ここで書きかけに戻る）
   });
 }
 
@@ -162,6 +163,8 @@ export async function renderHearingNew(el) {
     ${hearingForm(types, projects.filter((p) => p.status === "active"), { project_id: projectId })}
     <p class="muted small" style="text-align:center"><a href="#/hearings">これまでのヒアリング申請の一覧を見る</a></p>`;
   bindHearingForm(el, types, hearings, null, async (body) => {
+    const needs = types[body.target_type]?.approval;
+    if (!await confirmDialog(needs ? "この内容で申請しますか？\n部門長にお知らせが届きます。" : "この内容で記録しますか？（承認は不要です）", { ok: needs ? "申請して知らせる" : "記録する" })) throw Object.assign(new Error("キャンセル"), { silent: true });
     const res = await api("/api/hearings", { method: "POST", body });
     toast(res.status === "recorded" ? "記録しました（承認不要）" : "申請しました。部門長に通知します");
     location.hash = `#/hearings/${res.id}`;
@@ -226,15 +229,19 @@ export async function renderHearing(el, id) {
   el.querySelectorAll("[data-review]").forEach((b) => b.addEventListener("click", async () => {
     const comment = el.querySelector("#review-comment").value.trim();
     if (b.dataset.review === "return" && !comment) return toast("差し戻すときは、理由をコメントに書いてください", "error");
-    if (b.dataset.review === "approve" && !await confirmDialog("承認しますか？")) return;
+    if (b.dataset.review === "approve" && !await confirmDialog("承認しますか？\n申請した人（と、次に確認する代表）にお知らせが届きます。", { ok: "承認して知らせる" })) return;
+    if (b.dataset.review === "return" && !await confirmDialog("差し戻しますか？\n申請した人に、コメントとあわせてお知らせが届きます。", { ok: "差し戻して知らせる" })) return;
     busy(b, () => api(`/api/hearings/${h.id}/review`, { method: "POST", body: { decision: b.dataset.review, comment } }))
       .then((res) => {
         toast(b.dataset.review === "return" ? "差し戻しました" : res.threadCreated === false ? "承認しました（スレッドは作れませんでした）" : "承認しました");
         reload();
       }).catch(() => {});
   }));
-  el.querySelector("[data-retry]")?.addEventListener("click", (e) =>
-    busy(e.target, () => api(`/api/hearings/${h.id}/thread`, { method: "POST", body: {} })).then(() => { toast("スレッドを作りました"); reload(); }).catch(() => {}));
+  el.querySelector("[data-retry]")?.addEventListener("click", async (e) => {
+    const b = e.currentTarget;
+    if (!await confirmDialog("渉外フォーラムにスレッドを作りますか？\n申請した人にお知らせが届きます。", { ok: "スレッドを作る" })) return;
+    busy(b, () => api(`/api/hearings/${h.id}/thread`, { method: "POST", body: {} })).then(() => { toast("スレッドを作りました"); reload(); }).catch(() => {});
+  });
   el.querySelector("#done-form")?.addEventListener("submit", (e) => {
     e.preventDefault();
     busy(e.submitter, () => api(`/api/hearings/${h.id}/done`, { method: "POST", body: formData(e.target) }))
@@ -250,6 +257,7 @@ export async function renderHearing(el, id) {
     box.innerHTML = `<h2>申請を修正する</h2>${hearingForm(types, projects.filter((p) => p.status === "active"), h)}`;
     box.scrollIntoView({ behavior: "smooth" });
     bindHearingForm(box, types, hearings, h, async (body) => {
+      if (h.status === "returned" && !await confirmDialog("修正した内容で再申請しますか？\n部門長にお知らせが届きます。", { ok: "再申請して知らせる" })) throw Object.assign(new Error("キャンセル"), { silent: true });
       await api(`/api/hearings/${h.id}`, { method: "PUT", body });
       toast(h.status === "returned" ? "再申請しました。部門長に通知します" : "保存しました");
       reload();

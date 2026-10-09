@@ -72,7 +72,7 @@ async function deleteMeeting({ env, user, params }) {
   return { ok: true };
 }
 
-const TASK_COLUMNS = `t.id, t.title, t.status, t.due_date, t.assignee_id, t.version, u.name AS assignee_name`;
+const TASK_COLUMNS = `t.id, t.title, t.status, t.due_date, t.assignee_id, t.notified_assignee, t.version, u.name AS assignee_name`;
 
 async function getMeeting({ env, user, params }) {
   const meeting = await loadMeeting(env, params.id);
@@ -99,7 +99,7 @@ async function getMeeting({ env, user, params }) {
     nextMeetingAfter(env, project.id, meeting.starts_at),
     // いまの工程のチェックリストと、このMTGに結び付いた項目（ほかの工程のものも）
     env.DB.prepare(
-      `SELECT c.id, c.stage_no, c.label, c.hint, c.done_at, c.skipped_at, c.meeting_id, m.starts_at AS meeting_starts_at
+      `SELECT c.id, c.stage_no, c.label, c.hint, c.done_at, c.skipped_at, c.notify_leaders, c.meeting_id, m.starts_at AS meeting_starts_at
        FROM checklist_items c LEFT JOIN meetings m ON m.id = c.meeting_id
        WHERE c.project_id = ?1 AND (c.stage_no = ?2 OR c.meeting_id = ?3) ORDER BY c.stage_no, c.sort, c.id`
     ).bind(project.id, project.current_stage, meeting.id).all().then((r) => r.results),
@@ -203,11 +203,14 @@ async function saveMinutes({ request, env, user, params }) {
       if (t.key) ids[t.key] = created.id;
       t.id = created.id;
     }
-    // 「次回までにやること」で新しく担当になった人へ
-    const before = new Map(current.map((r) => [r.id, r.assignee_id]));
-    for (const t of todos) {
-      if (t.assignee_id && before.get(t.id) !== t.assignee_id) await notifyAssignee(env, project, t, user.id);
-    }
+  }
+  // 「次回までにやること」の担当のお知らせ：自動保存のたびには送らず、「保存する」「MTGを終える」のとき（notify_todos）にまとめて送る
+  if (body.notify_todos) {
+    const { results: pending } = await env.DB.prepare(
+      `SELECT id, title, assignee_id, due_date FROM tasks WHERE source_minute_id = ? AND assignee_id IS NOT NULL
+       AND (notified_assignee IS NULL OR notified_assignee != assignee_id)`
+    ).bind(minuteId).all();
+    for (const t of pending) await notifyAssignee(env, project, t, user.id);
   }
 
   // 毎回決めるPJ：議事録と一緒に送られた次回の日程を登録する（すでに次回があれば、その日時・場所を直す）

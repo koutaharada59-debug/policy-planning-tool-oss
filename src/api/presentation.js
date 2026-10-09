@@ -1,8 +1,8 @@
 // フェーズ3：発表準備・政調からのフィードバック・最終提出
-import { HttpError, readJson, clean, required, int, oneOf, optDate, optUrl, reqDateTime, assertUpdated, todayJst } from "../util.js";
+import { HttpError, readJson, clean, required, int, oneOf, optDate, optUrl, reqDateTime, assertUpdated, todayJst, idList } from "../util.js";
 import { addDays, stageNo } from "../project-types.js";
 import { loadProject, requireEditor, canEdit, assertUsers } from "./common.js";
-import { notifyProject } from "../notify.js";
+import { notify, notifyProject } from "../notify.js";
 
 export const routes = [
   ["GET", "/api/projects/:id/presentation", getPresentation],
@@ -113,7 +113,25 @@ async function savePresentation({ request, env, user, params }) {
     ).bind(...values, project.id, version).run();
   }
   assertUpdated(res, "発表準備");
-  return { ok: true };
+  // 最終提出を「提出済み」にして保存したら、そのままPJの完了へ進める：
+  // メンバーなら部門長・副部門長に完了の承認を依頼する。部門長・副部門長が保存したなら、そのまま完了にする
+  let completion = null;
+  if (next.final_status === "done" && cur.final_status !== "done" && project.status === "active") {
+    if (user.isAdmin) {
+      await env.DB.prepare(
+        `UPDATE projects SET status = 'done', completed_at = ?1, completed_by = ?2, completion_requested_at = COALESCE(completion_requested_at, ?1),
+           updated_at = ?1, version = version + 1 WHERE id = ?3`
+      ).bind(now, user.id, project.id).run();
+      await notifyProject(env, project, "🎉 最終提出が済み、PJが完了しました。おつかれさまでした！", "", user.id, { dm: true });
+      completion = "done";
+    } else if (!project.completion_requested_at) {
+      await env.DB.prepare("UPDATE projects SET completion_requested_at = ?, completion_requested_by = ? WHERE id = ?").bind(now, user.id, project.id).run();
+      await notify(env, [...idList(env.HEAD_IDS), ...idList(env.ADMIN_IDS)],
+        `【${project.name}】最終提出が済みました。確認して、PJの完了を承認してください`, `#/projects/${project.id}`, { except: user.id });
+      completion = "requested";
+    }
+  }
+  return { ok: true, completion };
 }
 
 // ---------- リハーサル ----------

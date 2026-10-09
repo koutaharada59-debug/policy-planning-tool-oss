@@ -166,7 +166,7 @@ export async function busy(button, fn) {
   try {
     return await fn();
   } catch (e) {
-    toast(e.message, "error");
+    if (!e.silent) toast(e.message, "error"); // 確認画面で「キャンセル」したときなどは出さない
     throw e;
   } finally {
     if (button) button.disabled = false;

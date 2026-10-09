@@ -65,7 +65,7 @@ export async function renderStart(el) {
     // 2b) 臨時：押してもすぐには作らず、日時・場所を確かめる（「この内容で始める」で初めて作る）
     const adhoc = () => {
       show(`<form class="confirm-start">
-        <p><strong>この内容で臨時のMTGを始めますか？</strong></p>
+        <p><strong>この内容で臨時のMTGを始めますか？</strong><br><small class="muted">PJメンバーにお知らせが届きます。</small></p>
         <label class="small">日時<input name="starts_at" type="datetime-local" required value="${nowRounded()}"></label>
         <label class="small">場所・URL（任意）<input name="place" maxlength="200"></label>
         <div class="form-actions">${back}<button class="primary">この内容で始める</button></div>

@@ -163,7 +163,7 @@ function renderSeeds(body, data, reload) {
           ${s.description ? `<p class="desc clamp">${esc(s.description)}</p>` : ""}
           ${s.project ? `<a class="next-step" href="#/projects/${s.project.id}"><span>PJになりました</span>${esc(s.project.name)} →</a>` : ""}
           <div class="seed-foot">
-            <span class="row-left"><span class="muted small">希望 ${s.voters.length}人${s.firstChoices ? `（第1希望 ${s.firstChoices}）` : ""}</span>
+            <span class="row-left"><span class="muted small">希望 ${s.voterCount}人${s.firstChoices ? `（第1希望 ${s.firstChoices}）` : ""}</span>
               <button type="button" class="link-btn" data-comments="${s.id}">💬 コメント${s.comments ? `（${s.comments}）` : ""}</button></span>
             ${round.closed || round.source === "survey" ? "" : `<button class="cta-sm ${rank ? "is-on" : ""}" data-toggle="${s.id}">${rank ? "✓ 選択中" : "関わりたい"}</button>`}
           </div>
@@ -355,8 +355,8 @@ async function renderResults(body, data, reload) {
               : state.me.isAdmin ? `<span class="row-left"><label class="pick-check"><input type="checkbox" data-pick-seed="${sid}" checked> まとめてPJにする</label>
                 <button class="small" data-make="${sid}">このPJだけ作る</button></span>` : ""}</div>
           <h3>${esc(title(sid))}</h3>
-          <p class="small"><strong>割り振り案</strong>（選ばれたPJのうち、本人の希望順位がいちばん高いものへ）：
-            ${assigned.length ? assigned.map((u) => `${avatar(userOf[u])} ${esc(userOf[u]?.name)}`).join("　") : "なし"}</p>
+          ${state.me.isAdmin ? `<p class="small"><strong>割り振り案</strong>（選ばれたPJのうち、本人の希望順位がいちばん高いものへ）：
+            ${assigned.length ? assigned.map((u) => `${avatar(userOf[u])} ${esc(userOf[u]?.name)}`).join("　") : "なし"}</p>` : ""}
           <details><summary class="small">開票の経過（${w.rounds.length}ラウンド）</summary>${roundsTable(w.rounds, title)}</details>
           <div class="make-form"></div><div class="undo-box"></div>
         </section>`;
@@ -479,7 +479,7 @@ function pickOthers(seeds, winners) {
   if (!rest.length) return "";
   return `<details class="card pick-others-box"><summary class="small"><strong>ほかの種もPJにする</strong>（${rest.length}件）</summary>
     <ul class="pick-others-list">${rest.map((s) => `<li><label class="check"><input type="checkbox" data-pick-seed="${s.id}">
-      <span>${esc(s.icon)} ${esc(s.title)}<small>希望 ${s.voters.length}人${s.firstChoices ? `（第1希望 ${s.firstChoices}）` : ""}</small></span></label></li>`).join("")}</ul>
+      <span>${esc(s.icon)} ${esc(s.title)}<small>希望 ${s.voterCount}人${s.firstChoices ? `（第1希望 ${s.firstChoices}）` : ""}</small></span></label></li>`).join("")}</ul>
   </details>`;
 }
 
@@ -565,7 +565,7 @@ export async function renderStaffing(el, roundId) {
         const n = people.filter((u) => assign.get(u.id)?.has(s.id)).length;
         const first = s.voters.filter((v) => v.rank === 1).length;
         return `<th><span class="staff-pj-title">${esc(s.icon)} ${esc(s.title)}</span>
-          <small>配属 <strong>${n}</strong>人・希望 ${s.voters.length}人${first ? `（第1希望 ${first}）` : ""}</small></th>`;
+          <small>配属 <strong>${n}</strong>人・希望 ${s.voterCount}人${first ? `（第1希望 ${first}）` : ""}</small></th>`;
       }).join("")}</tr></thead>
       <tbody>${people.map((u) => {
         const mine = assign.get(u.id) || new Set();

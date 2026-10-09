@@ -160,21 +160,29 @@ function bindStaffing(el, data, reload) {
         `<option value="${p.id}">${esc(p.name)}</option>`).join("")}`;
       if (mine.length === 1) form.from_project_id.value = String(mine[0].id);
     });
-    form.addEventListener("submit", (e) => {
+    form.addEventListener("submit", async (e) => {
       e.preventDefault();
+      const button = e.submitter;
       const body = { user_id: form.user_id.value, from_project_id: form.from_project_id.value || null, to_project_id: form.to_project_id.value || null };
       if (!body.from_project_id && !body.to_project_id) return toast("異動元か異動先を選んでください", "error");
+      const what = body.from_project_id && body.to_project_id ? `「${pj(body.from_project_id)}」から「${pj(body.to_project_id)}」へ異動`
+        : body.to_project_id ? `「${pj(body.to_project_id)}」に追加` : `「${pj(body.from_project_id)}」から外す`;
+      if (!await confirmDialog(`${name(body.user_id)}さんを${what}しますか？\n${name(body.user_id)}さんにお知らせが届きます。`, { ok: "異動して知らせる" })) return;
       const msg = body.from_project_id && body.to_project_id ? `${name(body.user_id)}さんを「${pj(body.to_project_id)}」に異動しました`
         : body.to_project_id ? `${name(body.user_id)}さんを「${pj(body.to_project_id)}」に追加しました` : `${name(body.user_id)}さんを「${pj(body.from_project_id)}」から外しました`;
-      busy(e.submitter, () => move(body, msg)).catch(() => {});
+      busy(button, () => move(body, msg)).catch(() => {});
     });
   }
   el.querySelectorAll("[data-unassign]").forEach((b) => b.addEventListener("click", async () => {
-    if (!await confirmDialog(`${name(b.dataset.user)}さんを「${pj(b.dataset.unassign)}」のメンバーから外しますか？`)) return;
+    if (!await confirmDialog(`${name(b.dataset.user)}さんを「${pj(b.dataset.unassign)}」のメンバーから外しますか？\n${name(b.dataset.user)}さんにお知らせが届きます。`)) return;
     busy(b, () => move({ user_id: b.dataset.user, from_project_id: b.dataset.unassign }, "メンバーから外しました")).catch(() => {});
   }));
-  el.querySelectorAll("[data-assign]").forEach((s) => s.addEventListener("change", () => {
+  el.querySelectorAll("[data-assign]").forEach((s) => s.addEventListener("change", async () => {
     if (!s.value) return;
+    if (!await confirmDialog(`${name(s.value)}さんを「${pj(s.dataset.assign)}」に追加しますか？\n${name(s.value)}さんにお知らせが届きます。`, { ok: "追加して知らせる" })) {
+      s.value = "";
+      return;
+    }
     busy(s, () => move({ user_id: s.value, to_project_id: s.dataset.assign }, `${name(s.value)}さんを「${pj(s.dataset.assign)}」に追加しました`)).catch(() => {});
   }));
 }

@@ -1,5 +1,5 @@
 // PJ一覧と、PJの作成・編集フォーム
-import { api, esc, state, avatar, dueBadge, fmtDateTime, fmtDate, busy, formData, toast, WEEK, addDays, nextMonday, stageStepper, guardForm, markSaved, bindMemberFilter } from "../lib.js";
+import { api, esc, state, avatar, dueBadge, fmtDateTime, fmtDate, busy, formData, toast, confirmDialog, WEEK, addDays, nextMonday, stageStepper, guardForm, markSaved, bindMemberFilter } from "../lib.js";
 
 export async function renderProjects(el) {
   const { projects } = await api("/api/projects");
@@ -153,7 +153,7 @@ export async function renderProjectForm(el, id) {
   guardForm(form);
   bindMemberFilter(form);
 
-  form.addEventListener("submit", (e) => {
+  form.addEventListener("submit", async (e) => {
     e.preventDefault();
     const f = formData(form);
     const body = {
@@ -163,7 +163,18 @@ export async function renderProjectForm(el, id) {
       version: p.version,
     };
     if (!body.member_ids.length) return toast("メンバーを1人以上選んでください", "error");
-    busy(e.submitter, async () => {
+    const nameOfId = (uid) => state.users.find((u) => u.id === uid)?.name || "";
+    const added = body.member_ids.filter((uid) => !memberIds.has(uid) || !id).filter((uid) => uid !== state.me.id);
+    const meetingKeys = ["meeting_mode", "meeting_time", "meeting_interval", "meeting_duration", "meeting_place", "start_date"];
+    const meetingChanged = id && p.meeting_mode === "regular" && (meetingKeys.some((k) => String(p[k] ?? "") !== String(f[k] ?? ""))
+      || [...weekdays].sort().join(",") !== [...body.meeting_weekdays].sort().join(","));
+    const lines = [
+      ...(added.length ? [`・${added.map(nameOfId).join("、")}さん：PJのメンバーになったこと`] : []),
+      ...(meetingChanged && body.meeting_mode === "regular" ? ["・PJメンバー：定例MTGの曜日・時刻が変わったこと"] : []),
+    ];
+    const button = e.submitter;
+    if (lines.length && !await confirmDialog(`${id ? "保存" : "作成"}しますか？\n\n次のお知らせが届きます：\n${lines.join("\n")}`, { ok: id ? "保存して知らせる" : "作成して知らせる" })) return;
+    busy(button, async () => {
       const res = await api(id ? `/api/projects/${id}` : "/api/projects", { method: id ? "PUT" : "POST", body });
       markSaved(form);
       toast(id ? "保存しました" : "PJを作成しました");

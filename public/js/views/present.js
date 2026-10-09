@@ -295,10 +295,12 @@ function bindRecord(el, p, records, showDoc) {
   memo.addEventListener("blur", () => { live.focus = false; flush().finally(beat); });
 
   // フィードバックの追加：この発表の記録に結び付ける
-  el.querySelector("#fb-quick").addEventListener("submit", (e) => {
+  el.querySelector("#fb-quick").addEventListener("submit", async (e) => {
     e.preventDefault();
     const f = e.target;
-    busy(e.submitter, async () => {
+    const button = e.submitter;
+    if (!await confirmDialog("フィードバックを追加しますか？\nPJメンバーにお知らせが届きます。", { ok: "追加して知らせる" })) return;
+    busy(button, async () => {
       const r = await ensure();
       await api(`/api/projects/${p.id}/feedback`, { method: "POST", body: { content: f.content.value, source: f.source.value, presentation_id: r.id } });
       toast("フィードバックを追加しました（未対応）");

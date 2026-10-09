@@ -147,7 +147,9 @@ async function getRound({ env, user, params }) {
       project: s.project_id ? { id: s.project_id, name: s.project_name } : null,
       // 前に正式なPJにして取り消したPJ（記録が残っている。もう一度PJにするときに戻せる）
       prevProject: !s.project_id && s.prev_project_name ? { id: s.prev_project_id, name: s.prev_project_name } : null,
-      voters: voters[s.id] || [],
+      // 誰が何に投票したかは、部門長・副部門長（管理者）だけに見せる。ほかの人には人数だけ
+      voters: user.isAdmin ? voters[s.id] || [] : [],
+      voterCount: (voters[s.id] || []).length,
       firstChoices: firstChoices[s.id] || 0,
       notes: noteCount[s.id] || 0,
       comments: commentCount[s.id] || 0,
@@ -290,15 +292,19 @@ async function getResults({ env, url, user, params }) {
   const order = seeds.results.map((s) => s.id);
   const winners = rcvResults(Object.values(ballotsByUser), order, seats);
   const assignment = suggestAssignment(ballotsByUser, winners.map((w) => w.winner));
+  // 誰が何に投票したか（割り振り案・各投票者の希望順）は、部門長・副部門長（管理者）だけに返す
+  const secret = user.isAdmin ? {
+    users: Object.values(users),
+    // 各投票者の希望順（割り振りを手で調整するときの参考）
+    ballotsByUser,
+    assignment,
+  } : { users: [], ballotsByUser: {}, assignment: { byWinner: {}, unassigned: [] } };
   return {
     seats,
     ballots: Object.keys(ballotsByUser).length,
     seeds: seeds.results,
     winners,
-    users: Object.values(users),
-    // 各投票者の希望順（割り振りを手で調整するときの参考）
-    ballotsByUser,
-    assignment,
+    ...secret,
   };
 }
 

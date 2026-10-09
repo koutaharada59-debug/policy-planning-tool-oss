@@ -30,7 +30,7 @@ async function createTask({ request, env, user, params }) {
      VALUES (?, ?, ?, ?, ?, 'todo', ?, ?, ?) RETURNING id`
   ).bind(project.id, body.stage_no === undefined ? project.current_stage : stageNo(body.stage_no, project),
     task.title, task.assignee_id, task.due_date, user.id, now, now).first();
-  await notifyAssignee(env, project, task, user.id);
+  await notifyAssignee(env, project, { ...task, id: row.id }, user.id);
   return { id: row.id };
 }
 

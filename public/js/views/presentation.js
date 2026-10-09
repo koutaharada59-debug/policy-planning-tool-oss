@@ -1,5 +1,5 @@
 // フェーズ3：発表・提出タブ（発表準備／政調からのフィードバック／最終提出）
-import { api, esc, busy, toast, formData, memberOptions, fmtDate, fmtDateTime, dueBadge, gcalEventUrl, gcalLink, membersFirst, confirmDialog, guardForm, markSaved } from "../lib.js";
+import { api, esc, state, busy, toast, formData, memberOptions, fmtDate, fmtDateTime, dueBadge, gcalEventUrl, gcalLink, membersFirst, confirmDialog, guardForm, markSaved } from "../lib.js";
 
 export const FB_STATUS = { todo: "未対応", doing: "対応中", done: "反映済み" };
 const ROLE_LABELS = [
@@ -130,7 +130,7 @@ export async function renderPresentationTab(body, projectId) {
     <h2 class="section-title">③ 最終提出</h2>
     <form class="card form" id="final-form">
       <p class="small">${dates.finalBy ? `提出期限：<strong>${fmtDate(dates.finalBy)}</strong>（発表から約1カ月） ${prep.final_status === "done" ? "" : dueBadge(dates.finalBy)}` : ""}</p>
-      <p class="muted small">フィードバックをもとに改めてリサーチし、提言書に直接修正を加え、読み合わせてから改訂版を党本部へ提出します。</p>
+      <p class="muted small">フィードバックをもとに改めてリサーチし、提言書に直接修正を加え、読み合わせてから改訂版を党本部へ提出します。状態を「提出済み」にして保存すると、部門長・副部門長に完了の承認を依頼します（部門長・副部門長が保存したときは、そのままPJが完了になります）。</p>
       ${feedback.some((f) => f.status !== "done") ? `<p class="caution small">まだ反映していないフィードバックが ${feedback.filter((f) => f.status !== "done").length}件 あります。</p>` : ""}
       <div class="grid-3">
         <label>状態<select name="final_status" ${ro}>
@@ -140,15 +140,27 @@ export async function renderPresentationTab(body, projectId) {
         <label>提出した改訂版のURL<input type="url" name="final_url" value="${esc(prep.final_url)}" ${ro}></label>
       </div>
       <label>メモ<textarea name="final_memo" rows="2" maxlength="500" ${ro}>${esc(prep.final_memo)}</textarea></label>
-      ${prep.final_status === "done" ? `<p class="notice small">🎉 最終提出が済みました。PJの「工程」タブの最後の工程にある「部門長に完了の承認を依頼する」を押すと、部門長・副部門長が確認してPJを完了にします。</p>` : ""}
+      ${prep.final_status === "done" ? `<p class="notice small">🎉 最終提出が済みました。部門長・副部門長が確認して承認すると、PJが完了になります。</p>` : ""}
       ${canEdit ? `<div class="form-actions"><button class="primary">最終提出を保存</button></div>` : ""}
     </form>`;
 
   // 発表準備・最終提出：それぞれのフォームの項目だけを送る
-  const savePrep = (form, extra = {}) => (e) => {
+  const savePrep = (form, extra = {}) => async (e) => {
     e.preventDefault();
-    busy(e.submitter, () => api(`/api/projects/${projectId}/presentation`, { method: "PUT", body: { ...formData(form), ...extra, version: prep.version } }))
-      .then(() => { markSaved(form); toast("保存しました"); reload(); }).catch(() => {});
+    const button = e.submitter;
+    // 最終提出を「提出済み」にするときは、確認してから（部門長・副部門長に完了の承認を依頼する／部門長なら完了になる）
+    if (form.id === "final-form" && form.final_status.value === "done" && prep.final_status !== "done"
+      && !await confirmDialog(state.me.isAdmin
+        ? "最終提出を「提出済み」として保存しますか？\nこのPJは完了になり、PJメンバーにお知らせが届きます。"
+        : "最終提出を「提出済み」として保存しますか？\n部門長・副部門長に、PJの完了の承認を依頼するお知らせが届きます。", { ok: "提出済みとして保存する" })) return;
+    busy(button, () => api(`/api/projects/${projectId}/presentation`, { method: "PUT", body: { ...formData(form), ...extra, version: prep.version } }))
+      .then((res) => {
+        markSaved(form);
+        toast(res.completion === "done" ? "最終提出を保存し、PJを完了にしました"
+          : res.completion === "requested" ? "最終提出を保存し、部門長に完了の承認を依頼しました" : "保存しました");
+        // 完了・承認待ちの表示（PJ画面の上）も出し直す
+        if (res.completion) location.reload(); else reload();
+      }).catch(() => {});
   };
   const prepForm = body.querySelector("#prep-form");
   prepForm.addEventListener("submit", savePrep(prepForm));
@@ -172,9 +184,11 @@ export async function renderPresentationTab(body, projectId) {
     busy(b, () => api(`/api/rehearsals/${b.dataset.rhDel}`, { method: "DELETE", body: {} })).then(reload).catch(() => {});
   }));
 
-  body.querySelector(".add-fb form")?.addEventListener("submit", (e) => {
+  body.querySelector(".add-fb form")?.addEventListener("submit", async (e) => {
     e.preventDefault();
-    busy(e.submitter, () => api(`/api/projects/${projectId}/feedback`, { method: "POST", body: formData(e.target) }))
+    const button = e.submitter;
+    if (!await confirmDialog("フィードバックを追加しますか？\nPJメンバーにお知らせが届きます。", { ok: "追加して知らせる" })) return;
+    busy(button, () => api(`/api/projects/${projectId}/feedback`, { method: "POST", body: formData(e.target) }))
       .then(() => { toast("フィードバックを追加しました"); reload(); }).catch(() => {});
   });
   body.querySelectorAll("[data-fb-status]").forEach((s) => s.addEventListener("change", () => {

@@ -134,9 +134,16 @@ function renderStages(body, data, ro, reload) {
 
   bindMeetingPanel(body, data, reload);
   bindSkipButtons(body, reload);
-  body.querySelectorAll("[data-check]").forEach((cb) => cb.addEventListener("change", () =>
+  body.querySelectorAll("[data-check]").forEach((cb) => cb.addEventListener("change", async () => {
+    const item = checklist.find((c) => c.id === Number(cb.dataset.check));
+    if (cb.checked && item?.notify_leaders && !item.done_at
+      && !await confirmDialog(`「${item.label}」にチェックしますか？\n部門長・副部門長にお知らせが届きます。`, { ok: "チェックして知らせる" })) {
+      cb.checked = false;
+      return;
+    }
     busy(cb, () => api(`/api/checklist/${cb.dataset.check}`, { method: "PATCH", body: { done: cb.checked } }))
-      .then(reload).catch(() => (cb.checked = !cb.checked))));
+      .then(reload).catch(() => (cb.checked = !cb.checked));
+  }));
   // チェックした項目に結び付けるMTGを選び直す
   body.querySelectorAll("[data-pick]").forEach((b) => b.addEventListener("click", () => {
     const c = checklist.find((x) => x.id === Number(b.dataset.pick));
@@ -169,7 +176,8 @@ function renderStages(body, data, ro, reload) {
   body.querySelectorAll("[data-stage]").forEach((b) => b.addEventListener("click", async () => {
     const to = Number(b.dataset.stage);
     const left = checklist.filter((c) => c.stage_no < to && c.stage_no >= p.current_stage && !c.done_at && !c.skipped_at).length;
-    if (left && !await confirmDialog(`チェックが済んでいない項目が${left}件あります。このまま進めますか？`)) return;
+    const toName = type.stages.find((s) => s.no === to)?.name || "";
+    if (!await confirmDialog(`工程を「${toName}」にしますか？${left ? `\nチェックが済んでいない項目が${left}件あります。` : ""}\nPJメンバーにお知らせが届きます。`, { ok: "工程を変える" })) return;
     busy(b, () => api(`/api/projects/${p.id}/stage`, { method: "POST", body: { stage_no: to } }))
       .then(() => { toast("工程を更新しました"); reload(); }).catch(() => {});
   }));
@@ -215,9 +223,15 @@ function renderTasks(body, data, ro, reload) {
 
     bindDoneTasksToggle(body, draw);
     body.querySelector(".add-box")?.addEventListener("toggle", (e) => { taskAddOpen = e.target.open; });
-    body.querySelector("#task-form")?.addEventListener("submit", (e) => {
+    // 自分以外を担当にするときは、その人にお知らせが届くので確認する
+    const confirmAssignee = (assigneeId, title) => (!assigneeId || assigneeId === state.me.id ? Promise.resolve(true)
+      : confirmDialog(`「${title}」の担当を${data.members.find((m) => m.id === assigneeId)?.name || state.users.find((u) => u.id === assigneeId)?.name || ""}さんにしますか？\n担当の人にお知らせが届きます。`, { ok: "担当にして知らせる" }));
+    body.querySelector("#task-form")?.addEventListener("submit", async (e) => {
       e.preventDefault();
-      busy(e.submitter, () => api(`/api/projects/${p.id}/tasks`, { method: "POST", body: formData(e.target) }))
+      const f = formData(e.target);
+      const button = e.submitter;
+      if (!await confirmAssignee(f.assignee_id, f.title)) return;
+      busy(button, () => api(`/api/projects/${p.id}/tasks`, { method: "POST", body: f }))
         .then(reload).catch(() => {});
     });
     body.querySelectorAll("[data-status]").forEach((s) => s.addEventListener("change", () => {
@@ -241,9 +255,12 @@ function renderTasks(body, data, ro, reload) {
           <button class="primary small">保存</button><button type="button" class="small" data-cancel>やめる</button>
         </form>`;
       li.querySelector("[data-cancel]").addEventListener("click", draw);
-      li.querySelector("form").addEventListener("submit", (e) => {
+      li.querySelector("form").addEventListener("submit", async (e) => {
         e.preventDefault();
-        busy(e.submitter, () => api(`/api/tasks/${t.id}`, { method: "PATCH", body: { ...formData(e.target), version: t.version } }))
+        const f = formData(e.target);
+        const button = e.submitter;
+        if (f.assignee_id !== (t.assignee_id || "") && !await confirmAssignee(f.assignee_id, f.title)) return;
+        busy(button, () => api(`/api/tasks/${t.id}`, { method: "PATCH", body: { ...f, version: t.version } }))
           .then(reload).catch(() => {});
       });
     }));
@@ -303,17 +320,22 @@ function meetingPanel(data, ro) {
 
 function bindMeetingPanel(body, data, reload) {
   const p = data.project;
-  body.querySelector("#meeting-form")?.addEventListener("submit", (e) => {
+  body.querySelector("#meeting-form")?.addEventListener("submit", async (e) => {
     e.preventDefault();
-    busy(e.submitter, () => api(`/api/projects/${p.id}/meetings`, { method: "POST", body: formData(e.target) }))
+    const f = formData(e.target);
+    const button = e.submitter;
+    if (!await confirmDialog(`${fmtDateTime(f.starts_at)} のMTGを追加しますか？\nPJメンバーにお知らせが届きます。`, { ok: "追加して知らせる" })) return;
+    busy(button, () => api(`/api/projects/${p.id}/meetings`, { method: "POST", body: f }))
       .then(() => { toast("MTGを追加しました"); reload(); }).catch(() => {});
   });
   body.querySelectorAll("[data-cancel]").forEach((b) => b.addEventListener("click", async () => {
-    if (!await confirmDialog(b.textContent.includes("中止") ? "この回を中止にしますか？" : "このMTGを削除しますか？")) return;
+    if (!await confirmDialog(`${b.textContent.includes("中止") ? "この回を中止にしますか？" : "このMTGを削除しますか？"}\nPJメンバーにお知らせが届きます。`)) return;
     busy(b, () => api(`/api/meetings/${b.dataset.cancel}`, { method: "DELETE", body: {} })).then(reload).catch(() => {});
   }));
-  body.querySelectorAll("[data-restore]").forEach((b) => b.addEventListener("click", () =>
-    busy(b, () => api(`/api/meetings/${b.dataset.restore}`, { method: "PATCH", body: { cancelled: false } })).then(reload).catch(() => {})));
+  body.querySelectorAll("[data-restore]").forEach((b) => b.addEventListener("click", async () => {
+    if (!await confirmDialog("この回の中止を取り消しますか？\nPJメンバーにお知らせが届きます。", { ok: "取り消して知らせる" })) return;
+    busy(b, () => api(`/api/meetings/${b.dataset.restore}`, { method: "PATCH", body: { cancelled: false } })).then(reload).catch(() => {});
+  }));
 }
 
 // ---------- PJの完了：最終提出 → 部門長に承認を依頼 → 部門長が承認すると完了 ----------
@@ -341,7 +363,7 @@ function bindCompletion(el, p, reload) {
     const body = { action };
     if (action === "request" && !await confirmDialog(`「${p.name}」の最終提出が済んだことを、部門長・副部門長に知らせて完了の承認を依頼しますか？`, { ok: "承認を依頼する" })) return;
     if (action === "approve" && !await confirmDialog(`「${p.name}」を完了にしますか？\nPJメンバーに知らせます。`, { ok: "承認して完了にする" })) return;
-    if (action === "reopen" && !await confirmDialog(`「${p.name}」を進行中に戻しますか？`, { ok: "進行中に戻す" })) return;
+    if (action === "reopen" && !await confirmDialog(`「${p.name}」を進行中に戻しますか？\nPJメンバーにお知らせが届きます。`, { ok: "進行中に戻す" })) return;
     if (action === "reject") {
       // 理由は、その場に出す入力欄で書いてもらう
       const box = b.closest(".completion");
@@ -349,8 +371,9 @@ function bindCompletion(el, p, reload) {
         box.insertAdjacentHTML("beforeend", `<form class="inline-form reject-form">
           <input name="reason" maxlength="300" placeholder="差し戻す理由（PJメンバーに届きます）" required>
           <button class="small danger">差し戻す</button></form>`);
-        box.querySelector(".reject-form").addEventListener("submit", (e) => {
+        box.querySelector(".reject-form").addEventListener("submit", async (e) => {
           e.preventDefault();
+          if (!await confirmDialog(`PJの完了を差し戻しますか？\nPJメンバーに、理由とあわせてお知らせが届きます。`, { ok: "差し戻して知らせる" })) return;
           busy(e.submitter, () => api(`/api/projects/${p.id}/completion`, { method: "POST", body: { action: "reject", reason: e.target.reason.value } }))
             .then(() => { toast("差し戻しました"); reload(); }).catch(() => {});
         });

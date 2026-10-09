@@ -125,14 +125,22 @@ export async function renderMeeting(el, id) {
       .catch(() => (cb.checked = !cb.checked))));
 
   // 工程のチェック：ここで入れると、このMTGに結び付く（PJの工程画面から議事録を開ける）
-  el.querySelectorAll("[data-stage-check]").forEach((cb) => cb.addEventListener("change", () =>
+  el.querySelectorAll("[data-stage-check]").forEach((cb) => cb.addEventListener("change", async () => {
+    const item = data.checklist.find((c) => c.id === Number(cb.dataset.stageCheck));
+    if (cb.checked && item?.notify_leaders && !item.done_at
+      && !await confirmDialog(`「${item.label}」にチェックしますか？\n部門長・副部門長にお知らせが届きます。`, { ok: "チェックして知らせる" })) {
+      cb.checked = false;
+      return;
+    }
     busy(cb, () => api(`/api/checklist/${cb.dataset.stageCheck}`, {
       method: "PATCH", body: cb.checked ? { done: true, meeting_id: m.id } : { done: false },
     })).then(() => {
       const note = cb.closest("li").querySelector(".linked");
       if (note) note.textContent = cb.checked ? "このMTGで完了" : "";
+      if (item) item.done_at = cb.checked ? Date.now() : null;
       toast(cb.checked ? "このMTGに結び付けて完了にしました" : "チェックを外しました");
-    }).catch(() => (cb.checked = !cb.checked))));
+    }).catch(() => (cb.checked = !cb.checked));
+  }));
 
   // Notion用：まとめてコピー／項目ごとにコピー（編集中の内容を使う）
   const sections = () => minutesSections({ previous, form, todos, memberUsers, el });
@@ -277,13 +285,28 @@ export async function renderMeeting(el, id) {
     return api(`/api/meetings/${m.id}/minutes`, {
       method: "PUT",
       // 毎回決めるPJ：次回の日程（任意）。入っていれば一緒に登録する。「議事録を見る」から保存するときは触れない
-      body: { next_meeting: !viewOnly && form.next_starts_at?.value ? { starts_at: form.next_starts_at.value, place: form.next_place.value } : undefined },
+      // notify_todos：まだ知らせていない「次回までにやること」の担当に、ここでまとめて知らせる
+      body: { next_meeting: !viewOnly && form.next_starts_at?.value ? { starts_at: form.next_starts_at.value, place: form.next_place.value } : undefined, notify_todos: !viewOnly },
     });
   };
+  // 保存すると届くお知らせ（確認画面に出す）
+  const nameOfUser = (uid) => memberUsers.find((u) => u.id === uid)?.name || state.users.find((u) => u.id === uid)?.name || "";
+  const pendingNotices = () => {
+    if (viewOnly) return [];
+    const lines = todos.filter((t) => t.title.trim() && t.assignee_id && t.assignee_id !== t.notified_assignee)
+      .map((t) => `・${nameOfUser(t.assignee_id)}さん：「${t.title.trim()}」の担当になったこと`);
+    const next = form.next_starts_at?.value;
+    if (next && next !== (data.nextMeeting?.starts_at || "")) lines.push(`・PJメンバー：次回MTGの日程（${fmtDateTime(next)}）`);
+    return lines;
+  };
+  const noticeText = (lines) => (lines.length ? `\n\n次のお知らせが届きます：\n${lines.join("\n")}` : "");
 
-  form.addEventListener("submit", (e) => {
+  form.addEventListener("submit", async (e) => {
     e.preventDefault();
-    busy(e.submitter, async () => {
+    const button = e.submitter;
+    const lines = pendingNotices();
+    if (lines.length && !await confirmDialog(`議事録を保存しますか？${noticeText(lines)}`, { ok: "保存して知らせる" })) return;
+    busy(button, async () => {
       const res = await save();
       toast(viewOnly ? "話すことを保存しました" : res.nextMeeting ? `議事録と次回の日程（${fmtDateTime(res.nextMeeting)}）を保存しました` : "議事録を保存しました");
       renderMeeting(el, id);
@@ -293,7 +316,7 @@ export async function renderMeeting(el, id) {
   // MTGを終える：議事録を保存して、タイマーを止め、PJの画面へ戻る（あとから「前回の続き（再開）」で開き直せる）
   el.querySelector("#end-meeting")?.addEventListener("click", async (e) => {
     const b = e.currentTarget;
-    if (!await confirmDialog("MTGを終えますか？\n議事録を保存して、タイマーを止めます。", { ok: "MTGを終える" })) return;
+    if (!await confirmDialog(`MTGを終えますか？\n議事録を保存して、タイマーを止めます。${noticeText(pendingNotices())}`, { ok: "MTGを終える" })) return;
     busy(b, async () => {
       const res = await save();
       clearTimer(`meeting-${m.id}`);

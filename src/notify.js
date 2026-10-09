@@ -27,6 +27,8 @@ export async function notifyProject(env, project, body, link, actorId, { dm = fa
 // タスクの担当になった人に知らせる（自分で自分を担当にしたときは出さない）。BotがあればDMでも送る
 export async function notifyAssignee(env, project, task, actorId) {
   if (!task.assignee_id) return;
+  // 誰に知らせたかを覚えておく（議事録では、まだ知らせていない担当だけにまとめて送る）
+  if (task.id) await env.DB.prepare("UPDATE tasks SET notified_assignee = ? WHERE id = ?").bind(task.assignee_id, task.id).run();
   await notify(env, [task.assignee_id],
     `【${project.name}】タスク「${task.title}」の担当になりました${task.due_date ? `（期限 ${task.due_date.slice(5).replace("-", "/")}）` : ""}`,
     `#/projects/${project.id}?tab=tasks`, { except: actorId });
