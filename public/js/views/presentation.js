@@ -140,7 +140,9 @@ export async function renderPresentationTab(body, projectId) {
         <label>提出した改訂版のURL<input type="url" name="final_url" value="${esc(prep.final_url)}" ${ro}></label>
       </div>
       <label>メモ<textarea name="final_memo" rows="2" maxlength="500" ${ro}>${esc(prep.final_memo)}</textarea></label>
-      ${prep.final_status === "done" ? `<p class="notice small">🎉 最終提出が済みました。部門長・副部門長が確認して承認すると、PJが完了になります。</p>` : ""}
+      ${prep.final_status !== "done" ? "" : data.project.status === "done" ? `<p class="notice small">🎉 最終提出が済み、PJは完了しています。</p>`
+        : data.project.completion_requested_at ? `<p class="notice small">⏳ 最終提出が済み、部門長・副部門長の承認待ちです。</p>`
+        : `<p class="caution small">まだ部門長・副部門長に完了の承認を依頼していません。「最終提出を保存」を押すと依頼します。</p>`}
       ${canEdit ? `<div class="form-actions"><button class="primary">最終提出を保存</button></div>` : ""}
     </form>`;
 
@@ -149,7 +151,8 @@ export async function renderPresentationTab(body, projectId) {
     e.preventDefault();
     const button = e.submitter;
     // 最終提出を「提出済み」にするときは、確認してから（部門長・副部門長に完了の承認を依頼する／部門長なら完了になる）
-    if (form.id === "final-form" && form.final_status.value === "done" && prep.final_status !== "done"
+    const pj = data.project;
+    if (form.id === "final-form" && form.final_status.value === "done" && pj.status === "active" && (state.me.isAdmin || !pj.completion_requested_at)
       && !await confirmDialog(state.me.isAdmin
         ? "最終提出を「提出済み」として保存しますか？\nこのPJは完了になり、PJメンバーにお知らせが届きます。"
         : "最終提出を「提出済み」として保存しますか？\n部門長・副部門長に、PJの完了の承認を依頼するお知らせが届きます。", { ok: "提出済みとして保存する" })) return;

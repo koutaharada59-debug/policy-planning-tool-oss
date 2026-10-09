@@ -48,7 +48,8 @@ async function getPresentation({ env, user, params }) {
   const stageDue = (no) => stages.results.find((s) => s.stage_no === no)?.due_date || null;
   const presentationOn = stageDue(stageNo(project.type, "presentation"));
   return {
-    project: { id: project.id, name: project.name, presentation_date: project.presentation_date, doc_url: project.doc_url },
+    project: { id: project.id, name: project.name, presentation_date: project.presentation_date, doc_url: project.doc_url,
+      status: project.status, completion_requested_at: project.completion_requested_at },
     canEdit: await canEdit(env, user, project.id),
     prep: prep || EMPTY_PREP,
     // 目安の日付：発表日（未定なら工程の予定）、リハーサル開始（2週間前）、資料送付（前日）、最終提出（工程5の期限）
@@ -116,7 +117,8 @@ async function savePresentation({ request, env, user, params }) {
   // 最終提出を「提出済み」にして保存したら、そのままPJの完了へ進める：
   // メンバーなら部門長・副部門長に完了の承認を依頼する。部門長・副部門長が保存したなら、そのまま完了にする
   let completion = null;
-  if (next.final_status === "done" && cur.final_status !== "done" && project.status === "active") {
+  // （前から「提出済み」だったPJも、まだ依頼していなければ、保存したときに依頼する）
+  if (next.final_status === "done" && project.status === "active" && (user.isAdmin || !project.completion_requested_at)) {
     if (user.isAdmin) {
       await env.DB.prepare(
         `UPDATE projects SET status = 'done', completed_at = ?1, completed_by = ?2, completion_requested_at = COALESCE(completion_requested_at, ?1),
