@@ -505,3 +505,12 @@ export function bindMemberFilter(root) {
     box.before(input);
   });
 }
+
+// 画面を描き直すときに、開いていた欄（data-key の付いた details）とスクロールの位置を保つ
+export async function keepView(el, render) {
+  const y = window.scrollY;
+  const open = new Map([...el.querySelectorAll("details[data-key]")].map((d) => [d.dataset.key, d.open]));
+  await render();
+  el.querySelectorAll("details[data-key]").forEach((d) => { if (open.has(d.dataset.key)) d.open = open.get(d.dataset.key); });
+  window.scrollTo(0, y);
+}

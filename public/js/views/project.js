@@ -1,7 +1,7 @@
 // PJ詳細：工程ナビ（チェックリスト・期限）／タスク／MTG
 import {
   api, esc, state, avatar, dueBadge, fmtDate, fmtDateTime, busy, toast, formData, memberOptions, TASK_STATUS,
-  gcalEventUrl, gcalAllDayUrl, gcalLink, gcalChoice, weeklyRrule, hashQuery, WEEK, membersFirst, jstDateTime, stageStepper, bindFold, doneTasksToggle, bindDoneTasksToggle, confirmDialog, skipButton, bindSkipButtons,
+  gcalEventUrl, gcalAllDayUrl, gcalLink, gcalChoice, weeklyRrule, hashQuery, WEEK, membersFirst, jstDateTime, stageStepper, bindFold, keepView, doneTasksToggle, bindDoneTasksToggle, confirmDialog, skipButton, bindSkipButtons,
 } from "../lib.js";
 import { renderTreeTab, renderMeasuresTab, renderSourcesView } from "./research.js";
 import { renderPresentationTab } from "./presentation.js";
@@ -42,7 +42,8 @@ export async function renderProject(el, id) {
 
   bindFold(el);
   const body = el.querySelector("#tab-body");
-  const reload = () => renderProject(el, id);
+  // チェックなどで描き直しても、開いていた欄とスクロールの位置はそのまま（上に戻らないように）
+  const reload = () => keepView(el, () => renderProject(el, id));
   if (tab === "present") await renderPresentationTab(body, p.id);
   else if (tab === "tree") await renderTreeTab(body, p.id, reload);
   else if (tab === "measures") await renderMeasuresTab(body, p.id, reload);
@@ -80,7 +81,7 @@ function renderStages(body, data, ro, reload) {
     const isLast = s.no === type.stages.length - 1;
     const ms = meetingsOfStage(s.no);
     return `
-      <details class="stage card ${isCurrent ? "is-current" : ""}" ${isCurrent ? "open" : ""}>
+      <details class="stage card ${isCurrent ? "is-current" : ""}" data-key="stage-${s.no}" ${isCurrent ? "open" : ""}>
         <summary>
           <span class="stage-no">${s.no}</span>
           <span class="stage-title"><strong>${esc(s.name)}</strong><small>${esc(s.period)}・${fmtDate(row.start_date)}〜${fmtDate(row.due_date)}</small></span>
@@ -126,7 +127,7 @@ function renderStages(body, data, ro, reload) {
   const doneStages = type.stages.filter((s) => s.no < p.current_stage);
   body.innerHTML = meetingPanel(data, ro)
     + type.stages.filter((s) => s.no >= p.current_stage).map(stageCard).join("")
-    + (doneStages.length ? `<details class="done-stages"><summary>✓ 済んだ工程を表示（${doneStages.length}）</summary>${doneStages.map(stageCard).join("")}</details>` : "");
+    + (doneStages.length ? `<details class="done-stages" data-key="done-stages"><summary>✓ 済んだ工程を表示（${doneStages.length}）</summary>${doneStages.map(stageCard).join("")}</details>` : "");
 
   bindMeetingPanel(body, data, reload);
   bindSkipButtons(body, reload);
@@ -272,7 +273,7 @@ function meetingPanel(data, ro) {
   const rest = upcoming.slice(3);
   const nextOne = upcoming.find((m) => !m.cancelled);
   return `
-    <details class="card meeting-panel">
+    <details class="card meeting-panel" data-key="meetings">
       <summary class="section-head"><h2>🗓 ミーティング</h2>
         <span class="small">${nextOne ? `次回 <strong>${fmtDateTime(nextOne.starts_at)}</strong>`
           : p.meeting_mode === "adhoc" ? `<strong class="warn">次回未定</strong>` : `<span class="muted">予定なし</span>`}
