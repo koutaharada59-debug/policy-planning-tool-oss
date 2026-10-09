@@ -26,6 +26,7 @@ export async function renderProject(el, id) {
       </div>
       <div class="pj-header-actions">
         ${p.memo_doc_url ? `<a class="button small" href="${esc(p.memo_doc_url)}" target="_blank" rel="noopener">🔎 リサーチドキュメント</a>` : ""}
+        ${p.share_doc_url ? `<a class="button small" href="${esc(p.share_doc_url)}" target="_blank" rel="noopener">📊 課題共有</a>` : ""}
         ${p.doc_url ? `<a class="button small" href="${esc(p.doc_url)}" target="_blank" rel="noopener">📄 政調用の本文</a>` : ""}
         ${p.script_doc_url ? `<a class="button small" href="${esc(p.script_doc_url)}" target="_blank" rel="noopener">🎤 台本</a>` : ""}
         ${canEdit ? `<a class="button small" href="#/projects/${p.id}/edit">編集</a>` : ""}

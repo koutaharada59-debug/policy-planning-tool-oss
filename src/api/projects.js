@@ -57,6 +57,7 @@ function projectFields(body) {
     doc_url: optUrl(body.doc_url),
     memo_doc_url: optUrl(body.memo_doc_url),
     script_doc_url: optUrl(body.script_doc_url),
+    share_doc_url: optUrl(body.share_doc_url),
     start_date: reqDate(body.start_date, "開始日"),
     presentation_date: optDate(body.presentation_date, "最終発表日"),
     meeting_mode: meetingMode,
@@ -91,10 +92,10 @@ export async function insertProject(env, user, body, { includeCreator = true } =
   await assertUsers(env, members);
   const now = Date.now();
   const row = await env.DB.prepare(
-    `INSERT INTO projects (name, type, description, doc_url, memo_doc_url, script_doc_url, start_date, presentation_date, current_stage, meeting_mode,
+    `INSERT INTO projects (name, type, description, doc_url, memo_doc_url, script_doc_url, share_doc_url, start_date, presentation_date, current_stage, meeting_mode,
        meeting_weekdays, meeting_time, meeting_interval, meeting_duration, meeting_place, created_by, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING *`
-  ).bind(f.name, type, f.description, f.doc_url, f.memo_doc_url, f.script_doc_url, f.start_date, f.presentation_date, f.meeting_mode, f.meeting_weekdays,
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING *`
+  ).bind(f.name, type, f.description, f.doc_url, f.memo_doc_url, f.script_doc_url, f.share_doc_url, f.start_date, f.presentation_date, f.meeting_mode, f.meeting_weekdays,
     f.meeting_time, f.meeting_interval, f.meeting_duration, f.meeting_place, user.id, now, now).first();
 
   // PJを作った時点で「PJ決め」は済んでいるので、工程0のチェックリストは完了扱いで作る
@@ -172,10 +173,10 @@ async function updateProject({ request, env, user, params }) {
   const added = members.filter((uid) => !before.some((b) => b.user_id === uid));
 
   const res = await env.DB.prepare(
-    `UPDATE projects SET name=?, description=?, doc_url=?, memo_doc_url=?, script_doc_url=?, start_date=?, presentation_date=?, status=?, meeting_mode=?,
+    `UPDATE projects SET name=?, description=?, doc_url=?, memo_doc_url=?, script_doc_url=?, share_doc_url=?, start_date=?, presentation_date=?, status=?, meeting_mode=?,
        meeting_weekdays=?, meeting_time=?, meeting_interval=?, meeting_duration=?, meeting_place=?, updated_at=?, version = version + 1
      WHERE id = ? AND version = ?`
-  ).bind(f.name, f.description, f.doc_url, f.memo_doc_url, f.script_doc_url, f.start_date, f.presentation_date, status, f.meeting_mode, f.meeting_weekdays,
+  ).bind(f.name, f.description, f.doc_url, f.memo_doc_url, f.script_doc_url, f.share_doc_url, f.start_date, f.presentation_date, status, f.meeting_mode, f.meeting_weekdays,
     f.meeting_time, f.meeting_interval, f.meeting_duration, f.meeting_place, Date.now(), project.id,
     int(body.version, { label: "版" })).run();
   assertUpdated(res, "このPJ");

@@ -37,7 +37,7 @@ export async function renderProjectForm(el, id) {
   const data = id ? await api(`/api/projects/${id}`) : null;
   if (data && !data.canEdit) throw new Error("このPJを編集できるのは、PJメンバーと管理者です");
   const p = data?.project || {
-    name: "", description: "", doc_url: "", memo_doc_url: "", script_doc_url: "", type: "teigen", start_date: nextMonday(), presentation_date: "",
+    name: "", description: "", doc_url: "", memo_doc_url: "", script_doc_url: "", share_doc_url: "", type: "teigen", start_date: nextMonday(), presentation_date: "",
     meeting_mode: "regular", meeting_weekdays: "", meeting_time: "21:00", meeting_interval: 1, meeting_duration: 60,
     meeting_place: "", status: "active",
   };
@@ -64,6 +64,9 @@ export async function renderProjectForm(el, id) {
         <legend>Googleドキュメント（任意・あとから登録できます）</legend>
         <label>🔎 リサーチドキュメント <small class="muted">調べたことをメンバーがタブを分けて書き残す。議事録の画面に表示されます</small>
           <input name="memo_doc_url" type="url" value="${esc(p.memo_doc_url)}" placeholder="https://docs.google.com/document/...">
+        </label>
+        <label>📊 課題共有の資料 <small class="muted">政調MTGの課題共有で使うもの。「発表する」で課題共有を選ぶと表示されます</small>
+          <input name="share_doc_url" type="url" value="${esc(p.share_doc_url)}" placeholder="https://docs.google.com/...">
         </label>
         <label>📄 政調用の本文 <small class="muted">政策提言として形を整えたもの</small>
           <input name="doc_url" type="url" value="${esc(p.doc_url)}" placeholder="https://docs.google.com/document/...">

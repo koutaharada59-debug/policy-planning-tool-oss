@@ -865,3 +865,11 @@ label.chip-check[hidden]{display:none}
   .pt-actions{width:100%;margin-left:0}
   .pt-actions .pt-main{flex:1}
 }
+
+.pt-kinds{display:inline-flex;gap:6px}
+.pt-sub{width:auto;min-height:34px;padding:4px 8px;font-size:13px;font-weight:700}
+.pt-sub[hidden]{display:none}
+.past-records summary{cursor:pointer}
+.past-list{margin-top:10px}
+.past-list .list-item{flex-wrap:wrap}
+.past-memo{width:100%}

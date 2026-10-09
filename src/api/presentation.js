@@ -13,6 +13,10 @@ export const routes = [
   ["POST", "/api/projects/:id/feedback", createFeedback],
   ["PATCH", "/api/feedback/:id", updateFeedback],
   ["DELETE", "/api/feedback/:id", deleteFeedback],
+  ["GET", "/api/projects/:id/presentations", listRecords],
+  ["POST", "/api/projects/:id/presentations", createRecord],
+  ["POST", "/api/projects/:id/presentations/live", liveRecord],
+  ["PATCH", "/api/presentations/:id", updateRecord],
 ];
 
 const ROLES = ["role_mc", "role_slides", "role_minutes", "role_screenshots"];
@@ -175,12 +179,19 @@ async function feedbackFields(env, body, projectId) {
 // フィードバックの追加は誰でもできる（「発表する」画面から）。編集・削除・状態の変更はPJメンバーと管理者
 async function createFeedback({ request, env, user, params }) {
   const project = await loadProject(env, params.id);
-  const f = await feedbackFields(env, await readJson(request), project.id);
+  const body = await readJson(request);
+  const f = await feedbackFields(env, body, project.id);
   const now = Date.now();
+  let presentationId = null;
+  if (body.presentation_id) {
+    const rec = await env.DB.prepare("SELECT id FROM presentation_records WHERE id = ? AND project_id = ?")
+      .bind(int(body.presentation_id, { label: "発表の記録" }), project.id).first();
+    presentationId = rec?.id || null;
+  }
   const row = await env.DB.prepare(
-    `INSERT INTO feedback_items (project_id, content, source, status, owner_id, response, measure_id, created_by, updated_by, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`
-  ).bind(project.id, f.content, f.source, f.status, f.owner_id, f.response, f.measure_id, user.id, user.id, now, now).first();
+    `INSERT INTO feedback_items (project_id, content, source, status, owner_id, response, measure_id, presentation_id, created_by, updated_by, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`
+  ).bind(project.id, f.content, f.source, f.status, f.owner_id, f.response, f.measure_id, presentationId, user.id, user.id, now, now).first();
   await notifyProject(env, project, `フィードバックが追加されました：${f.content.slice(0, 40)}`, `#/projects/${project.id}?tab=present`, user.id);
   return { id: row.id };
 }
@@ -211,3 +222,116 @@ async function deleteFeedback({ env, user, params }) {
   await env.DB.prepare("DELETE FROM feedback_items WHERE id = ?").bind(f.id).run();
   return { ok: true };
 }
+
+// ---------- 発表の記録（「発表する」画面。ログインしていれば誰でも書ける） ----------
+// 発表ごとに1件。時間は開始・終了の時刻から出す。メモは議事録と同じく自動保存で、書けるのは1人ずつ（「〇〇さんが入力中」）
+const RECORD_KINDS = ["seicho", "other"];
+const RECORD_SUBS = ["share", "policy"];
+const CURRENT_MS = 4 * 3600 * 1000; // この時間内に作った記録を「いまの発表」として開く
+const LIVE_TTL = 12000;
+
+function recordFields(body, cur = {}) {
+  const f = {};
+  if ("kind" in body) f.kind = oneOf(body.kind, RECORD_KINDS, "発表の種類");
+  if ("sub" in body) f.sub = oneOf(body.sub, RECORD_SUBS, "政調MTGの種類");
+  if ("present_target" in body) f.present_target = int(body.present_target, { min: 1, max: 180, label: "発表の目標時間" });
+  if ("fb_target" in body) f.fb_target = int(body.fb_target, { min: 1, max: 180, label: "フィードバックの目標時間" });
+  return { ...cur, ...f };
+}
+
+async function recordsWithFeedback(env, projectId, where = "", binds = []) {
+  const { results: records } = await env.DB.prepare(
+    `SELECT r.*, u.name AS created_by_name FROM presentation_records r LEFT JOIN users u ON u.id = r.created_by
+     WHERE r.project_id = ? ${where} ORDER BY r.created_at DESC LIMIT 20`
+  ).bind(projectId, ...binds).all();
+  if (!records.length) return [];
+  const { results: fb } = await env.DB.prepare(
+    `SELECT id, presentation_id, content, source, status FROM feedback_items
+     WHERE presentation_id IN (${records.map(() => "?").join(",")}) ORDER BY created_at`
+  ).bind(...records.map((r) => r.id)).all();
+  return records.map((r) => ({ ...r, feedback: fb.filter((f) => f.presentation_id === r.id) }));
+}
+
+async function listRecords({ env, params }) {
+  const project = await loadProject(env, params.id);
+  return { records: await recordsWithFeedback(env, project.id), now: Date.now() };
+}
+
+async function createRecord({ request, env, user, params }) {
+  const project = await loadProject(env, params.id);
+  const body = await readJson(request);
+  const f = recordFields(body, { kind: "seicho", sub: "share", present_target: 10, fb_target: 10 });
+  const now = Date.now();
+  const row = await env.DB.prepare(
+    `INSERT INTO presentation_records (project_id, kind, sub, present_target, fb_target, present_start, created_by, created_at, updated_by, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`
+  ).bind(project.id, f.kind, f.sub, f.present_target, f.fb_target, body.start ? now : null, user.id, now, user.id, now).first();
+  return { id: row.id };
+}
+
+async function loadRecord(env, id) {
+  const r = await env.DB.prepare("SELECT * FROM presentation_records WHERE id = ?").bind(id).first();
+  if (!r) throw new HttpError(404, "発表の記録が見つかりません");
+  return r;
+}
+
+// 欄を書いている人がほかにいるか（いれば、その人の名前）
+async function otherEditor(env, scope, field, user) {
+  const row = await env.DB.prepare(
+    `SELECT u.name FROM live_presence p LEFT JOIN users u ON u.id = p.user_id
+     WHERE p.scope = ? AND p.field = ? AND p.user_id != ? AND p.seen_at >= ?`
+  ).bind(scope, field, user.id, Date.now() - LIVE_TTL).first();
+  return row ? row.name || "ほかの人" : null;
+}
+
+// 送られた項目だけ変える。action：start（発表スタート）／end_present（発表終わり → フィードバックへ）／end_fb（フィードバック終わり）／reset（時間を消す）
+async function updateRecord({ request, env, user, params }) {
+  const cur = await loadRecord(env, params.id);
+  const body = await readJson(request);
+  const next = recordFields(body, cur);
+  const now = Date.now();
+  if (body.action === "start" && !next.present_start) next.present_start = now;
+  if (body.action === "end_present" && next.present_start && !next.present_end) { next.present_end = now; next.fb_start = now; }
+  if (body.action === "end_fb" && next.fb_start && !next.fb_end) next.fb_end = now;
+  if (body.action === "reset") Object.assign(next, { present_start: null, present_end: null, fb_start: null, fb_end: null });
+  if ("memo" in body) {
+    const who = await otherEditor(env, `pres:${cur.id}`, "memo", user);
+    if (who) throw new HttpError(409, `${who}さんが入力中です。書き終わるまで待ってください`);
+    next.memo = clean(body.memo, 10000);
+  }
+  await env.DB.prepare(
+    `UPDATE presentation_records SET kind = ?, sub = ?, present_target = ?, fb_target = ?, present_start = ?, present_end = ?, fb_start = ?, fb_end = ?,
+       memo = ?, updated_by = ?, updated_at = ? WHERE id = ?`
+  ).bind(next.kind, next.sub, next.present_target, next.fb_target, next.present_start, next.present_end, next.fb_start, next.fb_end,
+    next.memo, user.id, now, cur.id).run();
+  return { ok: true, now };
+}
+
+// 「発表する」画面を開いているあいだ、数秒ごとに呼ぶ。いまの発表の記録（4時間以内に作ったもの）と、書いている人・開いている人を返す
+async function liveRecord({ request, env, user, params }) {
+  const project = await loadProject(env, params.id);
+  const body = await readJson(request);
+  const now = Date.now();
+  const [record] = await recordsWithFeedback(env, project.id, "AND r.created_at >= ?", [now - CURRENT_MS]);
+  let editors = [];
+  let viewers = [];
+  if (record) {
+    const scope = `pres:${record.id}`;
+    const field = body.field === "memo" ? "memo" : null;
+    await env.DB.batch([
+      env.DB.prepare(
+        `INSERT INTO live_presence (scope, user_id, field, seen_at) VALUES (?, ?, ?, ?)
+         ON CONFLICT(scope, user_id) DO UPDATE SET field = excluded.field, seen_at = excluded.seen_at`
+      ).bind(scope, user.id, field, now),
+      env.DB.prepare("DELETE FROM live_presence WHERE seen_at < ?").bind(now - 86400000),
+    ]);
+    const { results } = await env.DB.prepare(
+      `SELECT p.user_id, p.field, u.name FROM live_presence p LEFT JOIN users u ON u.id = p.user_id
+       WHERE p.scope = ? AND p.user_id != ? AND p.seen_at >= ?`
+    ).bind(scope, user.id, now - LIVE_TTL).all();
+    editors = results.filter((r) => r.field).map((r) => ({ field: r.field, name: r.name || "ほかの人" }));
+    viewers = results.map((r) => r.name || "ほかの人");
+  }
+  return { record: record || null, editors, viewers, now };
+}
+
