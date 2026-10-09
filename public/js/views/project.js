@@ -34,6 +34,7 @@ export async function renderProject(el, id) {
       </div>
     </div>
     ${canEdit ? "" : `<p class="notice">閲覧のみです。編集できるのはPJメンバーと管理者です。</p>`}
+    ${completionBanner(p, canEdit)}
     ${stageStepper(p, data.stages)}
     <div class="tabs" role="tablist">
       ${tabs.map(([k, l]) => `<a role="tab" class="tab" aria-selected="${tab === k}" href="#/projects/${p.id}?tab=${k}">${l}</a>`).join("")}
@@ -41,6 +42,7 @@ export async function renderProject(el, id) {
     <div id="tab-body"></div>`;
 
   bindFold(el);
+  bindCompletion(el, p, () => keepView(el, () => renderProject(el, id)));
   const body = el.querySelector("#tab-body");
   // チェックなどで描き直しても、開いていた欄とスクロールの位置はそのまま（上に戻らないように）
   const reload = () => keepView(el, () => renderProject(el, id));
@@ -119,6 +121,7 @@ function renderStages(body, data, ro, reload) {
               ${row.due_manual ? `<button class="link-btn" data-due-reset="${s.no}">自動に戻す</button>` : `<span class="muted small">（自動）</span>`}
             </label>
             ${isCurrent && !isLast ? `<button class="primary small" data-stage="${s.no + 1}">この工程を完了して「${esc(type.stages[s.no + 1].name)}」へ</button>` : ""}
+            ${isCurrent && isLast && p.status === "active" && !p.completion_requested_at ? `<button type="button" class="primary small" data-completion="request">🎉 部門長に完了の承認を依頼する</button>` : ""}
             ${!isCurrent ? `<button class="small" data-stage="${s.no}">この工程を「いまここ」にする</button>` : ""}
           </div>`}
       </details>`;
@@ -312,3 +315,54 @@ function bindMeetingPanel(body, data, reload) {
   body.querySelectorAll("[data-restore]").forEach((b) => b.addEventListener("click", () =>
     busy(b, () => api(`/api/meetings/${b.dataset.restore}`, { method: "PATCH", body: { cancelled: false } })).then(reload).catch(() => {})));
 }
+
+// ---------- PJの完了：最終提出 → 部門長に承認を依頼 → 部門長が承認すると完了 ----------
+function completionBanner(p, canEdit) {
+  const nameOf = (id) => state.users.find((u) => u.id === id)?.name || "";
+  const when = (ms) => fmtDate(jstDateTime(ms));
+  if (p.status === "done") {
+    return `<div class="notice completion is-done"><span>🎉 <strong>このPJは完了しました</strong>
+      ${p.completed_at ? `<small class="muted">（${when(p.completed_at)}${p.completed_by ? `・承認：${esc(nameOf(p.completed_by))}` : ""}）</small>` : ""}</span>
+      ${state.me.isAdmin ? `<button type="button" class="small" data-completion="reopen">進行中に戻す</button>` : ""}</div>`;
+  }
+  if (p.status === "active" && p.completion_requested_at) {
+    return `<div class="notice completion is-waiting"><span>⏳ <strong>最終提出が済み、部門長の承認待ちです</strong>
+      <small class="muted">（${when(p.completion_requested_at)}${p.completion_requested_by ? `・依頼：${esc(nameOf(p.completion_requested_by))}` : ""}）</small></span>
+      <span class="row-left">${state.me.isAdmin ? `<button type="button" class="primary small" data-completion="approve">✅ 承認してPJを完了にする</button>
+        <button type="button" class="small" data-completion="reject">差し戻す</button>`
+        : canEdit ? `<button type="button" class="link-btn" data-completion="cancel">依頼を取り下げる</button>` : ""}</span></div>`;
+  }
+  return "";
+}
+
+function bindCompletion(el, p, reload) {
+  el.querySelectorAll("[data-completion]").forEach((b) => b.addEventListener("click", async () => {
+    const action = b.dataset.completion;
+    const body = { action };
+    if (action === "request" && !await confirmDialog(`「${p.name}」の最終提出が済んだことを、部門長・副部門長に知らせて完了の承認を依頼しますか？`, { ok: "承認を依頼する" })) return;
+    if (action === "approve" && !await confirmDialog(`「${p.name}」を完了にしますか？\nPJメンバーに知らせます。`, { ok: "承認して完了にする" })) return;
+    if (action === "reopen" && !await confirmDialog(`「${p.name}」を進行中に戻しますか？`, { ok: "進行中に戻す" })) return;
+    if (action === "reject") {
+      // 理由は、その場に出す入力欄で書いてもらう
+      const box = b.closest(".completion");
+      if (!box.querySelector(".reject-form")) {
+        box.insertAdjacentHTML("beforeend", `<form class="inline-form reject-form">
+          <input name="reason" maxlength="300" placeholder="差し戻す理由（PJメンバーに届きます）" required>
+          <button class="small danger">差し戻す</button></form>`);
+        box.querySelector(".reject-form").addEventListener("submit", (e) => {
+          e.preventDefault();
+          busy(e.submitter, () => api(`/api/projects/${p.id}/completion`, { method: "POST", body: { action: "reject", reason: e.target.reason.value } }))
+            .then(() => { toast("差し戻しました"); reload(); }).catch(() => {});
+        });
+        box.querySelector(".reject-form input").focus();
+      }
+      return;
+    }
+    busy(b, () => api(`/api/projects/${p.id}/completion`, { method: "POST", body }))
+      .then(() => {
+        toast({ request: "部門長に完了の承認を依頼しました", cancel: "依頼を取り下げました", approve: "PJを完了にしました", reopen: "進行中に戻しました" }[action]);
+        reload();
+      }).catch(() => {});
+  }));
+}
+

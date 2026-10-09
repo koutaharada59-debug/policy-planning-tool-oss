@@ -140,7 +140,7 @@ export async function renderPresentationTab(body, projectId) {
         <label>提出した改訂版のURL<input type="url" name="final_url" value="${esc(prep.final_url)}" ${ro}></label>
       </div>
       <label>メモ<textarea name="final_memo" rows="2" maxlength="500" ${ro}>${esc(prep.final_memo)}</textarea></label>
-      ${prep.final_status === "done" ? `<p class="notice small">🎉 最終提出が済みました。<a href="#/projects/${projectId}/edit">PJの「編集」</a>で状態を「完了」にすると、進行中の一覧から外れます。</p>` : ""}
+      ${prep.final_status === "done" ? `<p class="notice small">🎉 最終提出が済みました。PJの「工程」タブの最後の工程にある「部門長に完了の承認を依頼する」を押すと、部門長・副部門長が確認してPJを完了にします。</p>` : ""}
       ${canEdit ? `<div class="form-actions"><button class="primary">最終提出を保存</button></div>` : ""}
     </form>`;
 

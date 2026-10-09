@@ -873,3 +873,8 @@ label.chip-check[hidden]{display:none}
 .past-list{margin-top:10px}
 .past-list .list-item{flex-wrap:wrap}
 .past-memo{width:100%}
+
+/* PJの完了 */
+.notice.completion{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:8px}
+.notice.completion.is-waiting{background:var(--soon-bg)}
+.notice.completion .reject-form{width:100%}

@@ -21,6 +21,7 @@ export async function renderProjects(el) {
       ${list.length ? `<div class="card-grid">${list.map((p) => `
         <a class="card pj-card" href="#/projects/${p.id}">
           <span class="stage-pill">${p.status === "done" ? "完了" : `工程${p.current_stage}・${esc(stageName(p))}`}</span>
+          ${p.status === "active" && p.completion_requested_at ? `<span class="due is-soon">完了の承認待ち</span>` : ""}
           <h3>${esc(p.name)}</h3>
           ${stageStepper(p, p.stages || [], { compact: true })}
         </a>`).join("")}</div>`

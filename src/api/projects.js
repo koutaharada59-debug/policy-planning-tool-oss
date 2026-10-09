@@ -16,6 +16,7 @@ export const routes = [
   ["GET", "/api/projects/:id", getProject],
   ["PUT", "/api/projects/:id", updateProject],
   ["POST", "/api/projects/:id/stage", setCurrentStage],
+  ["POST", "/api/projects/:id/completion", completion],
   ["PUT", "/api/projects/:id/stages/:no", setStageDue],
   ["POST", "/api/projects/:id/checklist", addChecklistItem],
   ["PATCH", "/api/checklist/:id", toggleChecklistItem],
@@ -24,7 +25,7 @@ export const routes = [
 
 async function listProjects({ env, user }) {
   const { results: projects } = await env.DB.prepare(
-    `SELECT p.id, p.name, p.type, p.description, p.status, p.current_stage, p.start_date, p.presentation_date,
+    `SELECT p.id, p.name, p.type, p.description, p.status, p.current_stage, p.start_date, p.presentation_date, p.completion_requested_at,
             p.meeting_mode, s.due_date AS stage_due,
             (SELECT COUNT(*) FROM tasks t WHERE t.project_id = p.id AND t.status != 'done') AS open_tasks,
             (SELECT MIN(starts_at) FROM meetings m WHERE m.project_id = p.id AND m.cancelled = 0 AND m.starts_at >= ?1) AS next_meeting
@@ -166,6 +167,9 @@ async function updateProject({ request, env, user, params }) {
   const f = projectFields(body);
   const status = oneOf(body.status || project.status, ["active", "done", "archived"], "状態");
   if (status === "archived" && !user.isAdmin) throw new HttpError(403, "PJをアーカイブできるのは管理者です");
+  if (status !== project.status && project.status !== "archived" && [status, project.status].includes("done") && !user.isAdmin) {
+    throw new HttpError(403, "PJを完了にする（戻す）のは部門長・副部門長です。最終提出が済んだら「部門長に完了の承認を依頼する」を押してください");
+  }
   const members = memberList(body);
   if (!members.length) throw new HttpError(400, "メンバーを1人以上選んでください");
   await assertUsers(env, members);
@@ -318,3 +322,49 @@ async function deleteChecklistItem({ env, user, params }) {
   await env.DB.prepare("DELETE FROM checklist_items WHERE id = ?").bind(item.id).run();
   return { ok: true };
 }
+
+// ---------- PJの完了 ----------
+// request：最終提出が済んだら、PJメンバーが部門長・副部門長に完了の承認を依頼する
+// approve：部門長・副部門長が承認するとPJは完了。reject：差し戻す（理由を添えてメンバーに知らせる）。reopen：完了したPJを進行中に戻す
+async function completion({ request, env, user, params }) {
+  const project = await loadProject(env, params.id);
+  const body = await readJson(request);
+  const action = oneOf(body.action, ["request", "cancel", "approve", "reject", "reopen"], "操作");
+  const now = Date.now();
+  const leaders = [...idList(env.HEAD_IDS), ...idList(env.ADMIN_IDS)];
+  if (action === "request" || action === "cancel") {
+    await requireEditor(env, user, project.id);
+    if (project.status !== "active") throw new HttpError(400, "進行中のPJではありません");
+    if (action === "cancel") {
+      await env.DB.prepare("UPDATE projects SET completion_requested_at = NULL, completion_requested_by = NULL WHERE id = ?").bind(project.id).run();
+      return { ok: true };
+    }
+    const prep = await env.DB.prepare("SELECT final_status FROM presentation_prep WHERE project_id = ?").bind(project.id).first();
+    if (prep?.final_status !== "done") throw new HttpError(400, "先に「発表・提出」タブの最終提出を「提出済み」にしてください");
+    await env.DB.prepare("UPDATE projects SET completion_requested_at = ?, completion_requested_by = ?, updated_at = ? WHERE id = ?")
+      .bind(now, user.id, now, project.id).run();
+    await notify(env, leaders, `【${project.name}】最終提出が済みました。確認して、PJの完了を承認してください`, `#/projects/${project.id}`, { except: user.id });
+    return { ok: true };
+  }
+  if (!user.isAdmin) throw new HttpError(403, "PJの完了を承認できるのは部門長・副部門長です");
+  if (action === "approve") {
+    await env.DB.prepare(
+      `UPDATE projects SET status = 'done', completed_at = ?, completed_by = ?, completion_requested_at = COALESCE(completion_requested_at, ?),
+         updated_at = ?, version = version + 1 WHERE id = ?`
+    ).bind(now, user.id, now, now, project.id).run();
+    await notifyProject(env, project, "🎉 部門長がPJの完了を承認しました。おつかれさまでした！", "", user.id, { dm: true });
+  } else if (action === "reject") {
+    const reason = clean(body.reason, 300);
+    await env.DB.prepare("UPDATE projects SET completion_requested_at = NULL, completion_requested_by = NULL, updated_at = ? WHERE id = ?")
+      .bind(now, project.id).run();
+    await notifyProject(env, project, `PJの完了は差し戻されました${reason ? `：${reason}` : ""}`, "", user.id, { dm: true });
+  } else {
+    await env.DB.prepare(
+      `UPDATE projects SET status = 'active', completed_at = NULL, completed_by = NULL, completion_requested_at = NULL, completion_requested_by = NULL,
+         updated_at = ?, version = version + 1 WHERE id = ?`
+    ).bind(now, project.id).run();
+    await notifyProject(env, project, "PJが進行中に戻りました", "", user.id);
+  }
+  return { ok: true };
+}
+
