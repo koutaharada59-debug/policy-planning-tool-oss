@@ -381,12 +381,12 @@ async function showUndoPromote(box, seedId, reload) {
   if (!project) return;
   box.innerHTML = `<div class="confirm-start danger-box">
     <p><strong>「${esc(project.name)}」を正式なPJから取り消しますか？</strong></p>
-    <p class="small">このPJと、次の内容がすべて削除されます。元に戻せません。</p>
+    <p class="small">PJは一覧から隠れますが、<strong>記録は消えずに残ります</strong>。</p>
     <ul class="small">
-      <li>メンバー ${c.members}人の割り当て</li><li>MTG ${c.meetings}件・議事録 ${c.minutes}件</li>
-      <li>タスク ${c.tasks}件・工程のチェック ${c.checked}件</li><li>樹形図・施策・発表準備・定例の進捗共有</li>
+      <li>MTG ${c.meetings}件・議事録 ${c.minutes}件</li><li>タスク ${c.tasks}件・工程のチェック ${c.checked}件</li>
+      <li>樹形図・施策・発表準備・定例の進捗共有</li>${c.hearings ? `<li>外部ヒアリング ${c.hearings}件</li>` : ""}
     </ul>
-    <p class="muted small">種はPJ決めに残り、もう一度「正式なPJにする」ことができます。${c.hearings ? `外部ヒアリング ${c.hearings}件は消えずに残ります（PJとの結び付きだけ外れます）。` : ""}</p>
+    <p class="muted small">種はPJ決めに戻ります。もう一度「正式なPJにする」と、このPJを記録ごと戻せます（管理者メニューの「アーカイブしたPJ」からも見られます）。</p>
     <div class="form-actions"><button type="button" data-cancel>やめる</button><button type="button" class="danger" data-go>取り消す</button></div>
   </div>`;
   box.scrollIntoView({ behavior: "smooth", block: "nearest" });
@@ -411,8 +411,11 @@ function roundsTable(rounds, title) {
 // 管理者：種から正式なPJを作る（メンバーは割り振り案・希望者を初期値に、手で調整できる）
 function showMakeForm(box, seed, seedState, suggested, reload) {
   const picked = new Set(suggested);
+  const prev = seedState?.prevProject;
   box.innerHTML = `
     <form class="form make" style="margin-top:12px">
+      ${prev ? `<label class="check"><input type="checkbox" name="restore" checked>
+        <span>前に取り消した「${esc(prev.name)}」を戻す<small>議事録・タスク・MTGなどの記録をそのまま引き継ぎます。外すと新しいPJとして作ります</small></span></label>` : ""}
       <label>PJ名<input name="name" maxlength="60" required value="${esc(seed.title)}"></label>
       <label>概要<textarea name="description" maxlength="400" rows="2">${esc(seedState?.description || "")}</textarea></label>
       <label>開始日（1週目の初日）<input name="start_date" type="date" required value="${nextMonday()}"></label>
@@ -421,8 +424,12 @@ function showMakeForm(box, seed, seedState, suggested, reload) {
           <label class="chip-check"><input type="checkbox" name="member" value="${esc(u.id)}" ${picked.has(u.id) ? "checked" : ""}>${avatar(u)}<span>${esc(u.name)}</span></label>`).join("")}</div>
       </fieldset>
       <p class="muted small">MTGの進め方などは、作成後にPJの「編集」から設定できます（初期値は「毎回決める」）。</p>
-      <div class="form-actions"><button class="primary">PJを作成する</button></div>
+      <div class="form-actions"><button type="button" data-cancel-make>キャンセル</button><button class="primary">PJを作成する</button></div>
     </form>`;
+  box.querySelector("[data-cancel-make]").addEventListener("click", () => {
+    box.innerHTML = "";
+    box.closest(".winner")?.querySelector("[data-make]")?.removeAttribute("hidden");
+  });
   bindMemberFilter(box);
   box.querySelector("form").addEventListener("submit", async (e) => {
     e.preventDefault();
@@ -432,14 +439,15 @@ function showMakeForm(box, seed, seedState, suggested, reload) {
     if (!member_ids.length) return toast("メンバーを1人以上選んでください", "error");
     // 作る前に、PJ名・開始日・メンバーを確かめてもらう
     const names = member_ids.map((id) => state.users.find((u) => u.id === id)?.name || "").join("、");
+    const restore = Boolean(f.restore?.checked);
     const ok = await confirmDialog(`「${f.name.value}」を正式なPJにしますか？
-開始日：${fmtDate(f.start_date.value)}
+${restore ? "前のPJを記録ごと戻します" : `開始日：${fmtDate(f.start_date.value)}`}
 メンバー（${member_ids.length}人）：${names}`, { ok: "正式なPJにする" });
     if (!ok) return;
     busy(button, () => api(`/api/seeds/${seed.id}/project`, {
-      method: "POST", body: { name: f.name.value, description: f.description.value, start_date: f.start_date.value, member_ids },
+      method: "POST", body: { name: f.name.value, description: f.description.value, start_date: f.start_date.value, member_ids, restore },
     })).then((res) => {
-      toast("PJを作成しました");
+      toast(res.restored ? "前のPJを記録ごと戻しました" : "PJを作成しました");
       location.hash = `#/projects/${res.id}`;
     }).catch(() => {});
   });

@@ -2,7 +2,7 @@
 import { HttpError, readJson, clean, required, int, optUrl, nowJst, assertUpdated } from "../util.js";
 import { rcvResults, suggestAssignment } from "../rcv.js";
 import { insertProject } from "./projects.js";
-import { requireAdmin as requireAdminFor } from "./common.js";
+import { requireAdmin as requireAdminFor, assertUsers } from "./common.js";
 import { syncSurveyRound, surveyLinked } from "../survey-sync.js";
 import { notify } from "../notify.js";
 
@@ -96,8 +96,9 @@ async function getRound({ env, user, params }) {
   const round = await syncSurveyRound(env, await loadRound(env, params.id));
   const [seeds, votes, notes, comments] = await Promise.all([
     env.DB.prepare(
-      `SELECT s.*, u.name AS creator_name, p.name AS project_name FROM seeds s
+      `SELECT s.*, u.name AS creator_name, p.name AS project_name, pp.name AS prev_project_name FROM seeds s
        LEFT JOIN users u ON u.id = s.created_by LEFT JOIN projects p ON p.id = s.project_id
+       LEFT JOIN projects pp ON pp.id = s.prev_project_id AND pp.status = 'archived'
        WHERE s.round_id = ? ORDER BY s.sort, s.id`
     ).bind(round.id).all(),
     env.DB.prepare(
@@ -144,6 +145,8 @@ async function getRound({ env, user, params }) {
       isMine: s.created_by === user.id,
       manageable: round.source !== "survey" && !s.project_id && (user.isAdmin || (s.created_by === user.id && !closed)),
       project: s.project_id ? { id: s.project_id, name: s.project_name } : null,
+      // 前に正式なPJにして取り消したPJ（記録が残っている。もう一度PJにするときに戻せる）
+      prevProject: !s.project_id && s.prev_project_name ? { id: s.prev_project_id, name: s.prev_project_name } : null,
       voters: voters[s.id] || [],
       firstChoices: firstChoices[s.id] || 0,
       notes: noteCount[s.id] || 0,
@@ -330,6 +333,7 @@ async function createProjectFromSeed({ request, env, user, params }) {
   const seed = await loadSeed(env, params.id);
   if (seed.project_id) throw new HttpError(400, "この種はすでにPJになっています");
   const body = await readJson(request);
+  if (body.restore) return restoreProjectFromSeed(env, user, seed, body);
   const projectId = await insertProject(env, user, {
     meeting_mode: "adhoc",
     ...body,
@@ -345,8 +349,31 @@ async function createProjectFromSeed({ request, env, user, params }) {
   return { id: projectId };
 }
 
-// 「正式なPJにする」の取り消し（管理者）。PJと、そのPJのMTG・議事録・タスクなどは削除し、種はPJ決めに戻す
-// 外部ヒアリングと資料は消さない（PJとの結び付きだけ外れる）
+// 取り消したPJを戻す：議事録・タスク・MTGなどの記録はそのまま。名前・概要・メンバーは、いま選んだもので上書きする
+async function restoreProjectFromSeed(env, user, seed, body) {
+  const prev = seed.prev_project_id
+    ? await env.DB.prepare("SELECT * FROM projects WHERE id = ? AND status = 'archived'").bind(seed.prev_project_id).first() : null;
+  if (!prev) throw new HttpError(400, "戻せる前のPJがありません。新しく作ってください");
+  const members = [...new Set((Array.isArray(body.member_ids) ? body.member_ids : []).filter((x) => typeof x === "string"))].slice(0, 30);
+  if (!members.length) throw new HttpError(400, "メンバーを1人以上選んでください");
+  await assertUsers(env, members);
+  const { results: before } = await env.DB.prepare("SELECT user_id FROM project_members WHERE project_id = ?").bind(prev.id).all();
+  const res = await env.DB.prepare("UPDATE seeds SET project_id = ?, prev_project_id = NULL WHERE id = ? AND project_id IS NULL")
+    .bind(prev.id, seed.id).run();
+  if (!res.meta.changes) throw new HttpError(409, "この種はすでにPJになっています");
+  await env.DB.batch([
+    env.DB.prepare("UPDATE projects SET status = 'active', name = ?, description = ?, updated_at = ?, version = version + 1 WHERE id = ?")
+      .bind(required(body.name, 60, "PJ名"), clean(body.description ?? prev.description, 400), Date.now(), prev.id),
+    env.DB.prepare("DELETE FROM project_members WHERE project_id = ?").bind(prev.id),
+    ...members.map((uid) => env.DB.prepare("INSERT INTO project_members (project_id, user_id) VALUES (?, ?)").bind(prev.id, uid)),
+  ]);
+  const added = members.filter((uid) => !before.some((b) => b.user_id === uid));
+  await notify(env, added, `「${clean(body.name, 60)}」のメンバーになりました`, `#/projects/${prev.id}`, { dm: false, except: user.id });
+  return { id: prev.id, restored: true };
+}
+
+// 「正式なPJにする」の取り消し（管理者）。PJは削除せずアーカイブ（一覧から隠す）にして、議事録・タスクなどの記録は残す
+// 種はPJ決めに戻り、もう一度PJにするときは、このPJを戻すか新しく作るかを選べる
 async function seedProject(env, user, seedId) {
   requireAdmin(user, "正式なPJの取り消し");
   const seed = await loadSeed(env, seedId);
@@ -356,7 +383,7 @@ async function seedProject(env, user, seedId) {
   return project;
 }
 
-// 取り消す前に、消える内容の件数を見せる
+// 取り消す前に、残る記録の件数を見せる
 async function getSeedProjectFootprint({ env, user, params }) {
   const project = await seedProject(env, user, params.id);
   const count = (sql) => env.DB.prepare(sql).bind(project.id).first().then((r) => r.n);
@@ -377,9 +404,12 @@ async function undoProjectFromSeed({ request, env, user, params }) {
   // 確認した画面と違うPJを消さないよう、確認したPJのIDを一緒に送ってもらう
   if (Number(body.project_id) !== project.id) throw new HttpError(409, "PJの状態が変わりました。画面を再読み込みしてください");
   const { results: members } = await env.DB.prepare("SELECT user_id FROM project_members WHERE project_id = ?").bind(project.id).all();
-  // PJを消すと、種の project_id は自動で空に戻る（ON DELETE SET NULL）
-  await env.DB.prepare("DELETE FROM projects WHERE id = ?").bind(project.id).run();
-  await notify(env, members.map((m) => m.user_id), `「${project.name}」は正式なPJから取り消されました`, "#/seeds", { dm: false, except: user.id });
+  // 削除はしない：PJはアーカイブにして記録を残し、種との結び付きを外す（前のPJとして覚えておく）
+  await env.DB.batch([
+    env.DB.prepare("UPDATE projects SET status = 'archived', updated_at = ? WHERE id = ?").bind(Date.now(), project.id),
+    env.DB.prepare("UPDATE seeds SET project_id = NULL, prev_project_id = ? WHERE id = ?").bind(project.id, params.id),
+  ]);
+  await notify(env, members.map((m) => m.user_id), `「${project.name}」は正式なPJから取り消されました（議事録などの記録は残っています）`, "#/seeds", { dm: false, except: user.id });
   return { ok: true };
 }
 
