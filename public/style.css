@@ -1,0 +1,817 @@
+/* 希望PJアンケート（＝アクションボード）のデザイン言語に合わせる：
+   ミントのグラデーション / 1px の黒枠 / 角丸カード / ピル型ボタン / 白い追従ヘッダー */
+:root{
+  --ink:#272727; --muted:#626862; --line:#222; --soft-line:#e1e7e2;
+  --green:#218573; --green-btn:#2baa90; --green-btn-hover:#238d77; --pale:#d9f4e9; --mint-bg:#e2f6f3;
+  --done:#fde047; --warn:#a34735; --warn-bg:#fff0eb; --soon:#87661f; --soon-bg:#faf0d9;
+  --mint-gradient:linear-gradient(135deg,#64d8c6,#bcecd3);
+  --ground:#f6f3ef;
+  color:var(--ink); background:var(--ground);
+  font-family:"Noto Sans JP","Hiragino Kaku Gothic ProN","Yu Gothic",Meiryo,sans-serif;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--ground);min-height:100vh;overflow-wrap:break-word}
+button,input,select,textarea{font:inherit}
+h1,h2,h3{font-weight:800;letter-spacing:0;margin-top:0}
+h2{font-size:17px;margin-bottom:12px}
+p{font-size:14px;line-height:1.9;margin-top:0}
+a{color:var(--green)}
+button,.button{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:44px;padding:10px 20px;
+  border:1px solid var(--line);border-radius:999px;background:#fff;color:var(--ink);font-size:14px;font-weight:700;
+  cursor:pointer;text-decoration:none;transition:background .15s,transform .15s;white-space:nowrap}
+button:hover,.button:hover{background:#eef5f0}
+button.primary,.button.primary{background:var(--mint-gradient)}
+button.primary:hover,.button.primary:hover{background:#a4e8d6}
+button.small,.button.small{min-height:34px;padding:5px 14px;font-size:12px}
+button:disabled{opacity:.55;cursor:wait}
+:focus-visible{outline:3px solid #e1b75d;outline-offset:3px}
+[hidden]{display:none!important}
+/* ダブルタップでの拡大を止める（ズームさせない） */
+html{touch-action:manipulation;-webkit-text-size-adjust:100%;text-size-adjust:100%}
+.nav-ico{display:none}
+input:not([type=checkbox]):not([type=radio]),select,textarea{min-height:40px;padding:8px 12px;border:1px solid #d6e0d9;border-radius:8px;
+  background:#fff;color:var(--ink);font-size:14px;width:100%;max-width:100%}
+textarea{resize:vertical;line-height:1.7}
+input[type=checkbox],input[type=radio]{width:18px;height:18px;accent-color:var(--green);flex-shrink:0}
+.muted{color:var(--muted)}
+.small{font-size:12px}
+.warn{color:var(--warn)}
+.req{display:inline-block;margin-left:4px;padding:1px 6px;border-radius:4px;background:var(--warn-bg);color:var(--warn);font-size:10px;font-weight:700}
+
+/* Header */
+.site-header{position:sticky;top:12px;z-index:20;display:flex;align-items:center;justify-content:space-between;gap:16px;
+  min-height:64px;margin:12px 16px;padding:8px 16px;background:#fff;border-radius:16px;box-shadow:0 1px 2px #00000010}
+.brand{display:flex;align-items:center;gap:10px;color:#222;text-decoration:none;font-size:17px;font-weight:800}
+.brand small{display:block;font-size:10px;font-weight:500;letter-spacing:.04em}
+.brand-mark{display:grid;place-items:center;width:44px;height:44px;border-radius:12px;background:var(--mint-gradient);
+  border:1px solid var(--line);font-size:20px}
+.main-nav{display:flex;gap:4px}
+.main-nav a{padding:8px 16px;border-radius:999px;border:1px solid transparent;color:#444;font-size:14px;font-weight:700;text-decoration:none}
+.main-nav a.is-active{border-color:var(--line);background:var(--pale);color:#222}
+.account{display:flex;align-items:center;gap:10px;font-size:13px;font-weight:700}
+.role-tag{margin-left:6px;padding:2px 8px;border-radius:999px;background:var(--soon-bg);color:var(--soon);font-size:10px}
+
+/* Avatars */
+.avatar{display:inline-grid;place-items:center;flex-shrink:0;width:28px;height:28px;border-radius:50%;
+  background:#dcf3e7;color:#245949;border:2px solid #fff;font-size:12px;font-weight:700;overflow:hidden;vertical-align:middle}
+.avatar img{width:100%;height:100%;object-fit:cover}
+.people-stack{display:flex;align-items:center;min-height:28px;flex-wrap:wrap}
+.people-stack .avatar+.avatar{margin-left:-8px}
+.people-stack .more{margin-left:8px;font-size:12px;color:var(--muted)}
+
+/* Landing */
+.hero{margin-top:-96px;padding:150px 24px 110px;background:linear-gradient(#64d8c6,#bcecd3);text-align:center}
+.hero-badge{display:inline-block;margin-bottom:20px;padding:6px 14px;border-radius:999px;background:#fff9;font-size:12px;font-weight:700;letter-spacing:.08em}
+.hero h1{margin:0 0 16px;font-size:clamp(28px,6vw,40px);line-height:1.5}
+.hero p{max-width:520px;margin:0 auto 28px;color:#333;font-weight:600}
+.hero .button{min-width:272px;min-height:56px;font-size:15px}
+.discord-logo{width:22px;height:22px}
+.login-error{max-width:520px;margin:0 auto 20px;padding:12px 16px;border:1px solid #edcbbb;border-radius:12px;background:var(--warn-bg);color:var(--warn);font-size:13px}
+.dev-login{max-width:600px;margin:32px auto 48px;padding:20px 24px;border:1px dashed #9bb;border-radius:12px;background:#fff;text-align:center}
+.dev-login p{font-size:12px;margin:4px 0 12px}
+.dev-login form{display:flex;gap:8px;justify-content:center}
+.dev-login input{max-width:220px}
+
+/* 戻るボタン */
+.back-bar{max-width:1120px;margin:0 auto;padding:4px 24px 0}
+.back-btn{min-height:36px;padding:6px 16px;font-size:13px;border-color:#cfd8d3}
+
+/* Layout */
+.content{max-width:1120px;margin:0 auto;padding:16px 24px 80px}
+.page-heading{text-align:center;margin:20px 0 28px}
+.page-heading.left{text-align:left;margin:8px 0 20px}
+.page-heading h1{font-size:clamp(22px,4vw,28px);margin-bottom:6px}
+.page-heading p{color:var(--muted);margin:0 auto;max-width:620px}
+.page-heading.left p{margin:0}
+.loading{text-align:center;color:var(--muted);padding:48px 0}
+.section{margin:0 0 32px}
+.section-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}
+.section-head h2{margin:0}
+.two-col{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:24px}
+.card{padding:20px 24px;background:#fff;border:1px solid var(--line);border-radius:12px;box-shadow:0 2px 3px #00000008;margin-bottom:16px}
+.card-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:20px}
+.empty{padding:40px 24px;text-align:center;background:#fff7;border:1px dashed #9aaca4;border-radius:12px}
+.notice{padding:10px 16px;border-radius:10px;background:var(--mint-bg);font-size:13px}
+.caution{padding:8px 14px;border-radius:8px;background:var(--soon-bg);color:var(--soon);font-size:12px;font-weight:700}
+.breadcrumb{font-size:13px;color:var(--muted);margin:4px 0 12px}
+.breadcrumb a{color:var(--muted)}
+.row{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.row-left{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.board-tools{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;margin:0 0 20px}
+.tabs{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:16px}
+.board-tools .tabs{margin:0}
+.tabs button,.tabs .tab{display:inline-flex;align-items:center;min-height:40px;border:1px solid transparent;border-radius:999px;background:transparent;
+  color:#565656;font-size:13px;font-weight:700;padding:8px 16px;text-decoration:none}
+.tabs [aria-selected="true"]{background:#fff;border-color:var(--line);color:#222}
+.tag{display:inline-block;padding:2px 8px;border-radius:5px;background:#f2f2f2;color:#484848;font-size:11px;font-weight:500;margin-left:4px}
+.stage-pill{display:inline-block;padding:4px 10px;border-radius:999px;background:var(--pale);color:#245949;font-size:11px;font-weight:700}
+.due{display:inline-block;padding:2px 8px;border-radius:999px;background:#f2f4f3;font-size:11px;font-weight:700;white-space:nowrap}
+.due.is-soon{background:var(--soon-bg);color:var(--soon)}
+.due.is-over{background:var(--warn-bg);color:var(--warn)}
+.link,.link-btn{font-size:12px}
+.link-btn{min-height:0;padding:4px 6px;border:0;background:none;color:var(--muted);font-weight:500;text-decoration:underline;border-radius:4px}
+.link-btn:hover{background:none;color:var(--green)}
+.link-btn.danger:hover{color:var(--warn)}
+.gcal{display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border:1px solid var(--soft-line);border-radius:999px;font-size:11px;font-weight:700;text-decoration:none;color:var(--green);background:#fff}
+.gcal:hover{background:var(--mint-bg)}
+.gcal-inline{padding:1px 6px;border:1px solid var(--soft-line);border-radius:999px;font-size:12px;color:var(--green)}
+
+/* Cards */
+.pj-card{display:flex;flex-direction:column;gap:8px;color:inherit;text-decoration:none;transition:transform .15s,box-shadow .15s;margin:0}
+.pj-card:hover{transform:translateY(-2px);box-shadow:0 5px 14px #00000012}
+.pj-card h3{margin:4px 0 0;font-size:17px;line-height:1.6;overflow-wrap:anywhere}
+.pj-card .desc{color:#4f4f4f;margin:0;font-size:13px;overflow-wrap:anywhere}
+.pj-card p{margin:0}
+.next-step{padding:10px 12px;border-radius:8px;background:var(--mint-bg);font-size:13px;font-weight:700;line-height:1.7}
+.next-step span{display:block;font-size:10px;color:var(--green);letter-spacing:.06em}
+.card-bottom{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-top:auto;padding-top:12px;border-top:1px solid #e6e6e6}
+
+/* Lists */
+.list{list-style:none;margin:0;padding:0;background:#fff;border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.list-item{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;padding:12px 16px;border-top:1px solid #ececec;font-size:14px}
+.list-item:first-child{border-top:0}
+.list-item.is-done,.list-item.is-cancelled{opacity:.55}
+.list-item.is-done .task-title,.list-item.is-done .check span{text-decoration:line-through}
+.meta{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:12px}
+.check{display:flex;align-items:flex-start;gap:10px;cursor:pointer;line-height:1.6}
+.check input{margin-top:3px}
+.check small{display:block;color:var(--muted);font-size:12px}
+.task-main{display:flex;align-items:center;gap:10px;min-width:0;flex:1 1 240px}
+.task-title{overflow-wrap:anywhere}
+.status-select{flex-shrink:0;width:auto!important;min-height:32px!important;padding:2px 8px!important;border-radius:999px!important;font-size:12px!important;font-weight:700}
+.status-select.s-doing{background:var(--soon-bg)}
+.status-select.s-done{background:var(--pale)}
+
+/* Project */
+.pj-header{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.pj-header h1{font-size:clamp(20px,3.6vw,26px);margin:8px 0 6px;overflow-wrap:anywhere}
+.pj-header .desc{color:#4f4f4f;margin-bottom:8px}
+.pj-header-actions{display:flex;gap:8px;align-items:flex-start;flex-wrap:wrap}
+.stepper{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(0,1fr);gap:4px;list-style:none;padding:0;margin:4px 0 20px;counter-reset:s}
+.stepper li{display:flex;flex-direction:column;align-items:center;gap:4px;text-align:center;position:relative;font-size:11px;color:var(--muted)}
+.stepper li::before{content:"";position:absolute;top:15px;left:-50%;width:100%;height:2px;background:#d6e0d9;z-index:0}
+.stepper li:first-child::before{display:none}
+.stepper .dot{position:relative;z-index:1;display:grid;place-items:center;width:32px;height:32px;border-radius:50%;background:#fff;border:1px solid #c6d2cb;font-weight:800;font-size:13px}
+.stepper .label{font-weight:700;line-height:1.4}
+.stepper .date{font-size:10px}
+.stepper li.is-done .dot{background:var(--pale);border-color:var(--green);color:var(--green)}
+.stepper li.is-done::before,.stepper li.is-current::before{background:var(--green)}
+.stepper li.is-current{color:#222}
+.stepper li.is-current .dot{background:var(--mint-gradient);border-color:var(--line);box-shadow:0 0 0 4px #64d8c633}
+.stage{padding:0;overflow:hidden}
+.stage summary{display:flex;align-items:center;gap:12px;padding:16px 20px;cursor:pointer;list-style:none}
+.stage summary::-webkit-details-marker{display:none}
+.stage.is-current{box-shadow:0 0 0 2px var(--green) inset}
+.stage[open] summary{border-bottom:1px solid #ececec}
+.stage>*:not(summary){margin-left:20px;margin-right:20px}
+.stage>*:last-child{margin-bottom:16px}
+.stage-no{display:grid;place-items:center;width:32px;height:32px;border-radius:50%;background:var(--mint-bg);font-weight:800;flex-shrink:0}
+.stage-title{flex:1;display:flex;flex-direction:column}
+.stage-title small{font-size:12px;color:var(--muted)}
+.stage-progress{font-size:12px;font-weight:700;color:var(--green)}
+.status-now{padding:3px 10px;border-radius:999px;background:var(--done);font-size:11px;font-weight:800}
+.stage-summary{margin-top:14px;color:#4f4f4f}
+.checklist{list-style:none;padding:0;margin:12px 0}
+.checklist li{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;padding:8px 0;border-top:1px dashed #e3e3e3}
+.checklist li:first-child{border-top:0}
+.stage-actions{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-top:12px;padding-top:12px;border-top:1px solid #ececec}
+.stage-actions label{display:flex;align-items:center;gap:6px}
+.stage-actions input{width:auto!important}
+
+/* Forms */
+.form{display:flex;flex-direction:column;gap:16px}
+.form label{display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:700}
+.form fieldset{border:1px solid #d6e0d9;border-radius:10px;padding:12px 16px;display:flex;flex-direction:column;gap:12px}
+.form legend{padding:0 4px;font-size:13px;font-weight:700}
+.form small{font-weight:400}
+.grid-2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.grid-3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.form-actions{display:flex;justify-content:flex-end;gap:10px;flex-wrap:wrap}
+.form-actions.sticky{position:sticky;bottom:12px;padding:10px;background:#fffd;border-radius:999px;backdrop-filter:blur(4px)}
+.inline-form{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:8px 0}
+.inline-form input{flex:1;min-width:180px}
+.task-form{display:grid;grid-template-columns:minmax(0,3fr) minmax(0,1.3fr) minmax(0,1.2fr) minmax(0,1.4fr) auto;gap:8px;align-items:center;flex-direction:row}
+.task-form.edit{width:100%}
+.member-picker,.weekday-picker{display:flex;flex-wrap:wrap;gap:8px}
+.chip-check{flex-direction:row!important;align-items:center;gap:6px!important;padding:4px 12px 4px 6px;border:1px solid #d6e0d9;border-radius:999px;font-weight:500!important;cursor:pointer;background:#fff}
+.chip-check:has(input:checked){background:var(--pale);border-color:var(--green)}
+.weekday-picker .chip-check{padding:4px 12px}
+.segmented{display:flex;flex-wrap:wrap;gap:8px}
+.segmented label{flex-direction:row;align-items:center;gap:6px;padding:8px 14px;border:1px solid #d6e0d9;border-radius:999px;font-weight:500;cursor:pointer}
+.segmented label:has(input:checked){background:var(--pale);border-color:var(--green)}
+
+/* Minutes */
+.minutes-layout.with-doc{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:20px;align-items:start}
+.minutes-layout.with-doc .doc-panel{order:2;position:sticky;top:96px;margin:0}
+.minutes-layout.with-doc .minutes{order:1}
+.doc-panel summary{display:flex;align-items:center;justify-content:space-between;gap:8px;cursor:pointer;list-style:none}
+.doc-panel summary::-webkit-details-marker{display:none}
+.doc-panel .doc-frame{margin-top:12px;height:calc(100vh - 220px);min-height:360px}
+.doc-panel p{margin:6px 0 0}
+.doc-missing{margin:0 0 12px}
+.minutes h2{margin-bottom:8px}
+.minutes label h2{display:inline}
+.minutes label{display:flex;flex-direction:column;gap:8px}
+.counter{align-self:flex-end;font-size:11px;color:var(--muted)}
+.todo-row{display:grid;grid-template-columns:minmax(0,3fr) minmax(0,1.4fr) minmax(0,1.3fr) auto auto;gap:8px;align-items:center;margin-bottom:8px}
+.next-date{border-left:6px solid #e1b75d}
+
+/* Calendar */
+.month-label{font-size:18px;min-width:110px;text-align:center}
+.cal-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));background:#fff;border:1px solid var(--line);border-radius:12px;overflow:hidden;margin-bottom:24px}
+.cal-head{padding:6px;text-align:center;font-size:12px;font-weight:700;background:var(--mint-bg)}
+.cal-cell{min-height:104px;padding:4px;border-top:1px solid #ececec;border-left:1px solid #ececec;display:flex;flex-direction:column;gap:2px;min-width:0}
+.cal-cell:nth-child(7n+1){border-left:0}
+.cal-cell.is-other{background:#fafafa;color:#aaa}
+.cal-cell.is-today .cal-date{background:var(--green);color:#fff}
+.cal-date{align-self:flex-start;display:grid;place-items:center;min-width:22px;height:22px;border-radius:999px;font-size:12px;font-weight:700}
+
+/* ホームの選択肢 */
+.choices{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:20px;max-width:960px;margin:0 auto}
+.choice{position:relative;display:flex;flex-direction:column;align-items:center;gap:10px;padding:36px 24px;background:#fff;border:1px solid var(--line);
+  border-radius:20px;text-align:center;text-decoration:none;color:inherit;box-shadow:0 2px 3px #00000008;transition:transform .15s,box-shadow .15s}
+.choice:hover{transform:translateY(-3px);box-shadow:0 8px 20px #00000014}
+.choice-icon{display:grid;place-items:center;width:88px;height:88px;border-radius:50%;background:var(--mint-gradient);border:1px solid var(--line);font-size:40px}
+.choice strong{font-size:20px}
+.choice span{font-size:13px;color:var(--muted);line-height:1.7}
+.choice .choice-badge{position:absolute;top:14px;right:14px;padding:3px 10px;border-radius:999px;background:var(--done);color:#222;font-size:11px;font-weight:800}
+.start-card .button,.start-card button{width:100%}
+/* 部門の定例 */
+.choices.two{grid-template-columns:repeat(2,minmax(0,1fr));max-width:680px}
+button.choice{font:inherit;color:inherit;cursor:pointer;width:100%;height:auto;border-radius:20px;white-space:normal}
+.copy-btn{padding:3px 10px;font-size:11px;font-weight:700;min-height:0;flex-shrink:0}
+.field{display:flex;flex-direction:column;gap:6px}
+.field .section-head{margin:0}
+.confirm-start.narrow{max-width:680px;margin:16px auto 0}
+.report-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px}
+.report{padding:14px 16px;border:1px solid var(--soft-line);border-radius:10px;background:#fbfdfc}
+.report h3{margin:6px 0 4px;font-size:16px}
+.report h4{margin:10px 0 2px;font-size:12px;color:var(--muted)}
+.report p{margin:0}
+.report.is-missing{background:#f6f6f6;border-style:dashed}
+details.card h4{margin:10px 0 2px;font-size:12px;color:var(--muted)}
+.confirm-start{display:flex;flex-direction:column;gap:8px;padding:12px;border:1px solid var(--green);border-radius:10px;background:#f3fbf7}
+.confirm-start p{margin:0}
+.confirm-start label{display:flex;flex-direction:column;gap:4px;font-weight:700}
+.confirm-start .form-actions button{width:auto;flex:1}
+.confirm-start .link-like{background:none;border:0;color:var(--muted);text-decoration:underline;box-shadow:none}
+.planned-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
+.planned-list li{display:flex;flex-direction:column;gap:6px;padding:8px 10px;background:#fff;border:1px solid var(--soft-line);border-radius:8px}
+.planned-list li div{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
+
+/* 発表 */
+.present{display:flex;flex-direction:column;gap:0}
+.present:fullscreen{overflow:auto;padding:24px;background:var(--ground)}
+.present-head h1{font-size:clamp(24px,4.5vw,40px);line-height:1.4;margin:12px 0}
+.present-desc{font-size:clamp(15px,2vw,18px);line-height:1.9}
+.doc-frame{position:relative;width:100%;height:70vh;min-height:420px;border:1px solid var(--soft-line);border-radius:10px;overflow:hidden;background:#fafafa}
+.doc-frame iframe{width:100%;height:100%;border:0}
+
+/* 樹形図 */
+.tree{list-style:none;margin:0;padding-left:28px;position:relative}
+.tree.root{padding-left:0}
+.tree-item{position:relative;margin:10px 0}
+.tree .tree .tree-item::before,.tree:not(.root)>.tree-item::before{content:"";position:absolute;left:-18px;top:0;bottom:-10px;border-left:2px solid var(--pale)}
+.tree:not(.root)>.tree-item::after{content:"↑";position:absolute;left:-26px;top:14px;width:16px;text-align:center;color:var(--green);font-size:12px;font-weight:800;background:var(--ground)}
+.tree:not(.root)>.tree-item:last-child::before{bottom:auto;height:22px}
+.tree-node{padding:12px 14px;background:#fff;border:1px solid var(--line);border-radius:12px}
+.tree-node.kind-issue{border-left:6px solid #e1b75d}
+.tree-node.kind-cause{border-left:6px solid var(--green-btn)}
+.tree-head{display:flex;align-items:flex-start;gap:8px}
+.tree-title{min-height:0;padding:0;border:0;background:none;text-align:left;font-size:15px;font-weight:800;white-space:normal;line-height:1.6}
+.tree-title:hover{background:none;color:var(--green)}
+.kind-badge{flex-shrink:0;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:800}
+.kind-badge.kind-issue{background:var(--soon-bg);color:var(--soon)}
+.kind-badge.kind-cause{background:var(--pale);color:var(--green)}
+.tree-meta{display:flex;flex-wrap:wrap;gap:4px 12px;margin-top:6px;font-size:12px;color:var(--muted)}
+.tree-detail{margin-top:10px;padding-top:10px;border-top:1px dashed #ddd}
+.tree-detail h4{margin:10px 0 2px;font-size:12px;color:var(--muted)}
+.tree-detail p{margin:0}
+.add-child{margin-top:6px}
+.unverified{display:inline-block;margin-left:4px;padding:1px 6px;border-radius:4px;background:var(--warn-bg);color:var(--warn);font-size:11px;font-weight:800;white-space:nowrap}
+.src-list{margin:4px 0;padding-left:18px;font-size:13px;line-height:1.8}
+.source-picker{display:grid;gap:6px;max-height:220px;overflow:auto}
+.node-edit{margin-top:12px;background:#fbfdfc}
+
+/* 施策・資料 */
+.measure h3{margin:0;font-size:16px}
+.measure-from{font-size:15px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.filters{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 16px}
+.filters select,.filters input{width:auto!important;flex:1 1 160px}
+.source-item.is-unverified{background:#fffaf7}
+.source-main{flex:1 1 320px;min-width:0;display:flex;flex-direction:column;gap:4px}
+.source-main p{margin:0}
+.source-edit{flex-basis:100%}
+
+/* 発表・提出 */
+.section-title{margin:28px 0 12px;font-size:18px}
+.present-summary h2{margin:2px 0 6px;font-size:24px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.prep-chips{display:flex;flex-wrap:wrap;gap:6px;max-width:520px}
+.prep-chip{padding:4px 10px;border-radius:999px;background:#f2f4f3;color:var(--muted);font-size:12px;font-weight:700}
+.prep-chip.ok{background:var(--pale);color:var(--green)}
+.rh-note{flex-basis:100%;min-height:34px!important;font-size:13px!important}
+.progress{height:10px;border-radius:999px;background:#eef0ef;overflow:hidden;margin:8px 0 4px}
+.progress span{display:block;height:100%;background:var(--mint-gradient)}
+.fb-main{display:flex;align-items:flex-start;gap:10px;flex:1 1 320px;min-width:0}
+.fb-response{flex-basis:100%;margin:0;padding:6px 10px;border-radius:8px;background:#f7faf8}
+.fb-edit{flex-basis:100%}
+.fb-done .fb-main span{color:var(--muted)}
+.roles{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.roles span{padding:4px 12px;border-radius:999px;background:var(--mint-bg);font-weight:700;font-size:14px}
+.roles small{margin-right:6px;color:var(--green);font-size:11px}
+
+/* 発表する：雑メモとフィードバック */
+.present-notes{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);gap:24px}
+.present-notes h2{margin:0}
+.present-notes textarea{width:100%}
+.fb-quick-list{list-style:none;margin:12px 0 0;padding:0;display:grid;gap:8px;max-height:260px;overflow:auto}
+.fb-quick-list li{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px;font-size:14px;padding-bottom:8px;border-bottom:1px dashed #e3e3e3}
+#fb-quick .inline-form{margin:0}
+#fb-quick .inline-form input{flex:1}
+
+.survey-link{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-bottom:16px}
+
+.check-choices{grid-template-columns:repeat(auto-fill,minmax(260px,1fr))}
+
+/* PJ一覧：カードの中の工程の数直線（PJ画面の上部と同じ部品を小さく） */
+.pj-card .stepper{margin:6px 0 2px;gap:2px}
+.pj-card .stepper .dot{width:26px;height:26px;font-size:11px}
+.pj-card .stepper li::before{top:12px}
+.pj-card .stepper .label{font-size:10px}
+.pj-card .stepper .date{font-size:9px}
+
+/* 管理者メニュー */
+.admin-card{display:flex;flex-direction:column;gap:8px;margin:0;color:inherit;text-decoration:none}
+.admin-card:hover{box-shadow:0 5px 14px #00000012}
+.admin-card ul{margin:0;padding-left:18px;font-size:13px;line-height:1.8}
+.person{display:inline-flex;align-items:center;gap:8px;font-weight:700}
+.settings-list{list-style:none;padding:0;margin:0 0 12px;display:grid;gap:6px;font-size:14px}
+
+/* チェック項目と議事録の結び付け */
+.meeting-panel h2{margin:0}
+.meeting-panel h3{margin:12px 0 6px;color:var(--muted)}
+.meeting-panel .inline-form{margin:12px 0 4px}
+.stage-minutes{margin:4px 0 12px;padding:10px 12px;border-radius:10px;background:#f7faf8}
+.stage-minutes h4{margin:0 0 6px;font-size:12px;color:var(--muted)}
+.stage-minutes ul{list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;gap:6px}
+.done-meta{display:flex;flex-wrap:wrap;align-items:center;justify-content:flex-end;gap:6px;flex-shrink:0;max-width:50%}
+.minute-link{font-size:12px;font-weight:700;padding:2px 8px;border-radius:999px;background:var(--mint-bg);text-decoration:none;white-space:nowrap}
+.pick-meeting{width:auto!important;min-height:30px!important;padding:2px 8px!important;font-size:12px!important}
+
+/* ヒアリング */
+.hearing-row{display:flex;flex-direction:column;gap:2px;color:inherit;text-decoration:none;min-width:0;flex:1 1 280px}
+.hearing-row strong{overflow-wrap:anywhere}
+.type-picker{display:flex;flex-wrap:wrap;gap:8px}
+.type-picker small{padding:1px 6px;border-radius:4px;font-size:10px;font-weight:700}
+.type-picker small.need{background:var(--soon-bg);color:var(--soon)}
+.type-picker small.free{background:var(--pale);color:var(--green)}
+.hearing-steps{grid-template-columns:repeat(4,minmax(0,1fr))}
+.fields{display:grid;grid-template-columns:max-content 1fr;gap:10px 20px;margin:0;font-size:14px}
+.fields dt{font-weight:700;color:var(--muted)}
+.fields dd{margin:0;overflow-wrap:anywhere;line-height:1.8}
+.pre,.comment{white-space:pre-wrap}
+.comment{margin:4px 0 0;padding:8px 12px;border-radius:8px;background:#f6f6f6;font-size:13px}
+.timeline{list-style:none;padding:0;margin:0;display:grid;gap:10px;font-size:14px}
+.timeline li{padding-left:14px;border-left:3px solid var(--pale)}
+.timeline li>span{margin-right:8px}
+.review{border-left:6px solid var(--green)}
+.returned{border-left:6px solid var(--warn)}
+.review textarea{margin-bottom:10px}
+
+/* PJ決め */
+.category-bar{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 20px}
+.category-bar button{min-height:36px;padding:6px 14px;font-size:13px;border-color:#cfd8d3;background:#fff;color:#444}
+.category-bar button[aria-pressed="true"]{background:#222;border-color:#222;color:#fff}
+.src{display:inline-block;padding:3px 9px;border-radius:999px;font-size:11px;font-weight:700;white-space:nowrap}
+.src-news{background:#e2f1f7;color:#2f6f82}
+.src-seicho{background:#efe9f8;color:#5d4590}
+.src-bucho{background:#faf0d9;color:#87661f}
+.src-member{background:#f2f2f2;color:#555}
+.seed-card{display:flex;flex-direction:column;gap:10px;margin:0}
+.seed-card.is-selected{background:#f3fbf7;box-shadow:0 0 0 2px var(--green) inset,0 2px 3px #00000008}
+.seed-card h3{display:flex;gap:10px;align-items:flex-start;margin:0;font-size:17px;line-height:1.6;overflow-wrap:anywhere}
+.seed-icon{display:grid;place-items:center;flex-shrink:0;width:40px;height:40px;border-radius:50%;background:var(--mint-bg);font-size:20px}
+.seed-card .desc{color:#4f4f4f;margin:0;font-size:13px;overflow-wrap:anywhere}
+.seed-card p{margin:0}
+a.next-step{text-decoration:none;color:inherit}
+.cta{width:100%;min-height:46px;border:0;background:var(--green-btn);color:#fff;font-size:14px}
+.cta:hover{background:var(--green-btn-hover)}
+.cta.is-on{background:var(--done);color:#222}
+.cta.is-on:hover{background:#f8d81c}
+.card-actions{display:flex;justify-content:flex-end;flex-wrap:wrap;gap:4px}
+.notes{border-top:1px dashed #ddd;padding-top:10px}
+.note-list{list-style:none;padding:0;margin:0 0 10px;display:grid;gap:10px}
+.note-list li{display:flex;gap:8px;font-size:13px}
+.note-list p{margin:0;line-height:1.7;white-space:pre-wrap;overflow-wrap:anywhere}
+.note-list a{overflow-wrap:anywhere}
+.ballot .rank{display:inline-block;min-width:72px;color:var(--green)}
+.winner h3{margin:10px 0 6px;font-size:17px}
+.winner summary{cursor:pointer;margin-top:6px}
+.table-wrap{overflow-x:auto}
+table.rounds{border-collapse:collapse;width:100%;font-size:12px;margin-top:8px}
+table.rounds th,table.rounds td{border-top:1px solid #e6e6e6;padding:6px 8px;text-align:left;vertical-align:top}
+table.rounds th{background:var(--mint-bg)}
+.page-heading.left + details.card summary{cursor:pointer}
+
+/* Toast */
+.toast{position:fixed;left:50%;bottom:24px;transform:translate(-50%,40px);opacity:0;padding:12px 20px;border-radius:999px;background:#222;color:#fff;font-size:13px;font-weight:700;transition:.2s;z-index:50;pointer-events:none;max-width:calc(100% - 32px)}
+.toast.show{transform:translate(-50%,0);opacity:1}
+.toast.error{background:var(--warn)}
+
+/* Mobile */
+@media (max-width:1100px){
+  .minutes-layout.with-doc{display:block}
+  .minutes-layout.with-doc .doc-panel{position:static;margin-bottom:16px}
+}
+@media (max-width:760px){
+  /* スマホでは、長いボタンの文字も折り返す（画面からはみ出さないように） */
+  button,.button{white-space:normal;max-width:100%;text-align:center}
+  .site-header{flex-wrap:wrap;margin:8px;top:8px;padding:8px 12px;gap:8px}
+  .brand small{display:none}
+  .brand-mark{width:36px;height:36px;font-size:16px}
+  .main-nav{order:3;width:100%;justify-content:space-between;overflow-x:auto;gap:2px}
+  .main-nav a{padding:6px 10px;font-size:13px;white-space:nowrap}
+  .hide-sm{display:none}
+  a.button{white-space:normal;text-align:center}
+  .account-name,.account .avatar{display:none}
+  .content{padding:8px 16px 80px}
+  .back-bar{padding:4px 16px 0}
+  .two-col,.grid-2{grid-template-columns:1fr}
+  .grid-3{grid-template-columns:1fr 1fr}
+  .doc-panel .doc-frame{height:55vh}
+  .card{padding:16px}
+  .card-grid{grid-template-columns:1fr}
+  .stepper .label{font-size:9px}
+  .stepper .date{display:none}
+  .task-form,.todo-row{grid-template-columns:1fr 1fr}
+  .task-form>input[name=title],.todo-row>input[data-k=title]{grid-column:1/-1}
+  .choices,.choices.two{grid-template-columns:1fr;gap:12px}
+  .choice{flex-direction:row;text-align:left;padding:18px;gap:14px;align-items:center;flex-wrap:wrap}
+  .choice-icon{width:56px;height:56px;font-size:26px}
+  .choice strong{font-size:17px;flex:1}
+  .choice span:not(.choice-icon):not(.choice-badge){flex-basis:100%}
+  .doc-frame{height:60vh;min-height:320px}
+  .choice .choice-badge{top:-11px;right:12px}
+  .fields{grid-template-columns:1fr;gap:2px}
+  .present-notes{grid-template-columns:1fr}
+  .checklist li{flex-wrap:wrap}
+  .done-meta{max-width:none;flex:1 1 100%;flex-wrap:wrap;justify-content:flex-start;padding-left:28px}
+  .minute-link{white-space:normal}
+  .fields dd{margin-bottom:10px}
+  .stage summary{padding:12px 14px}
+  .stage>*:not(summary){margin-left:14px;margin-right:14px}
+}
+
+/* テスト版の帯 */
+.site-label{padding:6px 16px;background:#fff4c2;border-bottom:1px solid #e6c84a;color:#5a4700;font-size:13px;font-weight:800;text-align:center}
+
+/* 取り消し・削除など、元に戻せない操作 */
+button.danger{background:var(--warn);border-color:var(--warn);color:#fff}
+button.danger:hover{background:#8a3a2b}
+.danger-outline{color:var(--warn);border-color:#e3b9ad}
+.confirm-start.danger-box{border-color:#e3b9ad;background:var(--warn-bg)}
+.confirm-start.danger-box ul{margin:0;padding-left:20px}
+
+/* 管理者メニュー：人事 */
+.table-wrap{overflow-x:auto;background:#fff;border:1px solid var(--line);border-radius:12px}
+.staff-table{width:100%;border-collapse:collapse;font-size:14px}
+.staff-table th,.staff-table td{padding:10px 12px;border-bottom:1px solid var(--soft-line);text-align:left;vertical-align:top}
+.staff-table th{font-size:12px;color:var(--muted);background:#fafcfb}
+.staff-table tr:last-child td{border-bottom:0}
+.staff-table tr.is-done td{color:var(--muted)}
+.staff-members{display:flex;flex-wrap:wrap;gap:6px 12px;align-items:center}
+@media (max-width:760px){
+  .staff-table thead{display:none}
+  .staff-table tr{display:block;padding:8px 0;border-bottom:1px solid var(--soft-line)}
+  .staff-table td{display:block;border:0;padding:4px 12px}
+}
+
+/* 確認ダイアログ（confirmDialog） */
+.dialog-backdrop{position:fixed;inset:0;z-index:100;display:grid;place-items:center;padding:16px;background:#00000059}
+.dialog{width:min(420px,100%);padding:20px 22px;background:#fff;border:1px solid var(--line);border-radius:14px;box-shadow:0 12px 32px #0000002e}
+.dialog p{margin:0 0 16px;line-height:1.7;font-weight:700;white-space:pre-line;overflow-wrap:anywhere}
+.dialog .form-actions{justify-content:flex-end;flex-wrap:wrap}
+
+/* 自分のタスク：追加欄（タスク名・PJ・期限・追加） */
+.my-task-form{grid-template-columns:minmax(0,2fr) minmax(0,1.4fr) minmax(0,1fr) auto}
+@media (max-width:760px){.my-task-form{grid-template-columns:1fr}}
+
+/* ---------- スマホ向けの調整（いちばん最後に置いて、上の指定より優先する） ---------- */
+@media (max-width:760px){
+  /* メニューは画面の下に固定（親指で押しやすく）。ヘッダーは細く */
+  .site-header{top:0;margin:0 0 8px;border-radius:0 0 16px 16px;min-height:52px;padding:6px 12px}
+  .main-nav{position:fixed;left:0;right:0;bottom:0;z-index:30;order:initial;width:auto;display:flex;justify-content:space-around;gap:2px;
+    padding:6px 6px calc(6px + env(safe-area-inset-bottom));background:#fff;border-top:1px solid var(--soft-line);box-shadow:0 -2px 10px #0000000f;overflow:visible}
+  .main-nav a{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;min-height:52px;padding:4px 2px;
+    border:0;border-radius:12px;font-size:11px;white-space:nowrap}
+  .main-nav a.is-active{background:var(--pale);border:0}
+  .nav-ico{display:block;font-size:20px;line-height:1}
+  .content{padding-bottom:calc(110px + env(safe-area-inset-bottom))}
+  .form-actions.sticky{bottom:calc(76px + env(safe-area-inset-bottom))}
+  .toast{bottom:calc(84px + env(safe-area-inset-bottom))}
+
+  /* 入力欄は16px（iPhoneで入力するときに画面が拡大されないように） */
+  input:not([type=checkbox]):not([type=radio]),select,textarea{font-size:16px;min-height:44px}
+  input[type=checkbox],input[type=radio]{width:22px;height:22px}
+  .link-btn{min-height:36px;padding:6px 8px}
+
+  /* タブは折り返さず1行で横にスクロール */
+  .tabs{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;margin-left:-16px;margin-right:-16px;padding:0 16px 2px}
+  .tabs::-webkit-scrollbar{display:none}
+  .tabs button,.tabs .tab{flex-shrink:0}
+
+  /* 工程の数直線：PJ画面では1工程の幅を確保して横にスクロール（いまの工程に合わせて表示） */
+  .stepper{grid-auto-columns:78px;gap:0;overflow-x:auto;scrollbar-width:none;margin-left:-16px;margin-right:-16px;padding:2px 16px 6px}
+  .stepper::-webkit-scrollbar{display:none}
+  .stepper .label{font-size:11px}
+  .stepper .date{display:block;font-size:10px}
+  /* PJ一覧のカードでは丸だけにする（工程名はカード上部のラベルに出ている） */
+  .pj-card .stepper{grid-auto-columns:minmax(0,1fr);overflow:visible;margin:6px 0 2px;padding:0}
+  .pj-card .stepper .label,.pj-card .stepper .date{display:none}
+
+  /* ホームなどの選択肢は小さめにして、1画面に多く入るように */
+  .page-heading h1{font-size:20px}
+  .choice{padding:14px 16px;gap:12px}
+  .choice-icon{width:44px;height:44px;font-size:22px}
+  .choice strong{font-size:16px}
+  .choice span:not(.choice-icon):not(.choice-badge){font-size:12px;line-height:1.6}
+}
+
+/* ---------- カレンダー（月・週・3日・1日・スケジュールを手動で切り替え） ---------- */
+.cal-toolbar{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px}
+.cal-toolbar .month-label{font-size:18px;margin-left:6px}
+.cal-toolbar .icon-btn{min-width:40px;padding:6px 10px;font-size:18px}
+.chip-meeting{background:#cdeedd;color:#1d4d3b}
+.chip-rehearsal{background:#d3e9f4;color:#1d4459}
+.chip-task{background:#f7e6bd;color:#5a4410}
+.chip-stage{background:#e5dcf5;color:#3f2e66}
+.chip{display:block;min-width:0;padding:1px 5px;border-radius:4px;font-size:11px;line-height:1.5;text-decoration:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.chip b{font-weight:800}
+.chip.is-done,.sch-ev.is-done{opacity:.55;text-decoration:line-through}
+.cal-cell{cursor:pointer}
+.cal-cell .more-link{font-size:11px;color:var(--muted);padding:0 4px}
+/* 時間軸（週・3日・1日） */
+.tg{background:#fff;border:1px solid var(--line);border-radius:12px;overflow:hidden;margin-bottom:16px}
+.tg-row{display:grid;grid-template-columns:44px repeat(var(--days),minmax(0,1fr))}
+.tg-head{border-bottom:1px solid #ececec}
+.tg-day{display:flex;flex-direction:column;align-items:center;gap:2px;min-height:0;padding:6px 2px;border:0;border-radius:0;background:none;font-size:11px;color:var(--muted)}
+.tg-day b{display:grid;place-items:center;width:32px;height:32px;border-radius:50%;font-size:17px;color:var(--ink)}
+.tg-day.is-today b{background:var(--green);color:#fff}
+.tg-allday{border-bottom:1px solid #ececec}
+.tg-label{font-size:10px;color:var(--muted);padding:6px 4px;text-align:right}
+.tg-allday-cell{display:flex;flex-direction:column;gap:2px;padding:4px 2px;border-left:1px solid #f0f0f0;min-width:0}
+.tg-scroll{max-height:62vh;overflow-y:auto}
+.tg-body{position:relative}
+.tg-hours{position:relative}
+.tg-hours span{position:absolute;right:6px;transform:translateY(-50%);font-size:10px;color:var(--muted)}
+.tg-col{position:relative;border-left:1px solid #f0f0f0;background:repeating-linear-gradient(to bottom,#eeeeee 0 1px,transparent 1px var(--hour))}
+.tg-col.is-today{background-color:#f6fcf9}
+.tg-ev{position:absolute;display:flex;flex-direction:column;padding:3px 5px;border-radius:6px;font-size:11px;line-height:1.3;text-decoration:none;overflow:hidden;box-shadow:0 1px 2px #0000001a}
+.tg-ev b{font-weight:800;overflow-wrap:anywhere}
+.tg-ev small{opacity:.85;overflow-wrap:anywhere}
+.tg-now{position:absolute;left:0;right:0;height:2px;background:#d93025;z-index:2}
+.tg-now::before{content:"";position:absolute;left:-5px;top:-4px;width:10px;height:10px;border-radius:50%;background:#d93025}
+/* スケジュール */
+.sch{display:flex;flex-direction:column;gap:14px;margin-bottom:16px}
+.sch-day{display:grid;grid-template-columns:52px 1fr;gap:10px}
+.sch-date{display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:0;min-height:0;padding:4px 0;border:0;background:none;color:var(--muted);font-size:11px}
+.sch-date b{display:grid;place-items:center;width:34px;height:34px;border-radius:50%;font-size:20px;color:var(--ink)}
+.sch-date small{font-size:10px}
+.sch-day.is-today .sch-date b{background:var(--green);color:#fff}
+.sch-list{display:flex;flex-direction:column;gap:6px;min-width:0}
+.sch-ev{display:flex;align-items:center;gap:6px;padding:8px 12px;border-radius:10px}
+.sch-ev a:not(.gcal){flex:1;min-width:0;display:flex;flex-direction:column;color:inherit;text-decoration:none}
+.sch-ev .gcal{flex-shrink:0}
+.sch-ev b{font-size:14px}
+.sch-ev small{font-size:12px;opacity:.85}
+@media (max-width:760px){
+  .cal-grid{display:grid}
+  .cal-cell{min-height:84px;padding:2px;gap:1px}
+  .cal-head{font-size:11px;padding:4px 0}
+  .cal-date{font-size:11px;min-width:20px;height:20px;align-self:center}
+  .chip{font-size:9.5px;padding:1px 2px;border-radius:3px}
+  .chip b{display:none}
+  .cal-cell .more-link{font-size:9.5px;padding:0 2px}
+  .cal-toolbar{gap:6px}
+  .cal-toolbar .month-label{font-size:16px}
+  .tg-row{grid-template-columns:36px repeat(var(--days),minmax(0,1fr))}
+  .tg-ev{padding:2px 3px;font-size:10px}
+  .tg-scroll{max-height:64vh}
+}
+
+/* カレンダー：予定の詳細 */
+.ev-detail h2{margin:6px 0 12px;font-size:18px;line-height:1.5}
+.ev-detail h2.is-done{text-decoration:line-through;opacity:.6}
+.ev-detail-head{display:flex;align-items:center;justify-content:space-between}
+.ev-kind{padding:2px 10px;border-radius:999px;font-size:12px;font-weight:800}
+.ev-rows{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;margin:0 0 16px;font-size:14px}
+.ev-rows dt{color:var(--muted);font-size:12px;padding-top:2px}
+.ev-rows dd{margin:0;overflow-wrap:anywhere}
+.ev-detail .form-actions{justify-content:space-between;align-items:center}
+@media (max-width:760px){
+  .dialog-backdrop.sheet{place-items:end center;padding:0}
+  .dialog-backdrop.sheet .dialog{width:100%;border-radius:18px 18px 0 0;padding:18px 18px calc(18px + env(safe-area-inset-bottom))}
+}
+
+/* カレンダー：表示の切り替え（プルダウン）と「表示」の設定パネル */
+.cal-controls{gap:8px}
+.cal-view-select{width:auto;min-width:118px;border-radius:999px;font-weight:700;border-color:var(--line)}
+.cal-filter{position:relative}
+.cal-filter>summary{list-style:none;cursor:pointer;gap:6px}
+.cal-filter>summary::-webkit-details-marker{display:none}
+.cal-filter>summary::after{content:"▾";font-size:11px}
+.cal-filter[open]>summary{background:var(--pale)}
+.filter-count{padding:1px 7px;border-radius:999px;background:var(--warn-bg);color:var(--warn);font-size:10px}
+.cal-filter-panel{position:absolute;right:0;top:calc(100% + 6px);z-index:25;width:min(320px,calc(100vw - 32px));padding:14px;
+  background:#fff;border:1px solid var(--line);border-radius:14px;box-shadow:0 10px 28px #0000001f;display:flex;flex-direction:column;gap:8px}
+.cal-filter-panel .tabs{margin:0}
+.filter-label{margin:4px 0 0;font-size:11px;font-weight:700;color:var(--muted)}
+.kind-toggles{display:flex;flex-wrap:wrap;gap:6px}
+.kind-toggle{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:999px;font-size:13px;font-weight:700;cursor:pointer}
+.kind-toggle input{width:16px;height:16px}
+.kind-toggle.is-off{background:#f1f1f1;color:#999;text-decoration:line-through}
+@media (max-width:760px){
+  .cal-controls{width:100%;justify-content:space-between}
+  .cal-view-select{flex:1}
+  .kind-toggle input{width:18px;height:18px}
+}
+
+/* ---------- 途中のページは少なく：PJを選ぶだけのリスト、説明のない選択肢 ---------- */
+.pick-list{list-style:none;margin:0 0 12px;padding:0;background:#fff;border:1px solid var(--line);border-radius:14px;overflow:hidden}
+.pick-list>li+li{border-top:1px solid var(--soft-line)}
+.pick{display:flex;align-items:center;gap:10px;width:100%;min-height:56px;padding:12px 16px;border:0;border-radius:0;background:none;
+  color:var(--ink);font-size:15px;font-weight:700;text-align:left;text-decoration:none;white-space:normal}
+.pick:hover,.pick.is-open{background:var(--mint-bg)}
+.pick-name{flex:1;min-width:0}
+.pick-note{flex-shrink:0;font-size:12px;color:var(--muted);font-weight:500}
+.pick-arrow{flex-shrink:0;color:var(--muted);font-size:20px;line-height:1;transition:transform .15s}
+.pick.is-open .pick-arrow{transform:rotate(90deg)}
+.pick-slot:not(:empty){padding:0 12px 12px;background:var(--mint-bg)}
+.pick-slot .confirm-start{background:#fff}
+.pick-others{margin-top:4px}
+.pick-others>summary{cursor:pointer;padding:8px 4px;font-size:13px;font-weight:700;color:var(--muted)}
+.choice{padding:28px 20px;gap:12px}
+.add-box{margin-bottom:12px}
+.add-box>summary{list-style:none;cursor:pointer;margin-bottom:8px}
+.add-box>summary::-webkit-details-marker{display:none}
+.add-box[open]>summary{background:var(--pale)}
+.admin-help>summary{cursor:pointer;padding:6px 0}
+.admin-help[open]>summary{margin-bottom:10px}
+@media (max-width:760px){
+  .choice{padding:14px 16px;flex-wrap:nowrap}
+}
+
+/* PJ決め：種の一覧をすっきり（絞り込みはプルダウン、カードの操作は「⋯」メニュー） */
+.seed-tools{display:flex;align-items:center;gap:8px;margin-bottom:14px}
+.seed-tools select{width:auto;min-width:160px;border-radius:999px;font-weight:700}
+.seed-tools .is-on{background:var(--pale);color:var(--ink)}
+.seed-post{margin-bottom:16px}
+.seed-card .desc.clamp{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.seed-foot{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:auto}
+.cta-sm{min-height:38px;padding:6px 16px;border:0;background:var(--green-btn);color:#fff;font-size:13px}
+.cta-sm:hover{background:var(--green-btn-hover)}
+.cta-sm.is-on{background:var(--done);color:#222}
+.card-menu{position:relative}
+.card-menu>summary{list-style:none;cursor:pointer;display:grid;place-items:center;width:32px;height:32px;border-radius:50%;font-size:18px;line-height:1;color:var(--muted)}
+.card-menu>summary::-webkit-details-marker{display:none}
+.card-menu>summary:hover,.card-menu[open]>summary{background:#eef3f0}
+.card-menu-panel{position:absolute;right:0;top:calc(100% + 4px);z-index:15;min-width:200px;padding:6px;background:#fff;border:1px solid var(--line);
+  border-radius:12px;box-shadow:0 10px 24px #0000001f;display:flex;flex-direction:column}
+.card-menu-panel button{justify-content:flex-start;min-height:40px;padding:8px 12px;border:0;border-radius:8px;background:none;font-size:13px;text-align:left;width:100%}
+.card-menu-panel button:hover{background:var(--mint-bg)}
+.card-menu-panel .danger-text{color:var(--warn)}
+.card-menu-panel p{margin:4px 12px 2px}
+
+/* 選択肢の下に小さく出す「誰が使うか」 */
+.choice-role{display:block;margin-top:2px;font-size:11px;font-weight:700;color:var(--muted)}
+
+/* 管理者メニュー：人事異動 */
+.staff-move{display:grid;grid-template-columns:repeat(3,minmax(0,1fr)) auto;gap:8px;align-items:center;margin-bottom:12px}
+.staff-chip{display:inline-flex;align-items:center;gap:2px}
+.staff-chip .link-btn{min-height:28px;padding:2px 6px}
+.staff-add{width:auto;min-height:32px;padding:4px 8px;font-size:12px;border-radius:999px}
+@media (max-width:760px){.staff-move{grid-template-columns:1fr}}
+
+/* PJ決め：コメント */
+.seed-card .comments{border-top:1px solid var(--soft-line);padding-top:10px}
+.seed-foot .link-btn.is-on{background:var(--pale)}
+
+/* タイマー */
+.timer{display:inline-flex;flex-wrap:wrap;align-items:center;gap:8px;margin:6px 0 10px;padding:6px 8px 6px 14px;border:1px solid var(--line);border-radius:999px;background:#fff}
+.timer-time{font-size:22px;font-weight:800;font-variant-numeric:tabular-nums;min-width:4ch}
+.timer.is-running .timer-icon{animation:timer-blink 1s steps(2) infinite}
+.timer.is-over{border-color:var(--warn);background:var(--warn-bg)}
+.timer.is-over .timer-time,.timer.is-over .timer-note{color:var(--warn);font-weight:800}
+.timer .small{min-height:34px;padding:4px 12px}
+.timer-target{width:auto;min-height:34px;padding:4px 8px;border-radius:999px;font-size:13px}
+@keyframes timer-blink{50%{opacity:.35}}
+
+/* 工程のチェック：スキップ */
+.checklist li.is-skipped .check > span,.skipped-label{text-decoration:line-through;color:var(--muted,#888)}
+.checklist li.is-skipped .check small{text-decoration:line-through}
+.skip-btn{margin-left:auto;white-space:nowrap;color:var(--muted,#888)}
+
+/* MTG・定例のタイマー：スクロールしてもヘッダーのすぐ下に残る。経過時間で色が変わる */
+.timer.timer-bar{--timer-color:rgb(46,157,91);position:sticky;top:96px;z-index:15;display:flex;flex-wrap:nowrap;margin:0 0 10px;
+  padding:4px 6px 4px 14px;border:2px solid var(--timer-color);background:#fff;box-shadow:0 2px 8px #0001;transition:border-color 1s}
+.timer.timer-bar .timer-time{color:var(--timer-color);font-size:20px;transition:color 1s}
+.timer.timer-bar .timer-note{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--timer-color);font-weight:700}
+@media (max-width:760px){.timer.timer-bar{top:60px}}
+
+/* PJの編集：ドキュメント3種類 */
+.doc-urls{border:1px solid var(--soft-line);border-radius:12px;padding:10px 14px;margin:0;display:grid;gap:10px}
+.doc-urls legend{font-weight:700;padding:0 6px}
+.doc-urls small{display:block;font-weight:400}
+.seg{display:inline-flex;gap:6px}
+.doc-view .row-left{margin:0 0 8px}
+
+/* 議事録の同時編集 */
+.live-line{margin:4px 0 0}
+#live-viewers{color:var(--accent,#2f6fd6);font-weight:700}
+.live-badge{font-size:12px;font-weight:700;color:#b26a00;background:#fff4e0;border-radius:999px;padding:2px 8px}
+.live-badge:empty{display:none}
+textarea[readonly]{background:#f5f5f5}
+.live-updated{animation:live-flash 1.2s ease-out}
+@keyframes live-flash{0%{box-shadow:0 0 0 3px #7fb3ff}100%{box-shadow:none}}
+
+/* Googleカレンダー：定例は「この回だけ／まとめて」を選ぶ */
+.gcal-choice{position:relative;display:inline-block}
+.gcal-choice summary{list-style:none;cursor:pointer}
+.gcal-choice summary::-webkit-details-marker{display:none}
+.gcal-menu{position:absolute;right:0;top:calc(100% + 4px);z-index:40;display:grid;min-width:240px;padding:6px;background:#fff;border:1px solid var(--line);border-radius:12px;box-shadow:0 6px 20px #0002}
+.gcal-menu a{padding:10px 12px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:700;color:var(--green)}
+.gcal-menu a:hover{background:var(--mint-bg)}
+.ev-detail .gcal-menu{top:auto;bottom:calc(100% + 4px);right:auto;left:0}
+
+/* 長い説明文の折りたたみ */
+.fold{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.fold.is-open{display:block}
+.fold-btn{margin:-4px 0 6px;padding:0}
+/* PJの画面：ミーティングの欄は畳んでおく */
+.meeting-panel > summary{cursor:pointer;list-style:none;margin:0}
+.meeting-panel > summary::-webkit-details-marker{display:none}
+.meeting-panel[open] .fold-hint{display:inline-block;transform:rotate(180deg)}
+.meeting-panel > p{margin:8px 0 0}
+@media (max-width:760px){
+  .pj-header{padding:14px 16px;gap:8px}
+  .pj-header h1{margin:4px 0}
+  .pj-header .desc{margin-bottom:4px;font-size:14px}
+  .pj-header-actions{flex-wrap:nowrap;overflow-x:auto;width:100%;padding-bottom:2px}
+  .pj-header-actions .button{flex:none}
+  .present-desc.fold{-webkit-line-clamp:3}
+}
+
+.done-stages{margin:0 0 12px}
+.done-stages > summary{cursor:pointer;padding:8px 4px;color:var(--muted);font-weight:700;font-size:14px}
+
+@media (max-width:760px){
+  .present-head h1{font-size:22px;margin:6px 0}
+  .present-head{padding:14px 16px}
+}
+
+/* 縦の場所を詰める：戻るボタンはパンくずの行に。PJのヘッダー・数直線・ミーティング欄を薄く */
+.breadcrumb{display:flex;align-items:center;flex-wrap:wrap;gap:4px 10px}
+.breadcrumb .back-btn{min-height:30px;padding:3px 12px;font-size:12px}
+.pj-header{padding:14px 20px;align-items:flex-start}
+.pj-header-main{flex:1;min-width:0}
+.pj-header h1{font-size:clamp(19px,2.6vw,23px);margin:4px 0}
+.pj-header .desc{margin:0 0 4px;font-size:14px}
+.pj-header .stage-pill{font-size:11px}
+.stepper{margin:0 0 12px}
+.meeting-panel{padding:10px 20px}
+.meeting-panel h2{font-size:16px}
+.meeting-panel[open]{padding-bottom:16px}
+.done-stages{margin:4px 0 12px}
+
+/* ---------- 総点検の調整 ---------- */
+/* 文字のボタンの「削除」「×」は赤い文字だけ（塗りつぶしの赤いボタンにしない） */
+button.link-btn.danger{background:none;border:0;color:var(--warn)}
+button.link-btn.danger:hover{background:none;color:#8a3a2b}
+/* 議事録・フォームの中のチェック項目は、チェックと文字を横に並べる */
+.minutes label.check,.form label.check,.confirm-start label.check{flex-direction:row;align-items:flex-start;gap:10px;font-weight:500;font-size:inherit}
+/* 説明は畳んでおく */
+.help-fold{margin:0 0 10px}
+.help-fold > summary{cursor:pointer;font-size:13px;font-weight:700;color:var(--muted);padding:4px 0}
+.help-fold p{margin:6px 0 0;padding:10px 12px;background:#f3fbf7;border-radius:8px}
+/* 横にスクロールするタブは、続きがあることが分かるよう右端をぼかす */
+.tabs.has-more{-webkit-mask-image:linear-gradient(90deg,#000 80%,transparent);mask-image:linear-gradient(90deg,#000 80%,transparent)}
+@media (max-width:480px){
+  .grid-3{grid-template-columns:1fr}
+}
+@media (max-width:760px){
+  .hide-sm{display:none}
+  .form-actions.sticky{flex-wrap:nowrap;gap:6px;padding:8px}
+  .form-actions.sticky > *{flex:none;white-space:nowrap;padding-left:14px;padding-right:14px}
+  .form-actions.sticky .primary{flex:1;max-width:280px}
+}
+
+.chip-teirei{background:#f6e3c6;color:#5c3a0c}
+
+.member-filter{margin:0 0 8px;max-width:320px}
+label.chip-check[hidden]{display:none}
+
+.notice-link{display:block;flex:1;min-width:0;position:relative;padding-right:24px;color:inherit;text-decoration:none}
+.notice-link small{display:block;margin-top:4px}
+.notice-go{position:absolute;right:0;top:50%;transform:translateY(-50%);font-size:22px;color:var(--muted)}
+.notices .list-item:has(.notice-link):hover{background:#f3fbf7}
+#boot-loading button{margin-left:8px}

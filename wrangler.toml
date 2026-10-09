@@ -1,0 +1,86 @@
+name = "policy-planning"
+main = "src/worker.js"
+compatibility_date = "2026-09-01"
+
+# エラーの調査用に、Workerのログを Cloudflare のダッシュボードに残す
+[observability]
+enabled = true
+
+[assets]
+directory = "./public"
+not_found_handling = "single-page-application"
+run_worker_first = ["/api/*", "/auth/*"]
+
+[[d1_databases]]
+binding = "DB"
+database_name = "policy-planning"
+database_id = "<npx wrangler d1 create で出た database_id>"
+migrations_dir = "migrations"
+
+# 希望PJアンケートのDB（読み取りだけ。PJ決めの「連動する募集回」で、選択肢・投票・締め切りを映す）
+[[d1_databases]]
+binding = "SURVEY_DB"
+database_name = "kibou-pj-survey"
+database_id = "<npx wrangler d1 create で出た database_id>"
+
+# 毎朝 8:00 JST（= 23:00 UTC）にリマインドを送る（次回MTGが未定のPJ、止まっているヒアリング申請）
+[triggers]
+crons = ["0 23 * * *"]
+
+[vars]
+# 希望PJアンケートのURL（連動する募集回で「投票はこちら」に出す）
+SURVEY_URL = ""
+# 通知のDMに入れるリンクの先頭
+APP_URL = "https://policy-planning.<アカウント>.workers.dev"
+# このDiscordサーバー（学生チーム）のメンバーなら誰でもログインできる
+DISCORD_GUILD_ID = ""
+# 政策立案部門のロールID。ログインには不要。外部ヒアリングを見られる人（部門メンバー・代表・管理者）の判定に使う
+DEPT_ROLE_ID = ""
+# 部門長（管理者を兼ねる）・代表の Discord ユーザーID（カンマ区切り）
+HEAD_IDS = ""
+REP_IDS = ""
+# 部門長のほかに、常に管理者にする人の Discord ユーザーID（カンマ区切り。副部門長など）。管理者メニューからは外せない
+ADMIN_IDS = ""
+# 渉外フォーラム（Discordのフォーラムチャンネル）のID。承認されたヒアリングのスレッドをここに作る
+HEARING_FORUM_ID = ""
+# （任意）スレッドに付けるフォーラムのタグID。フォーラムで「タグ必須」にしている場合だけ入れる
+HEARING_FORUM_TAG_ID = ""
+
+# シークレット（`npx wrangler secret put <NAME>` で設定。コードやログには出さない）:
+#   DISCORD_CLIENT_ID / DISCORD_CLIENT_SECRET / SESSION_SECRET
+#   DISCORD_BOT_TOKEN（フェーズ1b：アクションボードのBot）
+
+# ---------- テスト版（みんなで試す用。本番とは別のURL・別のDB） ----------
+# デプロイ：npx wrangler deploy --env test ／ DBの更新：npx wrangler d1 migrations apply policy-planning-test --remote --env test
+# シークレットは本番と別に設定する（--env test）。Discordの開発者ポータルに .../auth/callback のリダイレクトURLを追加しておく
+[env.test]
+name = "policy-planning-test"
+
+[[env.test.d1_databases]]
+binding = "DB"
+database_name = "policy-planning-test"
+database_id = "<npx wrangler d1 create で出た database_id>"
+migrations_dir = "migrations"
+
+[[env.test.d1_databases]]
+binding = "SURVEY_DB"
+database_name = "kibou-pj-survey"
+database_id = "<npx wrangler d1 create で出た database_id>"
+
+# テスト版では、毎朝のリマインドは送らない
+[env.test.triggers]
+crons = []
+
+[env.test.vars]
+# 画面上部に出す帯（本番と見分けるため）
+SITE_LABEL = "テスト版"
+SURVEY_URL = ""
+APP_URL = "https://policy-planning-test.<アカウント>.workers.dev"
+DISCORD_GUILD_ID = ""
+DEPT_ROLE_ID = ""
+HEAD_IDS = ""
+REP_IDS = ""
+ADMIN_IDS = ""
+# テスト版からは渉外フォーラムにスレッドを作らない
+HEARING_FORUM_ID = ""
+HEARING_FORUM_TAG_ID = ""

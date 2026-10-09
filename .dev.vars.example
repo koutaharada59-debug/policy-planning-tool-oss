@@ -1,0 +1,12 @@
+# .dev.vars にコピーして使う（.dev.vars はgitに入らない）
+SESSION_SECRET=local-dev-secret-change-me
+# localhost で「ローカル確認用ログイン」を出す
+DEV_LOGIN=true
+# ローカル確認用ログインで「部門長」「代表」の名前で入ると、それぞれの権限になる
+HEAD_IDS=dev-部門長
+REP_IDS=dev-代表
+DEPT_ROLE_ID=
+DISCORD_CLIENT_ID=
+DISCORD_CLIENT_SECRET=
+# 通知のリンク先（ローカル）
+APP_URL=http://localhost:8790
