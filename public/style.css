@@ -815,3 +815,29 @@ label.chip-check[hidden]{display:none}
 .notice-go{position:absolute;right:0;top:50%;transform:translateY(-50%);font-size:22px;color:var(--muted)}
 .notices .list-item:has(.notice-link):hover{background:#f3fbf7}
 #boot-loading button{margin-left:8px}
+
+/* PJ決め：まとめてPJにする・人事を決める */
+.pick-check{display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:700;cursor:pointer}
+.pick-others-box summary{cursor:pointer}
+.pick-others-list{list-style:none;margin:10px 0 0;padding:0;display:grid;gap:8px}
+.pick-bar{justify-content:space-between;align-items:center}
+.staff-matrix{border-collapse:collapse;width:100%;min-width:520px;font-size:13px}
+.staff-matrix th,.staff-matrix td{border-bottom:1px solid var(--soft-line);padding:6px 8px;text-align:center;vertical-align:middle}
+.staff-matrix thead th{vertical-align:bottom;background:#f7faf8;position:sticky;top:0}
+.staff-matrix thead th small{display:block;font-weight:500;color:var(--muted)}
+.staff-pj-title{display:block;font-weight:800;line-height:1.4}
+.staff-matrix tbody th{text-align:left;white-space:nowrap;position:sticky;left:0;background:#fff;font-weight:700}
+.staff-matrix td label{display:flex;flex-direction:column;align-items:center;gap:2px;cursor:pointer}
+.staff-rank{font-size:11px;color:var(--muted);white-space:nowrap}
+.staff-matrix td.is-first .staff-rank{color:var(--green);font-weight:800}
+.staff-matrix td.is-on{background:#e7f7ef}
+.staff-matrix td.is-out{background:var(--warn-bg)}
+.staff-matrix td.is-out .staff-rank::after{content:"（希望外）";color:var(--warn);font-weight:700}
+.staff-matrix tr.is-none th{color:var(--muted)}
+.staff-add-row{margin:10px 0 4px}
+.staff-add-row select{max-width:100%}
+.staff-pj-grid{margin-bottom:16px}
+.staff-pj{display:grid;gap:10px;margin:0}
+.staff-pj label{display:flex;flex-direction:column;gap:4px;font-weight:700;font-size:13px}
+.staff-pj label.check{flex-direction:row;font-weight:500}
+#staff-warn .warn{color:var(--warn);font-weight:700}

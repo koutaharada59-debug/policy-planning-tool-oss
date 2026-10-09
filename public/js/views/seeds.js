@@ -1,5 +1,5 @@
 // PJ決め（工程0）：政策の種 → 投票（ランク付け）→ 開票（RCV）→ PJ化と人員の割り振り
-import { api, esc, state, avatar, fmtDate, fmtDateTime, jstDateTime, busy, toast, formData, hashQuery, nextMonday, confirmDialog, bindMemberFilter } from "../lib.js";
+import { api, esc, state, avatar, fmtDate, fmtDateTime, jstDateTime, busy, toast, formData, hashQuery, nextMonday, confirmDialog, bindMemberFilter, guardForm, markSaved } from "../lib.js";
 
 const CATEGORIES = { news: "ニュース勉強会", seicho: "政調ピックアップ", bucho: "部門長セレクト" };
 const AI_CAUTION = `<p class="caution">⚠ AIで調べた情報は、必ず一次出典を確認してください。出典のない数字は使わない。AIが生成した文章を、自分のソースとして引用しない。</p>`;
@@ -352,7 +352,8 @@ async function renderResults(body, data, reload) {
           <div class="row"><span class="status-now">${i + 1}位</span>
             ${project ? `<span class="row-left"><a class="button small" href="#/projects/${project.id}">PJを見る →</a>
                 ${state.me.isAdmin ? `<button type="button" class="small danger-outline" data-undo="${sid}">↩ 取り消す</button>` : ""}</span>`
-              : state.me.isAdmin ? `<button class="primary small" data-make="${sid}">正式なPJにする</button>` : ""}</div>
+              : state.me.isAdmin ? `<span class="row-left"><label class="pick-check"><input type="checkbox" data-pick-seed="${sid}" checked> まとめてPJにする</label>
+                <button class="small" data-make="${sid}">このPJだけ作る</button></span>` : ""}</div>
           <h3>${esc(title(sid))}</h3>
           <p class="small"><strong>割り振り案</strong>（選ばれたPJのうち、本人の希望順位がいちばん高いものへ）：
             ${assigned.length ? assigned.map((u) => `${avatar(userOf[u])} ${esc(userOf[u]?.name)}`).join("　") : "なし"}</p>
@@ -360,7 +361,26 @@ async function renderResults(body, data, reload) {
           <div class="make-form"></div><div class="undo-box"></div>
         </section>`;
       }).join("") : `<div class="empty"><p>まだ票がありません。</p></div>`}
-      ${r.assignment.unassigned.length ? `<p class="muted small">選ばれたPJをどれも希望していない人：${r.assignment.unassigned.map((u) => esc(userOf[u]?.name)).join("、")}</p>` : ""}`;
+      ${r.assignment.unassigned.length ? `<p class="muted small">選ばれたPJをどれも希望していない人：${r.assignment.unassigned.map((u) => esc(userOf[u]?.name)).join("、")}</p>` : ""}
+      ${state.me.isAdmin ? pickOthers(data.seeds, r.winners.map((w) => w.winner)) : ""}
+      ${state.me.isAdmin ? `<div class="form-actions sticky pick-bar">
+        <span class="small" id="pick-count"></span>
+        <button type="button" class="primary" id="go-staffing">選んだPJの人事を決める →</button></div>` : ""}`;
+
+    // まとめてPJにする：選んだ種を持って人事の画面へ
+    const picks = () => [...body.querySelectorAll("[data-pick-seed]:checked")].map((c) => Number(c.dataset.pickSeed));
+    const syncPicks = () => {
+      const n = picks().length;
+      const count = body.querySelector("#pick-count");
+      if (count) count.textContent = n ? `${n}件を選択中` : "PJにする種を選んでください";
+      const go = body.querySelector("#go-staffing");
+      if (go) go.disabled = !n;
+    };
+    body.querySelectorAll("[data-pick-seed]").forEach((c) => c.addEventListener("change", syncPicks));
+    syncPicks();
+    body.querySelector("#go-staffing")?.addEventListener("click", () => {
+      location.hash = `#/seeds/${round.id}/staffing?seeds=${picks().join(",")}`;
+    });
 
     body.querySelector("#seats")?.addEventListener("change", (e) => { seats = Number(e.target.value); draw(); });
     body.querySelectorAll("[data-make]").forEach((b) => b.addEventListener("click", () => {
@@ -452,3 +472,180 @@ ${restore ? "前のPJを記録ごと戻します" : `開始日：${fmtDate(f.sta
     }).catch(() => {});
   });
 }
+
+// 開票・PJ化：上位に入らなかった種も、まとめてPJにする候補に選べる（まだPJになっていないもの）
+function pickOthers(seeds, winners) {
+  const rest = seeds.filter((s) => !s.project && !winners.includes(s.id));
+  if (!rest.length) return "";
+  return `<details class="card pick-others-box"><summary class="small"><strong>ほかの種もPJにする</strong>（${rest.length}件）</summary>
+    <ul class="pick-others-list">${rest.map((s) => `<li><label class="check"><input type="checkbox" data-pick-seed="${s.id}">
+      <span>${esc(s.icon)} ${esc(s.title)}<small>希望 ${s.voters.length}人${s.firstChoices ? `（第1希望 ${s.firstChoices}）` : ""}</small></span></label></li>`).join("")}</ul>
+  </details>`;
+}
+
+// ---------- 人事を決める（管理者）：選んだ種をまとめて正式なPJにし、誰をどのPJに入れるかを決める ----------
+// 部門のメンバーは、どのPJを第何希望にしたかを表に出す。希望していないPJにも入れられるが、「希望外」と目立たせる。
+// アンケートに参加していない人（部門外のメンバーなど）は「＋ 人を追加」で行を足して配属する
+export async function renderStaffing(el, roundId) {
+  if (!state.me.isAdmin) throw new Error("人事を決められるのは管理者です");
+  const data = await api(`/api/rounds/${roundId}`);
+  const ids = (hashQuery().get("seeds") || "").split(",").map(Number).filter(Boolean);
+  const picked = ids.map((sid) => data.seeds.find((s) => s.id === sid)).filter((s) => s && !s.project);
+  const back = `#/seeds/${roundId}?tab=results`;
+  if (!picked.length) {
+    el.innerHTML = `<div class="empty"><p>PJにする種が選ばれていません（すでにPJになっている種は除きます）。</p><a class="button" href="${back}">開票・PJ化に戻る</a></div>`;
+    return;
+  }
+
+  // 希望：人 → { 種のID: 順位 }（0 は順位を付けていない希望）
+  const wishes = new Map();
+  for (const s of data.seeds) {
+    for (const v of s.voters) {
+      const w = wishes.get(v.id) || { user: { id: v.id, name: v.name, avatar: v.avatar }, ranks: {} };
+      w.ranks[s.id] = v.rank;
+      wishes.set(v.id, w);
+    }
+  }
+  const rankOf = (uid, sid) => wishes.get(uid)?.ranks[sid];
+  const order = (r) => (r === undefined ? 999 : r === 0 ? 99 : r); // 第1希望 < … < 順位なしの希望 < 希望なし
+  const best = (uid) => Math.min(...picked.map((s) => order(rankOf(uid, s.id))));
+
+  // 行：選んだPJのどれかを希望している人（いちばん高い希望順）→ どれも希望していない投票者 → 手で足した人
+  const voters = [...wishes.values()].map((w) => w.user);
+  const rows = [
+    ...voters.filter((u) => best(u.id) < 999).sort((a, b) => best(a.id) - best(b.id) || a.name.localeCompare(b.name, "ja")),
+    ...voters.filter((u) => best(u.id) === 999).sort((a, b) => a.name.localeCompare(b.name, "ja")),
+  ];
+  const extra = new Set(); // 手で足した人（アンケートに参加していない人）
+
+  // 初めの配属：選んだPJのうち、本人の希望順位がいちばん高いもの（同じ順位なら選んだ順で先のもの）
+  const assign = new Map();
+  for (const u of rows) {
+    const b = best(u.id);
+    const sid = b < 999 ? picked.find((s) => order(rankOf(u.id, s.id)) === b)?.id : null;
+    assign.set(u.id, new Set(sid ? [sid] : []));
+  }
+
+  el.innerHTML = `
+    <nav class="breadcrumb"><a href="#/seeds?all=1">PJ決め</a> / <a href="${back}">${esc(data.round.title)}</a> / 人事を決める</nav>
+    <div class="page-heading left"><h1>🧩 人事を決める（${picked.length}件のPJ）</h1>
+      <p>数字は、その人がそのPJを第何希望にしたか。最初は、本人の希望順位がいちばん高いPJに入れてあります。</p></div>
+    <form id="staffing-form">
+      <div class="table-wrap staff-matrix-wrap" id="matrix"></div>
+      <div class="row-left staff-add-row">
+        <select id="add-person" aria-label="人を追加"><option value="">＋ 人を追加（アンケートに参加していない人・部門外のメンバーなど）</option></select>
+      </div>
+      <p class="muted small">一覧にない人は、一度このツールにログインしてもらうと選べるようになります。</p>
+      <p class="small" id="staff-warn"></p>
+
+      <h2 class="section-title">作るPJ</h2>
+      <label class="small">開始日（1週目の初日。全PJ共通）<input type="date" name="start_date" required value="${nextMonday()}"></label>
+      <div class="card-grid staff-pj-grid">${picked.map((s) => `
+        <section class="card staff-pj" data-pj="${s.id}">
+          <label>PJ名<input name="name-${s.id}" maxlength="60" required value="${esc(s.title)}"></label>
+          ${s.prevProject ? `<label class="check"><input type="checkbox" name="restore-${s.id}" checked>
+            <span>前に取り消した「${esc(s.prevProject.name)}」を戻す<small>議事録などの記録を引き継ぎます</small></span></label>` : ""}
+        </section>`).join("")}</div>
+      <div class="form-actions sticky">
+        <a class="button" href="${back}">キャンセル</a>
+        <button class="primary" type="submit">${picked.length}件のPJを作成する</button>
+      </div>
+    </form>`;
+
+  const form = el.querySelector("#staffing-form");
+  const matrix = el.querySelector("#matrix");
+  const addSel = el.querySelector("#add-person");
+  const allRows = () => [...rows, ...[...extra].map((id) => state.users.find((u) => u.id === id)).filter(Boolean)];
+  const rankLabel = (r) => (r === undefined ? "—" : r === 0 ? "希望" : `第${r}希望`);
+
+  const draw = () => {
+    const people = allRows();
+    matrix.innerHTML = `<table class="staff-matrix">
+      <thead><tr><th>メンバー</th>${picked.map((s) => {
+        const n = people.filter((u) => assign.get(u.id)?.has(s.id)).length;
+        const first = s.voters.filter((v) => v.rank === 1).length;
+        return `<th><span class="staff-pj-title">${esc(s.icon)} ${esc(s.title)}</span>
+          <small>配属 <strong>${n}</strong>人・希望 ${s.voters.length}人${first ? `（第1希望 ${first}）` : ""}</small></th>`;
+      }).join("")}</tr></thead>
+      <tbody>${people.map((u) => {
+        const mine = assign.get(u.id) || new Set();
+        return `<tr class="${mine.size ? "" : "is-none"}">
+          <th>${avatar(u)} ${esc(u.name)}${extra.has(u.id) ? ` <span class="tag">追加</span>` : best(u.id) === 999 ? ` <span class="tag">希望なし</span>` : ""}</th>
+          ${picked.map((s) => {
+            const r = rankOf(u.id, s.id);
+            const on = mine.has(s.id);
+            return `<td class="${on ? "is-on" : ""} ${on && r === undefined && !extra.has(u.id) ? "is-out" : ""} ${r === 1 ? "is-first" : ""}">
+              <label><input type="checkbox" name="a" value="${esc(u.id)}:${s.id}" ${on ? "checked" : ""} aria-label="${esc(u.name)}を${esc(s.title)}に">
+                <span class="staff-rank">${rankLabel(r)}</span></label></td>`;
+          }).join("")}</tr>`;
+      }).join("")}</tbody></table>`;
+    // 注意：どこにも入っていない人・希望外の配属・2つ以上のPJに入っている人
+    const none = people.filter((u) => !assign.get(u.id)?.size && !extra.has(u.id));
+    const out = people.filter((u) => !extra.has(u.id) && [...(assign.get(u.id) || [])].some((sid) => rankOf(u.id, sid) === undefined));
+    const multi = people.filter((u) => (assign.get(u.id)?.size || 0) > 1);
+    el.querySelector("#staff-warn").innerHTML = [
+      none.length ? `<span class="muted">どのPJにも入っていない人：${none.map((u) => esc(u.name)).join("、")}</span>` : "",
+      out.length ? `<span class="warn">⚠ 希望していないPJに入れている人：${out.map((u) => esc(u.name)).join("、")}</span>` : "",
+      multi.length ? `<span class="warn">2つ以上のPJに入っている人：${multi.map((u) => esc(u.name)).join("、")}</span>` : "",
+    ].filter(Boolean).join("<br>");
+    // 追加できる人（まだ行にない人）
+    const shown = new Set(people.map((u) => u.id));
+    addSel.innerHTML = `<option value="">＋ 人を追加（アンケートに参加していない人・部門外のメンバーなど）</option>` +
+      state.users.filter((u) => !shown.has(u.id)).map((u) => `<option value="${esc(u.id)}">${esc(u.name)}</option>`).join("");
+  };
+  draw();
+  guardForm(form);
+
+  matrix.addEventListener("change", (e) => {
+    const [uid, sid] = e.target.value.split(":");
+    const set = assign.get(uid) || new Set();
+    if (e.target.checked) set.add(Number(sid)); else set.delete(Number(sid));
+    assign.set(uid, set);
+    draw();
+  });
+  addSel.addEventListener("change", () => {
+    if (!addSel.value) return;
+    extra.add(addSel.value);
+    assign.set(addSel.value, assign.get(addSel.value) || new Set());
+    draw();
+  });
+
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const button = e.submitter;
+    const people = allRows();
+    const membersOf = (sid) => people.filter((u) => assign.get(u.id)?.has(sid));
+    const empty = picked.filter((s) => !membersOf(s.id).length);
+    if (empty.length) return toast(`メンバーがいないPJがあります：${empty.map((s) => s.title).join("、")}`, "error");
+    const nameOf = (s) => form[`name-${s.id}`].value.trim() || s.title;
+    const outs = people.flatMap((u) => [...(assign.get(u.id) || [])]
+      .filter((sid) => !extra.has(u.id) && rankOf(u.id, sid) === undefined)
+      .map((sid) => `${u.name} → ${nameOf(picked.find((s) => s.id === sid))}`));
+    const ok = await confirmDialog(`次の${picked.length}件を正式なPJにしますか？
+開始日：${fmtDate(form.start_date.value)}
+
+${picked.map((s) => `「${nameOf(s)}」${form[`restore-${s.id}`]?.checked ? "（前のPJを戻す）" : ""}（${membersOf(s.id).length}人）：${membersOf(s.id).map((u) => u.name).join("、")}`).join("\n")}${outs.length ? `
+
+⚠ 希望していないPJへの配属：
+${outs.join("\n")}` : ""}`, { ok: `${picked.length}件のPJを作成する` });
+    if (!ok) return;
+    busy(button, async () => {
+      const made = [];
+      for (const s of picked) {
+        try {
+          await api(`/api/seeds/${s.id}/project`, {
+            method: "POST",
+            body: { name: nameOf(s), description: s.description, start_date: form.start_date.value, member_ids: membersOf(s.id).map((u) => u.id), restore: Boolean(form[`restore-${s.id}`]?.checked) },
+          });
+          made.push(nameOf(s));
+        } catch (err) {
+          throw new Error(`${made.length ? `「${made.join("」「")}」は作成しました。` : ""}「${nameOf(s)}」で止まりました：${err.message}`);
+        }
+      }
+      markSaved(form);
+      toast(`${made.length}件のPJを作成しました`);
+      location.hash = back;
+    }).catch((err) => toast(err.message, "error"));
+  });
+}
+

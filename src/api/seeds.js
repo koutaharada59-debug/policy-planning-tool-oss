@@ -118,7 +118,7 @@ async function getRound({ env, user, params }) {
   const myBallot = [];
   const myTied = []; // 希望PJアンケートで順位を付ける前の希望（同率）
   for (const v of votes.results) {
-    (voters[v.seed_id] ||= []).push({ id: v.id, name: v.name, avatar: v.avatar });
+    (voters[v.seed_id] ||= []).push({ id: v.id, name: v.name, avatar: v.avatar, rank: v.rank });
     if (v.rank === 1) firstChoices[v.seed_id] = (firstChoices[v.seed_id] || 0) + 1;
     if (v.id === user.id) {
       if (v.rank === 0) myTied.push(v.seed_id);

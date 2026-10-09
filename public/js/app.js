@@ -9,7 +9,7 @@ import { renderProjects, renderProjectForm } from "./views/projects.js";
 import { renderProject } from "./views/project.js";
 import { renderMeeting } from "./views/meeting.js";
 import { renderCalendar } from "./views/calendar.js";
-import { renderRounds, renderRound } from "./views/seeds.js";
+import { renderRounds, renderRound, renderStaffing } from "./views/seeds.js";
 import { renderHearings, renderHearingNew, renderHearing } from "./views/hearings.js";
 import { renderAdmin } from "./views/admin.js";
 import { renderSourcesView } from "./views/research.js";
@@ -43,6 +43,7 @@ const ROUTES = [
   [/^\/hearings\/new$/, "hearings", () => renderHearingNew],
   [/^\/hearings\/(\d+)$/, "hearings", (m) => (el) => renderHearing(el, Number(m[1]))],
   [/^\/seeds\/(\d+)$/, "seeds", (m) => (el) => renderRound(el, Number(m[1]))],
+  [/^\/seeds\/(\d+)\/staffing$/, "seeds", (m) => (el) => renderStaffing(el, Number(m[1]))],
 ];
 
 const ERRORS = {
