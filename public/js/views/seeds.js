@@ -220,25 +220,8 @@ function renderSeeds(body, data, reload) {
       showMakeForm(b.closest(".seed-card").querySelector(".make-form"), seed, seed, seed.voters.map((v) => v.id), reload);
     }));
     // 正式なPJの取り消し：消える内容の件数を見せて、確認してから削除する
-    body.querySelectorAll("[data-undo-promote]").forEach((b) => b.addEventListener("click", async () => {
-      const box = b.closest(".seed-card").querySelector(".undo-box");
-      const { project, counts: c } = await api(`/api/seeds/${b.dataset.undoPromote}/project`).catch((e) => (toast(e.message, "error"), {}));
-      if (!project) return;
-      box.innerHTML = `<div class="confirm-start danger-box">
-        <p><strong>「${esc(project.name)}」を正式なPJから取り消しますか？</strong></p>
-        <p class="small">このPJと、次の内容がすべて削除されます。元に戻せません。</p>
-        <ul class="small">
-          <li>メンバー ${c.members}人の割り当て</li><li>MTG ${c.meetings}件・議事録 ${c.minutes}件</li>
-          <li>タスク ${c.tasks}件・工程のチェック ${c.checked}件</li><li>樹形図・施策・発表準備・定例の進捗共有</li>
-        </ul>
-        <p class="muted small">種はPJ決めに残り、もう一度「正式なPJにする」ことができます。${c.hearings ? `外部ヒアリング ${c.hearings}件は消えずに残ります（PJとの結び付きだけ外れます）。` : ""}</p>
-        <div class="form-actions"><button type="button" data-cancel>やめる</button><button type="button" class="danger" data-go>取り消す</button></div>
-      </div>`;
-      box.querySelector("[data-cancel]").addEventListener("click", () => { box.innerHTML = ""; });
-      box.querySelector("[data-go]").addEventListener("click", (e) =>
-        busy(e.currentTarget, () => api(`/api/seeds/${b.dataset.undoPromote}/project`, { method: "DELETE", body: { project_id: project.id } }))
-          .then(() => { toast(`「${project.name}」を取り消しました`); reload(); }).catch(() => {}));
-    }));
+    body.querySelectorAll("[data-undo-promote]").forEach((b) => b.addEventListener("click", () =>
+      showUndoPromote(b.closest(".seed-card").querySelector(".undo-box"), Number(b.dataset.undoPromote), reload)));
     body.querySelectorAll("[data-comments]").forEach((b) => b.addEventListener("click", () => {
       const box = b.closest(".seed-card").querySelector(".comments");
       box.hidden = !box.hidden;
@@ -367,13 +350,14 @@ async function renderResults(body, data, reload) {
         return `
         <section class="card winner">
           <div class="row"><span class="status-now">${i + 1}位</span>
-            ${project ? `<a class="button small" href="#/projects/${project.id}">PJを見る →</a>`
+            ${project ? `<span class="row-left"><a class="button small" href="#/projects/${project.id}">PJを見る →</a>
+                ${state.me.isAdmin ? `<button type="button" class="small danger-outline" data-undo="${sid}">↩ 取り消す</button>` : ""}</span>`
               : state.me.isAdmin ? `<button class="primary small" data-make="${sid}">正式なPJにする</button>` : ""}</div>
           <h3>${esc(title(sid))}</h3>
           <p class="small"><strong>割り振り案</strong>（選ばれたPJのうち、本人の希望順位がいちばん高いものへ）：
             ${assigned.length ? assigned.map((u) => `${avatar(userOf[u])} ${esc(userOf[u]?.name)}`).join("　") : "なし"}</p>
           <details><summary class="small">開票の経過（${w.rounds.length}ラウンド）</summary>${roundsTable(w.rounds, title)}</details>
-          <div class="make-form"></div>
+          <div class="make-form"></div><div class="undo-box"></div>
         </section>`;
       }).join("") : `<div class="empty"><p>まだ票がありません。</p></div>`}
       ${r.assignment.unassigned.length ? `<p class="muted small">選ばれたPJをどれも希望していない人：${r.assignment.unassigned.map((u) => esc(userOf[u]?.name)).join("、")}</p>` : ""}`;
@@ -384,8 +368,32 @@ async function renderResults(body, data, reload) {
       showMakeForm(b.closest(".winner").querySelector(".make-form"), seedOf[sid], seedsState[sid], r.assignment.byWinner[sid] || [], reload);
       b.hidden = true;
     }));
+    body.querySelectorAll("[data-undo]").forEach((b) => b.addEventListener("click", () =>
+      showUndoPromote(b.closest(".winner").querySelector(".undo-box"), Number(b.dataset.undo), reload)));
   };
   await draw();
+}
+
+// 正式なPJにしたのを取り消す（種のカードの⋯メニューと、開票・PJ化の結果の両方から）
+// 消える内容の件数を見せて、確認してから削除する。種はPJ決めに残り、もう一度PJにできる
+async function showUndoPromote(box, seedId, reload) {
+  const { project, counts: c } = await api(`/api/seeds/${seedId}/project`).catch((e) => (toast(e.message, "error"), {}));
+  if (!project) return;
+  box.innerHTML = `<div class="confirm-start danger-box">
+    <p><strong>「${esc(project.name)}」を正式なPJから取り消しますか？</strong></p>
+    <p class="small">このPJと、次の内容がすべて削除されます。元に戻せません。</p>
+    <ul class="small">
+      <li>メンバー ${c.members}人の割り当て</li><li>MTG ${c.meetings}件・議事録 ${c.minutes}件</li>
+      <li>タスク ${c.tasks}件・工程のチェック ${c.checked}件</li><li>樹形図・施策・発表準備・定例の進捗共有</li>
+    </ul>
+    <p class="muted small">種はPJ決めに残り、もう一度「正式なPJにする」ことができます。${c.hearings ? `外部ヒアリング ${c.hearings}件は消えずに残ります（PJとの結び付きだけ外れます）。` : ""}</p>
+    <div class="form-actions"><button type="button" data-cancel>やめる</button><button type="button" class="danger" data-go>取り消す</button></div>
+  </div>`;
+  box.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  box.querySelector("[data-cancel]").addEventListener("click", () => { box.innerHTML = ""; });
+  box.querySelector("[data-go]").addEventListener("click", (e) =>
+    busy(e.currentTarget, () => api(`/api/seeds/${seedId}/project`, { method: "DELETE", body: { project_id: project.id } }))
+      .then(() => { toast(`「${project.name}」を取り消しました`); reload(); }).catch(() => {}));
 }
 
 function roundsTable(rounds, title) {
