@@ -1026,3 +1026,25 @@ label.chip-check[hidden]{display:none}
 @media (max-width:760px){.bell-panel{right:8px;left:8px;width:auto;top:calc(100% + 4px)}}
 /* 🔔は名前（ログアウト）のすぐ左に寄せる */
 .site-header .bell{margin-left:auto}
+
+/* マイページ（プロフィール） */
+.account-me{display:flex;align-items:center;gap:8px;color:inherit;text-decoration:none;padding:4px 10px 4px 4px;border-radius:999px;border:1px solid transparent}
+.account-me:hover,.account-me.is-active{background:var(--pale);border-color:var(--line)}
+.main-nav .nav-me{display:none}
+.nav-ico .avatar{width:24px;height:24px;font-size:12px}
+.main-nav a.nav-me.is-active .avatar{box-shadow:0 0 0 2px var(--green)}
+.avatar.xl{width:64px;height:64px;font-size:26px}
+.profile-head{display:flex;align-items:center;gap:16px}
+.profile-head h1{margin:0;font-size:22px}
+.profile-head p{margin:4px 0 0;display:flex;gap:6px}
+.profile-stats{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:12px 0 4px}
+.profile-stats a{display:flex;flex-direction:column;align-items:center;gap:2px;padding:12px;border:1px solid var(--line);border-radius:16px;background:#fff;color:inherit;text-decoration:none}
+.profile-stats strong{font-size:26px;color:var(--green);line-height:1.2}
+.profile-stats small{font-size:12px;font-weight:700;color:#555}
+#profile-tasks,#profile-projects{margin-top:24px;scroll-margin-top:90px}
+.profile-more{margin:8px 0 0;font-size:13px;font-weight:700}
+.profile-done{margin-top:12px}
+.profile-done > summary{cursor:pointer;font-weight:700;padding:8px 0}
+.profile-logout{margin-top:32px;text-align:center}
+@media (max-width:760px){.main-nav .nav-me{display:flex}}
+@media (max-width:760px){.account-me{display:none}}

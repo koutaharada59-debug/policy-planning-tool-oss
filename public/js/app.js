@@ -5,6 +5,7 @@ import { renderMinutesSearch } from "./views/search.js";
 import { renderTimeline } from "./views/timeline.js";
 import { renderCheck } from "./views/check.js";
 import { renderNotices, renderMyTasks } from "./views/notices.js";
+import { renderProfile } from "./views/profile.js";
 import { renderStart } from "./views/start.js";
 import { renderPresentList, renderPresent } from "./views/present.js";
 import { renderProjects, renderProjectForm } from "./views/projects.js";
@@ -23,6 +24,7 @@ const ROUTES = [
   [/^\/check$/, "home", () => renderCheck],
   [/^\/notices$/, "home", () => renderNotices],
   [/^\/my-tasks$/, "home", () => renderMyTasks],
+  [/^\/me$/, "me", () => renderProfile],
   [/^\/minutes-search$/, "home", () => renderMinutesSearch],
   [/^\/present$/, "projects", () => renderPresentList],
   [/^\/present\/(\d+)$/, "projects", (m) => (el) => renderPresent(el, Number(m[1]))],
@@ -75,8 +77,10 @@ async function boot() {
   const me = await api("/api/me");
   Object.assign(state, { me: me.user, users: me.users, types: me.types });
   document.getElementById("account").innerHTML = `
-    ${avatar(me.user)}<span class="account-name">${esc(me.user.name)}${me.user.isHead ? '<span class="role-tag">部門長</span>' : ""}${me.user.isRep ? '<span class="role-tag">代表</span>' : ""}${me.user.isAdmin && !me.user.isHead ? '<span class="role-tag">管理者</span>' : ""}</span>
+    <a class="account-me" href="#/me" data-nav="me" title="マイページ">${avatar(me.user)}<span class="account-name">${esc(me.user.name)}${me.user.isHead ? '<span class="role-tag">部門長</span>' : ""}${me.user.isRep ? '<span class="role-tag">代表</span>' : ""}${me.user.isAdmin && !me.user.isHead ? '<span class="role-tag">管理者</span>' : ""}</span></a>
     <a class="button small" href="/auth/logout">ログアウト</a>`;
+  // 下のメニューのいちばん右（マイページ）は、自分のアイコンにする
+  document.getElementById("nav-me-ico").innerHTML = avatar(me.user);
   document.getElementById("nav").hidden = false;
   document.getElementById("bell").hidden = false;
   bindBellPanel();
