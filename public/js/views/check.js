@@ -5,6 +5,7 @@ import { api, state } from "../lib.js";
 const ITEMS = [
   ["#/notices", "🔔", "お知らせ", "担当になったタスク・MTGの追加や変更・確認待ちのヒアリングなど", null, "notices"],
   ["#/my-tasks", "✅", "自分のタスク", "自分が担当のタスクを、すべてのPJからまとめて"],
+  ["#/minutes-search", "🔎", "議事録を探す", "MTGの議事録・定例の記録・発表の記録を言葉で探す"],
   ["#/sources", "📚", "資料", "部門で集めた資料と、一次出典の確認状態"],
   ["#/hearings", "🤝", "外部ヒアリング", "申請の一覧・承認・実施後の要点", (me) => me.canSeeHearings],
 ];

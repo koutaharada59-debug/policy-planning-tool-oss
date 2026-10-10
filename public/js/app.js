@@ -1,6 +1,7 @@
 // 起動・ログイン状態・ハッシュルーティング
 import { api, esc, avatar, toast, state, hasUnsaved, forgetUnsaved, confirmDialog } from "./lib.js";
 import { renderHome } from "./views/home.js";
+import { renderMinutesSearch } from "./views/search.js";
 import { renderCheck } from "./views/check.js";
 import { renderNotices, renderMyTasks } from "./views/notices.js";
 import { renderStart } from "./views/start.js";
@@ -21,6 +22,7 @@ const ROUTES = [
   [/^\/check$/, "home", () => renderCheck],
   [/^\/notices$/, "home", () => renderNotices],
   [/^\/my-tasks$/, "home", () => renderMyTasks],
+  [/^\/minutes-search$/, "home", () => renderMinutesSearch],
   [/^\/present$/, "home", () => renderPresentList],
   [/^\/present\/(\d+)$/, "home", (m) => (el) => renderPresent(el, Number(m[1]))],
   [/^\/projects$/, "projects", () => renderProjects],

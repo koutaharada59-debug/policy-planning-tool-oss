@@ -11,10 +11,11 @@ import { routes as adminRoutes } from "./api/admin.js";
 import { routes as researchRoutes } from "./api/research.js";
 import { routes as presentationRoutes } from "./api/presentation.js";
 import { routes as deptRoutes } from "./api/dept.js";
+import { routes as searchRoutes } from "./api/search.js";
 import { runDailyReminders } from "./cron.js";
 
 // [メソッド, パス（:id は数字）, ハンドラ]。ハンドラは (ctx) => Response | data
-const ROUTES = [...overviewRoutes, ...projectRoutes, ...taskRoutes, ...meetingRoutes, ...seedRoutes, ...hearingRoutes, ...adminRoutes, ...researchRoutes, ...presentationRoutes, ...deptRoutes].map(([method, path, handler]) => [
+const ROUTES = [...overviewRoutes, ...projectRoutes, ...taskRoutes, ...meetingRoutes, ...seedRoutes, ...hearingRoutes, ...adminRoutes, ...researchRoutes, ...presentationRoutes, ...deptRoutes, ...searchRoutes].map(([method, path, handler]) => [
   method,
   new RegExp(`^${path.replace(/:(\w+)/g, "(?<$1>\\d+)")}$`),
   handler,
