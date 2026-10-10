@@ -18,13 +18,13 @@ import { renderTeireiHome, renderTeireiMinutes, renderTeireiNotice, renderTeirei
 
 const ROUTES = [
   [/^\/$/, "home", () => renderHome],
-  [/^\/start$/, "home", () => renderStart],
+  [/^\/start$/, "projects", () => renderStart],
   [/^\/check$/, "home", () => renderCheck],
   [/^\/notices$/, "home", () => renderNotices],
   [/^\/my-tasks$/, "home", () => renderMyTasks],
   [/^\/minutes-search$/, "home", () => renderMinutesSearch],
-  [/^\/present$/, "home", () => renderPresentList],
-  [/^\/present\/(\d+)$/, "home", (m) => (el) => renderPresent(el, Number(m[1]))],
+  [/^\/present$/, "projects", () => renderPresentList],
+  [/^\/present\/(\d+)$/, "projects", (m) => (el) => renderPresent(el, Number(m[1]))],
   [/^\/projects$/, "projects", () => renderProjects],
   [/^\/projects\/new$/, "projects", () => (el) => renderProjectForm(el, null)],
   [/^\/projects\/(\d+)\/edit$/, "projects", (m) => (el) => renderProjectForm(el, Number(m[1]))],
@@ -38,12 +38,12 @@ const ROUTES = [
   [/^\/teirei\/notice$/, "home", () => renderTeireiNotice],
   [/^\/teirei\/schedule$/, "home", () => renderTeireiSchedule],
   [/^\/teirei\/(\d+)$/, "home", (m) => (el) => renderTeirei(el, Number(m[1]))],
-  [/^\/report$/, "home", () => renderReportList],
-  [/^\/report\/(\d+)$/, "home", (m) => (el) => renderReport(el, Number(m[1]))],
+  [/^\/report$/, "projects", () => renderReportList],
+  [/^\/report\/(\d+)$/, "projects", (m) => (el) => renderReport(el, Number(m[1]))],
   [/^\/sources$/, "home", () => (el) => renderSourcesView(el)],
-  [/^\/hearings$/, "hearings", () => renderHearings],
-  [/^\/hearings\/new$/, "hearings", () => renderHearingNew],
-  [/^\/hearings\/(\d+)$/, "hearings", (m) => (el) => renderHearing(el, Number(m[1]))],
+  [/^\/hearings$/, "projects", () => renderHearings],
+  [/^\/hearings\/new$/, "projects", () => renderHearingNew],
+  [/^\/hearings\/(\d+)$/, "projects", (m) => (el) => renderHearing(el, Number(m[1]))],
   [/^\/seeds\/(\d+)$/, "seeds", (m) => (el) => renderRound(el, Number(m[1]))],
   [/^\/seeds\/(\d+)\/staffing$/, "seeds", (m) => (el) => renderStaffing(el, Number(m[1]))],
 ];
@@ -55,6 +55,8 @@ const ERRORS = {
   config: "ログインの設定が完了していません。管理者に連絡してください。",
 };
 
+let baseTitle = document.title;
+
 async function boot() {
   const session = await api("/api/session");
   // テスト版などは、本番と見分けられるよう画面上部に帯を出す
@@ -64,6 +66,7 @@ async function boot() {
     bar.textContent = `${session.siteLabel}：ここで入力した内容は本番には反映されません`;
     document.body.prepend(bar);
     document.title = `【${session.siteLabel}】${document.title}`;
+    baseTitle = document.title;
   }
   document.getElementById("boot-loading")?.remove();
   if (!session.user) return showLanding(session);
@@ -213,6 +216,8 @@ export async function route() {
     el.innerHTML = `<p class="loading">読み込み中…</p>`;
     try {
       await view(m)(el);
+      const h1 = el.querySelector("h1")?.textContent.replace(/\s+/g, " ").trim();
+      document.title = h1 ? `${h1}｜${baseTitle}` : baseTitle;
       centerSteppers(el);
     } catch (e) {
       el.innerHTML = `<div class="empty"><p>${esc(e.message)}</p><a class="button" href="#/">ホームへ</a></div>`;

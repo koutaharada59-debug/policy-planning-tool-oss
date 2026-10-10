@@ -5,6 +5,7 @@ import {
 } from "../lib.js";
 import { renderTreeTab, renderMeasuresTab, renderSourcesView } from "./research.js";
 import { renderPresentationTab } from "./presentation.js";
+import { renderProjectRecords } from "./search.js";
 
 export async function renderProject(el, id) {
   const data = await api(`/api/projects/${id}`);
@@ -13,7 +14,7 @@ export async function renderProject(el, id) {
   const tab = hashQuery().get("tab") || "stages";
   const ro = canEdit ? "" : "disabled";
 
-  const tabs = [["stages", "工程"], ["tasks", `タスク（${data.tasks.filter((t) => t.status !== "done").length}）`], 
+  const tabs = [["stages", "工程"], ["tasks", `タスク（${data.tasks.filter((t) => t.status !== "done").length}）`], ["records", "記録"],
     ["tree", "樹形図"], ["measures", "施策"], ["sources", "資料"], ["present", "発表の準備・提出"]];
   el.innerHTML = `
     <nav class="breadcrumb"><a href="#/projects">PJ一覧</a> / ${esc(p.name)}</nav>
@@ -57,6 +58,7 @@ export async function renderProject(el, id) {
   else if (tab === "measures") await renderMeasuresTab(body, p.id, reload);
   else if (tab === "sources") await renderSourcesView(body, { projectId: p.id, canAdd: canEdit });
   else if (tab === "tasks") renderTasks(body, data, ro, reload);
+  else if (tab === "records") await renderProjectRecords(body, p.id);
   else renderStages(body, data, ro, reload);
 }
 
@@ -314,6 +316,7 @@ function meetingPanel(data, ro) {
         <input name="place" maxlength="200" placeholder="場所・URL（任意）" value="${esc(p.meeting_place)}">
         <button class="primary small">追加</button>
       </form>`}
+      <p class="small"><a href="#/projects/${p.id}?tab=records">📚 このPJの記録（議事録・定例の進捗・発表）を見る</a></p>
       <h3 class="small">これからのMTG</h3>
       ${upcoming.length ? `<ul class="list">${shown.map(row).join("")}</ul>
         ${rest.length ? `<details><summary class="small">ほか${rest.length}件を表示</summary><ul class="list">${rest.map(row).join("")}</ul></details>` : ""}`

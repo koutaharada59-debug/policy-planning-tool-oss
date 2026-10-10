@@ -27,7 +27,7 @@ async function searchMinutes({ env, url }) {
   // 日付で絞り込む（この日から・この日まで。時刻は見ない）
   const from = optDate(url.searchParams.get("from"), "いつから");
   const to = optDate(url.searchParams.get("to"), "いつまで");
-  if (!words.length && !projectId && !from && !to) return { results: [], q };
+  // 何も指定がないときは、最近の記録を新しい順に返す
   const dateCond = (col) => `${from ? ` AND ${col} >= '${from}'` : ""}${to ? ` AND ${col} < '${addDays(to, 1)}'` : ""}`;
   const msFrom = from ? Date.parse(`${from}T00:00:00+09:00`) : null;
   const msTo = to ? Date.parse(`${addDays(to, 1)}T00:00:00+09:00`) : null;

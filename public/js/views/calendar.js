@@ -70,7 +70,7 @@ function collect(data) {
   };
   for (const m of data.meetings) {
     push(m.starts_at.slice(0, 10), {
-      ...timed(m, "meeting", m.project_name), sub: "MTG", kindLabel: "MTG", href: `#/meetings/${m.id}`,
+      ...timed(m, "meeting", m.project_name), sub: "MTG", kindLabel: "MTG", href: `#/meetings/${m.id}?from=calendar`,
       project: m.project_name, projectHref: `#/projects/${m.project_id}`,
       rows: [["議事録", m.has_minutes ? "記入済み" : "まだ書かれていません"]],
       // 今日以降は「MTGを始める」、過ぎたMTGは「議事録を書く」。「議事録を見る」は読むだけ（話すことは事前に書ける）

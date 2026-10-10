@@ -314,7 +314,7 @@ export async function renderMeeting(el, id) {
     }).catch(() => {});
   });
 
-  // MTGを終える：議事録を保存して、タイマーを止め、PJの画面へ戻る（あとから「前回の続き（再開）」で開き直せる）
+  // MTGを終える：議事録を保存して、タイマーを止め、始めた画面へ戻る（あとから「前回の続き（再開）」で開き直せる）
   el.querySelector("#end-meeting")?.addEventListener("click", async (e) => {
     const b = e.currentTarget;
     if (!await confirmDialog(`MTGを終えますか？\n議事録を保存して、タイマーを止めます。${noticeText(pendingNotices())}`, { ok: "MTGを終える" })) return;
@@ -322,7 +322,9 @@ export async function renderMeeting(el, id) {
       const res = await save();
       clearTimer(`meeting-${m.id}`);
       toast(res.nextMeeting ? `MTGを終えました。次回は ${fmtDateTime(res.nextMeeting)} です` : "MTGを終えました。おつかれさまでした");
-      location.hash = `#/projects/${p.id}`;
+      // 始めた画面へ戻る（ホームから始めたらホーム、カレンダーからならカレンダー、それ以外はPJ画面）
+      const from = hashQuery().get("from");
+      location.hash = from === "home" ? "#/" : from === "calendar" ? "#/calendar" : `#/projects/${p.id}`;
     }).catch(() => {});
   });
 }

@@ -914,3 +914,28 @@ label.chip-check[hidden]{display:none}
 .search-form [name=project],.search-form [name=kind]{grid-column:span 3}
 .search-form .search-date,.search-form #search-day{grid-column:span 2}
 @media (max-width:760px){.search-form input[name=q]{grid-column:1 / -1}}
+
+/* 議事録を探す（改良）：期間のボタン・種類のチップ・全文 */
+.search-form{grid-template-columns:minmax(0,2fr) minmax(0,1fr)}
+.search-form [name=q]{grid-column:auto}
+.search-form [name=project]{grid-column:auto}
+.search-period{grid-column:1 / -1;display:flex;flex-direction:column;gap:8px}
+.chip-row{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.chip-btn{min-height:32px;padding:4px 12px;border-radius:999px;font-size:13px;font-weight:700;background:#fff;border:1px solid var(--line)}
+.chip-btn.is-on{background:var(--mint-bg);border-color:var(--green);color:var(--green)}
+.chip-btn small{font-weight:500;color:var(--muted);margin-left:2px}
+.chip-btn:disabled{opacity:.4}
+.search-dates{display:grid;grid-template-columns:1fr 1fr;gap:8px;max-width:420px}
+.search-dates[hidden]{display:none}
+.kind-chips{margin:4px 0 6px}
+.search-hit{flex-direction:column;align-items:stretch;gap:4px}
+.search-top{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.search-full summary{cursor:pointer;color:var(--muted)}
+.search-full p{margin:6px 0 0;padding:10px 12px;background:#f7faf8;border-radius:8px}
+@media (max-width:760px){.search-form{grid-template-columns:1fr}}
+.search-dates .search-date{grid-column:auto}
+.search-top .button{flex:none;width:auto}
+.search-date-big{white-space:nowrap}
+
+/* PJの「記録」タブ */
+.record-month{list-style:none;padding:12px 4px 4px;font-size:13px;font-weight:800;color:var(--muted);border:0;background:none}

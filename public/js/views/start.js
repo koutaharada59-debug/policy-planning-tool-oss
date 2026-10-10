@@ -3,6 +3,8 @@ import { api, esc, fmtDateTime, busy, toast, jstDateTime, todayStr, pjPicker, pi
 
 export async function renderStart(el) {
   const { projects } = await api("/api/meeting-start");
+  // どこから始めたか（MTGを終えたら、その画面に戻る）：PJ画面から来たら PJ、それ以外はホーム
+  const from = hashQuery().get("project") ? "project" : "home";
 
   el.innerHTML = `
     <div class="page-heading left"><h1>🗣️ どのPJのMTGですか？</h1></div>
@@ -45,7 +47,7 @@ export async function renderStart(el) {
         ${p.upcoming.length ? `<ul class="planned-list">${p.upcoming.map((m, i) => `
           <li><div><strong>${fmtDateTime(m.starts_at)}</strong>${m.starts_at.startsWith(today) ? `<span class="tag">今日</span>` : ""}
             ${m.place ? `<span class="muted small">${esc(m.place)}</span>` : ""}</div>
-            <a class="button ${i === 0 ? "primary" : ""}" href="#/meetings/${m.id}">このMTGを始める</a></li>`).join("")}</ul>`
+            <a class="button ${i === 0 ? "primary" : ""}" href="#/meetings/${m.id}?from=${from}">このMTGを始める</a></li>`).join("")}</ul>`
           : `<p class="muted small">予定されているMTGはありません。臨時で始めてください。</p>`}
         <div class="form-actions">${back}</div>
       </div>`);
@@ -57,7 +59,7 @@ export async function renderStart(el) {
         <ul class="planned-list">${p.recent.map((m, i) => `
           <li><div><strong>${fmtDateTime(m.starts_at)}</strong>${m.has_minutes ? "" : `<span class="tag">議事録なし</span>`}
             ${m.place ? `<span class="muted small">${esc(m.place)}</span>` : ""}</div>
-            <a class="button ${i === 0 ? "primary" : ""}" href="#/meetings/${m.id}">このMTGを再開する</a></li>`).join("")}</ul>
+            <a class="button ${i === 0 ? "primary" : ""}" href="#/meetings/${m.id}?from=${from}">このMTGを再開する</a></li>`).join("")}</ul>
         <div class="form-actions">${back}</div>
       </div>`);
     };
@@ -78,7 +80,7 @@ export async function renderStart(el) {
         busy(e.submitter, () => api(`/api/projects/${p.id}/meetings`, { method: "POST", body: { starts_at: startsAt, place: box.place.value } }))
           .then((res) => {
             toast(`${fmtDateTime(startsAt)} のMTGを始めました`);
-            location.hash = `#/meetings/${res.id}`;
+            location.hash = `#/meetings/${res.id}?from=${from}`;
           }).catch(() => {});
       });
     };
@@ -86,9 +88,9 @@ export async function renderStart(el) {
     choose();
   }));
   // PJ画面から来たときはそのPJ、参加しているPJが1つだけならそのPJを、最初から開いておく（押す手間を1回減らす）
-  const from = Number(hashQuery().get("project"));
+  const fromPj = Number(hashQuery().get("project"));
   const mine = projects.filter((p) => p.is_mine);
-  const openId = projects.some((p) => p.id === from) ? from : mine.length === 1 ? mine[0].id : null;
+  const openId = projects.some((p) => p.id === fromPj) ? fromPj : mine.length === 1 ? mine[0].id : null;
   if (openId) {
     const b = el.querySelector(`[data-now="${openId}"]`);
     b?.closest("details")?.setAttribute("open", "");
