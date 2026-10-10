@@ -88,7 +88,7 @@ test("🔔でお知らせの枠が開く（ページは移らない）", async (
   await login(page);
   await page.locator("#bell").click();
   await expect(page.locator(".bell-panel")).toBeVisible();
-  await expect(page).toHaveURL(/#/$|/$/);
+  await expect(page.locator(".choice").first()).toBeVisible(); // ホームのまま（ページは移らない）
   await page.keyboard.press("Escape");
   await expect(page.locator(".bell-panel")).toHaveCount(0);
 });
