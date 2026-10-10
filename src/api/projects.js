@@ -121,7 +121,7 @@ export async function insertProject(env, user, body, { includeCreator = true } =
 async function getProject({ env, user, params }) {
   const project = await loadProject(env, params.id);
   await ensureRegularMeetings(env, [project]);
-  const [members, stages, checklist, tasks, meetings, recentMinutes] = await Promise.all([
+  const [members, stages, checklist, tasks, meetings, recentMinutes, origin] = await Promise.all([
     env.DB.prepare(
       `SELECT u.id, u.name, u.avatar FROM project_members pm JOIN users u ON u.id = pm.user_id WHERE pm.project_id = ? ORDER BY u.name`
     ).bind(project.id).all(),
@@ -146,6 +146,10 @@ async function getProject({ env, user, params }) {
       `SELECT n.summary, m.starts_at FROM minutes n JOIN meetings m ON m.id = n.meeting_id
        WHERE n.project_id = ? ORDER BY m.starts_at DESC LIMIT 10`
     ).bind(project.id).all(),
+    // 元になったPJ決め（どの種から正式なPJになったか）
+    env.DB.prepare(
+      `SELECT s.id AS seed_id, s.round_id, r.title AS round_title FROM seeds s JOIN seed_rounds r ON r.id = s.round_id WHERE s.project_id = ?`
+    ).bind(project.id).first(),
   ]);
   return {
     project,
@@ -155,6 +159,7 @@ async function getProject({ env, user, params }) {
     tasks: tasks.results,
     meetings: meetings.results,
     recentMinutes: recentMinutes.results,
+    origin: origin || null,
     canEdit: user.isAdmin || members.results.some((m) => m.id === user.id),
     now: nowJst(),
   };

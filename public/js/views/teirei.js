@@ -1,4 +1,4 @@
-// 部門の定例：入口（これまでの定例／PJの議事録を書く／管理者は定例を始める）と、それぞれの画面
+// 部門の定例：入口（定例の記録／進捗を書く／管理者は定例を始める）と、それぞれの画面
 import { api, esc, state, fmtDate, fmtDateTime, jstDateTime, addDays, hashQuery, confirmDialog, busy, toast, formData, copyForNotion, copyButton, bindCopyButtons, pjPicker, pickItem, timerHtml, bindTimer, guardForm, markSaved, mergeText } from "../lib.js";
 
 const EVENTS = { "": "なし", news: "ニュース勉強会", exchange: "意見交換会" };
@@ -16,7 +16,7 @@ const paragraphs = (r) => FIELDS.filter(([k]) => r[k]).map(([k, label]) => `<h4>
 const mdText = (text) => text.trim().split("\n").map((l) => (/^\s*[-・]/.test(l) ? `- ${l.replace(/^\s*[-・]\s*/, "")}` : l));
 const reportMd = (r, level = "####") => FIELDS.filter(([k]) => r[k]?.trim()).flatMap(([k, label]) => [`${level} ${label}`, ...mdText(r[k]), ""]);
 
-// ---------- 定例の入口：これまでの定例／PJの議事録を書く／（部門長・副部門長）事務連絡を書く・定例 ----------
+// ---------- 定例の入口：定例の記録／進捗を書く／（部門長・副部門長）事務連絡を書く・定例 ----------
 const WEEK_JA = ["日", "月", "火", "水", "木", "金", "土"];
 const slotLabel = (startsAt) => `${fmtDate(startsAt.slice(0, 10))} ${startsAt.slice(11, 16)}`;
 const meetingLabel = (m) => `${fmtDate(m.held_on)}${m.starts_at ? ` ${m.starts_at.slice(11, 16)}` : ""}の定例`;
@@ -31,11 +31,11 @@ export async function renderTeireiHome(el) {
     <div class="choices ${admin ? "two" : todays?.is_open ? "" : "two"}">
       <a class="choice" href="#/teirei/minutes">
         <span class="choice-icon">📄</span>
-        <strong>これまでの定例</strong>
+        <strong>定例の記録</strong>
       </a>
       <a class="choice" href="#/report">
         <span class="choice-icon">📝</span>
-        <strong>PJの議事録を書く</strong>
+        <strong>進捗を書く</strong>
       </a>
       ${admin ? `<button type="button" class="choice" data-panel="notice">
         <span class="choice-icon">📢</span>
@@ -119,8 +119,8 @@ export async function renderTeireiHome(el) {
 export async function renderTeireiMinutes(el) {
   const { meetings } = await api("/api/dept-meetings");
   el.innerHTML = `
-    <nav class="breadcrumb"><a href="#/teirei">定例</a> / これまでの定例</nav>
-    <div class="page-heading left"><h1>📄 これまでの定例</h1></div>
+    <nav class="breadcrumb"><a href="#/teirei">定例</a> / 定例の記録</nav>
+    <div class="page-heading left"><h1>📄 定例の記録</h1></div>
     ${meetings.length ? `<ul class="list">${meetings.map((m) => `
       <li class="list-item"><a href="#/teirei/${m.id}">${meetingLabel(m)}</a>
         <div class="meta">${m.is_open ? `<span class="due is-soon">進行中</span>` : ""}
@@ -134,7 +134,7 @@ export async function renderTeirei(el, id) {
   const ro = canEdit ? "" : "disabled";
   let version = m.version;
   el.innerHTML = `
-    <nav class="breadcrumb"><a href="#/teirei">定例</a> / <a href="#/teirei/minutes">これまでの定例</a> / ${fmtDate(m.held_on)}</nav>
+    <nav class="breadcrumb"><a href="#/teirei">定例</a> / <a href="#/teirei/minutes">定例の記録</a> / ${fmtDate(m.held_on)}</nav>
     ${m.is_open ? timerHtml(`teirei-${m.id}`, { bar: true }) : ""}
     <div class="page-heading left"><h1>🏛️ ${meetingLabel(m)} ${stateTag(m)}</h1>
       ${m.updated_by_name ? `<p>最終更新：${esc(m.updated_by_name)}・${fmtDateTime(jstDateTime(m.updated_at))}</p>` : ""}</div>
@@ -247,8 +247,8 @@ export async function renderTeirei(el, id) {
 export async function renderReportList(el) {
   const { projects, todayMeetingId } = await api("/api/dept-reports");
   el.innerHTML = `
-    <nav class="breadcrumb"><a href="#/teirei">定例</a> / PJの議事録を書く</nav>
-    <div class="page-heading left"><h1>📝 どのPJの議事録を書きますか？</h1>
+    <nav class="breadcrumb"><a href="#/teirei">定例</a> / 進捗を書く</nav>
+    <div class="page-heading left"><h1>📝 どのPJの進捗を書きますか？</h1>
       <p>${todayMeetingId ? "今日の定例" : "次の定例"}に向けて書きます</p></div>
     ${pjPicker(projects, (p) => pickItem({ href: `#/report/${p.id}`, name: p.name,
       note: p.written_at ? `<span class="tag">記入済み</span>` : "" }))}`;
@@ -259,9 +259,9 @@ export async function renderReport(el, projectId) {
   const { project: p, meeting, report, previous } = await api(`/api/projects/${projectId}/dept-report`);
   let version = report.version;
   el.innerHTML = `
-    <nav class="breadcrumb"><a href="#/teirei">定例</a> / <a href="#/report">PJの議事録を書く</a> / ${esc(p.name)}</nav>
+    <nav class="breadcrumb"><a href="#/teirei">定例</a> / <a href="#/report">進捗を書く</a> / ${esc(p.name)}</nav>
     <div class="page-heading left"><h1>📝 ${esc(p.name)}</h1>
-      <p>${meeting ? `${fmtDate(meeting.held_on)}の定例` : "次の定例"}で共有する進捗です。いまの工程：${stageLabel(p)}</p></div>
+      <p>${meeting ? `${fmtDate(meeting.held_on)}の定例` : "次の定例"}で共有する進捗です。いまの工程：${stageLabel(p)}・<a href="#/projects/${p.id}">PJ画面へ</a></p></div>
     <form class="card form" id="report">
       ${FIELDS.map(([k, label]) => `<div class="field"><div class="section-head"><strong>${label}</strong>${copyButton(k)}</div><textarea name="${k}" rows="4" maxlength="3000" aria-label="${label}">${esc(report[k])}</textarea></div>`).join("")}
       <div class="form-actions">

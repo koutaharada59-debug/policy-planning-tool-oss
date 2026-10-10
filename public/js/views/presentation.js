@@ -22,6 +22,7 @@ export async function renderPresentationTab(body, projectId) {
   const chip = (ok, label) => `<span class="prep-chip ${ok ? "ok" : ""}">${ok ? "✓" : "・"} ${label}</span>`;
 
   body.innerHTML = `
+    <p class="cross-links"><a class="button small primary" href="#/present/${projectId}">🎤 発表する（本番・タイマー・記録）へ</a></p>
     <section class="card present-summary">
       <div class="row">
         <div><span class="muted small">政調での最終発表</span>

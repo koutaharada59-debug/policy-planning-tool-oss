@@ -878,3 +878,18 @@ label.chip-check[hidden]{display:none}
 .notice.completion{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:8px}
 .notice.completion.is-waiting{background:var(--soon-bg)}
 .notice.completion .reject-form{width:100%}
+
+/* 画面の上の🔔（未読数） */
+.bell{position:relative;display:inline-grid;place-items:center;width:40px;height:40px;border-radius:999px;border:1px solid var(--line);background:#fff;text-decoration:none;font-size:18px;flex:none}
+.bell:hover{background:var(--mint-bg)}
+.bell-count{position:absolute;top:-4px;right:-6px;min-width:18px;height:18px;padding:0 5px;border-radius:999px;background:var(--warn);color:#fff;font-size:11px;font-weight:800;line-height:18px;text-align:center}
+.bell-count[hidden]{display:none}
+/* PJ画面の上：そのPJでよく使う操作／画面どうしのリンク */
+.pj-quick{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 12px}
+.pj-origin{margin:6px 0 0}
+.cross-links{margin:0 0 12px}
+@media (max-width:760px){
+  .site-header .bell{margin-left:auto}
+  .pj-quick{flex-wrap:nowrap}
+  .pj-quick .button{flex:1 1 0;justify-content:center;white-space:nowrap;padding-left:8px;padding-right:8px}
+}

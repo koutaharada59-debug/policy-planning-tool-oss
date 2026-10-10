@@ -38,6 +38,10 @@ export async function renderPresent(el, id) {
 
   el.innerHTML = `
     <nav class="breadcrumb"><a href="#/">ホーム</a> / <a href="#/present">発表する</a> / ${esc(p.name)}</nav>
+    <p class="row-left cross-links">
+      <a class="button small" href="#/projects/${p.id}">📁 PJ画面へ</a>
+      <a class="button small" href="#/projects/${p.id}?tab=present">🗂 発表の準備・提出へ</a>
+    </p>
     <div class="present" id="present">
       ${timerHtml()}
       <header class="present-head card">

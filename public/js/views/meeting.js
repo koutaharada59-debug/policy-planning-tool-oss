@@ -23,6 +23,7 @@ export async function renderMeeting(el, id) {
       <h1>${fmtDateTime(m.starts_at)} のMTG</h1>
       <p class="live-line small"><span id="live-viewers"></span> <span class="muted" id="live-status">${canEdit ? "自動で保存・みんなで同時に書けます" : ""}</span></p>
       <p>${minute ? `最終更新：${esc(minute.updated_by_name || "")}` : "短く、要点だけ。詳しい内容はGoogleドキュメントへ。"}</p>
+      ${canEdit ? `<p class="small"><a href="#/report/${p.id}">📝 このPJの定例の進捗を書く</a></p>` : ""}
       ${viewOnly && canEdit ? `<p class="small">「今回話し合うこと」は、MTGの前に書いておけます。</p>
         <a class="button primary small" href="#/meetings/${m.id}">✏️ このMTGの議事録を書く</a>` : ""}
     </div>

@@ -14,7 +14,7 @@ export async function renderProject(el, id) {
   const ro = canEdit ? "" : "disabled";
 
   const tabs = [["stages", "工程"], ["tasks", `タスク（${data.tasks.filter((t) => t.status !== "done").length}）`], 
-    ["tree", "樹形図"], ["measures", "施策"], ["sources", "資料"], ["present", "発表・提出"]];
+    ["tree", "樹形図"], ["measures", "施策"], ["sources", "資料"], ["present", "発表の準備・提出"]];
   el.innerHTML = `
     <nav class="breadcrumb"><a href="#/projects">PJ一覧</a> / ${esc(p.name)}</nav>
     <div class="pj-header card">
@@ -23,6 +23,7 @@ export async function renderProject(el, id) {
         <h1>${esc(p.name)}</h1>
         ${p.description ? `<p class="desc fold">${esc(p.description)}</p>` : ""}
         <div class="people-stack">${data.members.map((m) => avatar(m)).join("")}<span class="more">${data.members.map((m) => esc(m.name)).join("、")}</span></div>
+        ${data.origin ? `<p class="muted small pj-origin">🌱 <a href="#/seeds/${data.origin.round_id}">${esc(data.origin.round_title)}</a> から生まれたPJ</p>` : ""}
       </div>
       <div class="pj-header-actions">
         ${p.memo_doc_url ? `<a class="button small" href="${esc(p.memo_doc_url)}" target="_blank" rel="noopener">🔎 リサーチドキュメント</a>` : ""}
@@ -35,6 +36,11 @@ export async function renderProject(el, id) {
     </div>
     ${canEdit ? "" : `<p class="notice">閲覧のみです。編集できるのはPJメンバーと管理者です。</p>`}
     ${completionBanner(p, canEdit)}
+    ${p.status === "active" ? `<nav class="pj-quick" aria-label="このPJでよく使う操作">
+      ${canEdit ? `<a class="button small primary" href="#/start?project=${p.id}">▶ MTG<span class="hide-sm">を始める</span></a>` : ""}
+      <a class="button small" href="#/present/${p.id}">🎤 発表<span class="hide-sm">する</span></a>
+      ${canEdit ? `<a class="button small" href="#/report/${p.id}">📝 <span class="hide-sm">定例の</span>進捗<span class="hide-sm">を書く</span></a>` : ""}
+    </nav>` : ""}
     ${stageStepper(p, data.stages)}
     <div class="tabs" role="tablist">
       ${tabs.map(([k, l]) => `<a role="tab" class="tab" aria-selected="${tab === k}" href="#/projects/${p.id}?tab=${k}">${l}</a>`).join("")}
@@ -91,7 +97,7 @@ function renderStages(body, data, ro, reload) {
           ${isCurrent ? `<span class="status-now">いまここ</span>` : ""}
         </summary>
         <p class="stage-summary">${esc(s.summary)}</p>
-        ${["final_prep", "presentation", "final"].includes(s.role) ? `<p><a class="button small" href="#/projects/${p.id}?tab=present">🎤 ${s.role === "final" ? "フィードバックと最終提出" : "発表準備（役割分担・リハーサルなど）"}を「発表・提出」タブで管理する</a></p>` : ""}
+        ${["final_prep", "presentation", "final"].includes(s.role) ? `<p><a class="button small" href="#/projects/${p.id}?tab=present">🎤 ${s.role === "final" ? "フィードバックと最終提出" : "発表準備（役割分担・リハーサルなど）"}を「発表の準備・提出」タブで管理する</a></p>` : ""}
         ${["research", "share_prep", "measures", "final_prep"].includes(s.role) ? `<p class="caution">⚠ AIで調べた情報は必ず一次出典を確認する。出典のない数字は使わない。</p>` : ""}
         <ul class="checklist">
           ${items.map((c) => `

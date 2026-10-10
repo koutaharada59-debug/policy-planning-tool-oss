@@ -5,14 +5,20 @@ export async function renderNotices(el) {
   const { notices } = await api("/api/notices");
   el.innerHTML = `
     <nav class="breadcrumb"><a href="#/check">確認する</a> / お知らせ</nav>
-    <div class="page-heading left"><h1>🔔 お知らせ</h1></div>
+    <div class="page-heading left"><h1>🔔 お知らせ</h1>
+      <p><a class="button small" href="#/my-tasks">✅ 自分のタスクを見る</a></p></div>
     ${notices.length ? `<ul class="list notices">${notices.map((n) => `
       <li class="list-item ${n.read_at ? "" : "is-unread"}">
         ${n.link ? `<a class="notice-link" href="${esc(n.link)}">` : "<span>"}${n.read_at ? "" : `<span class="unread-dot" aria-label="未読"></span>`}${esc(n.body.split("\n")[0])}
           <small class="muted">${fmtDateTime(jstDateTime(n.created_at))}</small>${n.link ? `<span class="notice-go" aria-hidden="true">›</span></a>` : "</span>"}
       </li>`).join("")}</ul>` : `<div class="empty"><p>お知らせはまだありません。</p></div>`}`;
   // 表示したら既読にする
-  if (notices.some((n) => !n.read_at)) api("/api/notices/read", { method: "POST", body: {} }).catch(() => {});
+  if (notices.some((n) => !n.read_at)) {
+    api("/api/notices/read", { method: "POST", body: {} }).then(() => {
+      const c = document.getElementById("bell-count");
+      if (c) c.hidden = true;
+    }).catch(() => {});
+  }
 }
 
 let addOpen = false; // 追加欄を開いたままにする（続けて追加できるように）

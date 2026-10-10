@@ -1,5 +1,5 @@
 // ミーティングを始める：PJを選ぶ → 「予定していたMTG」か「臨時のMTG」かを選ぶ → 議事録を開く
-import { api, esc, fmtDateTime, busy, toast, jstDateTime, todayStr, pjPicker, pickItem } from "../lib.js";
+import { api, esc, fmtDateTime, busy, toast, jstDateTime, todayStr, pjPicker, pickItem, hashQuery } from "../lib.js";
 
 export async function renderStart(el) {
   const { projects } = await api("/api/meeting-start");
@@ -85,9 +85,15 @@ export async function renderStart(el) {
 
     choose();
   }));
-  // 参加しているPJが1つだけなら、最初から開いておく（押す手間を1回減らす）
+  // PJ画面から来たときはそのPJ、参加しているPJが1つだけならそのPJを、最初から開いておく（押す手間を1回減らす）
+  const from = Number(hashQuery().get("project"));
   const mine = projects.filter((p) => p.is_mine);
-  if (mine.length === 1) el.querySelector(`[data-now="${mine[0].id}"]`)?.click();
+  const openId = projects.some((p) => p.id === from) ? from : mine.length === 1 ? mine[0].id : null;
+  if (openId) {
+    const b = el.querySelector(`[data-now="${openId}"]`);
+    b?.closest("details")?.setAttribute("open", "");
+    b?.click();
+  }
 }
 
 // 今の日本時間を5分単位に切り下げたもの（'YYYY-MM-DDTHH:MM'）。押した時点の時刻を使う

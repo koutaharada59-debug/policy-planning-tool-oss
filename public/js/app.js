@@ -71,6 +71,9 @@ async function boot() {
     ${avatar(me.user)}<span class="account-name">${esc(me.user.name)}${me.user.isHead ? '<span class="role-tag">部門長</span>' : ""}${me.user.isRep ? '<span class="role-tag">代表</span>' : ""}${me.user.isAdmin && !me.user.isHead ? '<span class="role-tag">管理者</span>' : ""}</span>
     <a class="button small" href="/auth/logout">ログアウト</a>`;
   document.getElementById("nav").hidden = false;
+  document.getElementById("bell").hidden = false;
+  refreshBell();
+  setInterval(() => { if (!document.hidden) refreshBell(); }, 60000);
   document.getElementById("nav-admin").hidden = !me.user.isAdmin;
   document.getElementById("app").hidden = false;
   window.addEventListener("hashchange", route);
@@ -125,6 +128,15 @@ for (const type of ["gesturestart", "gesturechange", "gestureend"]) {
   document.addEventListener(type, (e) => e.preventDefault(), { passive: false });
 }
 document.addEventListener("touchmove", (e) => { if (e.touches.length > 1) e.preventDefault(); }, { passive: false });
+
+// 画面の上の🔔：未読のお知らせの数（画面を移るたび・1分ごとに確かめる）
+export async function refreshBell() {
+  const count = document.getElementById("bell-count");
+  if (!count) return;
+  const { unread } = await api("/api/notices?count=1").catch(() => ({ unread: 0 }));
+  count.textContent = unread > 99 ? "99+" : String(unread);
+  count.hidden = !unread;
+}
 
 // 「戻る」はパンくずと同じ行に置く（縦の場所を取らないように）。パンくずのない画面では上の行に出す
 // 画面の中身が描き直されるたびに（保存して再表示したときも）置き直す
@@ -189,6 +201,7 @@ export async function route() {
   }
   forgetUnsaved();
   shownHash = location.hash || "#/";
+  refreshBell();
   trackHistory();
   document.getElementById("back-bar").hidden = path === "/";
   for (const [re, nav, view] of ROUTES) {
