@@ -78,7 +78,7 @@ async function boot() {
   const me = await api("/api/me");
   Object.assign(state, { me: me.user, users: me.users, types: me.types });
   document.getElementById("account").innerHTML = `
-    <a class="account-me" href="#/me" data-nav="me" title="マイページ">${avatar(me.user)}<span class="account-name">${esc(me.user.name)}${me.user.isHead ? '<span class="role-tag">部門長</span>' : ""}${me.user.isRep ? '<span class="role-tag">代表</span>' : ""}${me.user.isAdmin && !me.user.isHead ? '<span class="role-tag">管理者</span>' : ""}</span></a>
+    <a class="account-me" href="#/me" data-nav="me" title="${esc(me.user.name)}（マイページ）" aria-label="マイページ">${avatar(me.user)}</a>
     <a class="button small" href="/auth/logout">ログアウト</a>`;
   // 下のメニューのいちばん右（マイページ）は、自分のアイコンにする
   document.getElementById("nav-me-ico").innerHTML = avatar(me.user);
