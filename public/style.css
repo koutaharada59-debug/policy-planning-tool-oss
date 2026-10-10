@@ -998,3 +998,13 @@ label.chip-check[hidden]{display:none}
 @keyframes pg-item{0%{opacity:0;transform:translateX(-8px) scale(.9)}70%{transform:scale(1.04)}100%{opacity:1;transform:none}}
 .pg-ok{align-self:center;min-width:120px}
 @media (prefers-reduced-motion: reduce){.pg-gain{transition:none}.pg-items li{animation:none;opacity:1}}
+
+/* 数直線：いまの工程のチェックの進み具合（次の工程への線が伸びる） */
+@property --fill { syntax: "<number>"; inherits: true; initial-value: 0; }
+.stepper li.is-next{transition:--fill 1.4s cubic-bezier(.2,.9,.3,1)}
+/* 丸（直径32px）の縁から次の丸の縁までを 0〜1 で塗る */
+.stepper li.is-next::before{top:14px;height:4px;border-radius:2px;background:linear-gradient(90deg,var(--green) calc(16px + (100% - 32px) * var(--fill)),#d6e0d9 calc(16px + (100% - 32px) * var(--fill)))}
+.pj-card .stepper li.is-next::before{top:11px}
+.stepper .dot.is-pulse{animation:dot-pulse 1.6s ease-out}
+@keyframes dot-pulse{0%{box-shadow:0 0 0 0 #3fc58f99;transform:scale(1)}25%{transform:scale(1.18)}100%{box-shadow:0 0 0 14px #3fc58f00;transform:scale(1)}}
+@media (prefers-reduced-motion: reduce){.stepper li.is-next::before{transition:none}.stepper .dot.is-pulse{animation:none}}

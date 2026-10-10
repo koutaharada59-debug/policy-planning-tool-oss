@@ -63,10 +63,10 @@ test("PJを作ってMTGをし、記録に残る", async ({ page }) => {
   // MTGを終える → PJ画面に戻る
   await page.locator("#end-meeting").click();
   await confirm(page, "MTGを終える");
-  // このMTGでどれだけ進んだかの画面が出る → OK で閉じる
-  await expect(page.locator(".progress-card")).toBeVisible();
-  await page.locator(".pg-ok").click();
+  // PJ画面に戻り、工程の数直線に「いまの工程 → 次」の進み具合の線が出る
   await expect(page.locator(".pj-header h1")).toHaveText(name);
+  await expect(page.locator(".stepper li.is-next")).toHaveCount(1);
+  await expect(page.locator(".toast")).toContainText("MTGを終えました");
 
   // 記録タブに出る
   await page.locator(".tabs").getByRole("tab", { name: "記録" }).click();

@@ -1,7 +1,7 @@
 // PJ詳細：工程ナビ（チェックリスト・期限）／タスク／MTG
 import {
   api, esc, state, avatar, dueBadge, fmtDate, fmtDateTime, busy, toast, formData, memberOptions, TASK_STATUS,
-  gcalEventUrl, gcalAllDayUrl, gcalLink, gcalChoice, weeklyRrule, hashQuery, WEEK, membersFirst, jstDateTime, stageStepper, bindFold, keepView, celebrate, doneTasksToggle, bindDoneTasksToggle, confirmDialog, skipButton, bindSkipButtons,
+  gcalEventUrl, gcalAllDayUrl, gcalLink, gcalChoice, weeklyRrule, hashQuery, WEEK, membersFirst, jstDateTime, stageStepper, bindFold, keepView, celebrate, takeProgressHint, doneTasksToggle, bindDoneTasksToggle, confirmDialog, skipButton, bindSkipButtons,
 } from "../lib.js";
 import { renderTreeTab, renderMeasuresTab, renderSourcesView } from "./research.js";
 import { renderPresentationTab } from "./presentation.js";
@@ -12,6 +12,11 @@ export async function renderProject(el, id) {
   const { project: p, canEdit } = data;
   const type = state.types[p.type];
   const tab = hashQuery().get("tab") || "stages";
+  // いまの工程のチェックの進み具合（スキップした項目は数えない）
+  const cur = data.checklist.filter((c) => c.stage_no === p.current_stage && !c.skipped_at);
+  const stageProgress = cur.length ? cur.filter((c) => c.done_at).length / cur.length : 0;
+  // MTGを終えて戻ってきたとき：数直線をMTGの前の位置から始めて、今の位置まで伸ばす
+  const hint = p.status === "active" ? takeProgressHint(p.id) : null;
   const ro = canEdit ? "" : "disabled";
 
   const tabs = [["stages", "工程"], ["tasks", `タスク（${data.tasks.filter((t) => t.status !== "done").length}）`], ["records", "記録"],
@@ -42,13 +47,14 @@ export async function renderProject(el, id) {
       <a class="button small" href="#/present/${p.id}">🎤 発表<span class="hide-sm">する</span></a>
       ${canEdit ? `<a class="button small" href="#/report/${p.id}">📝 <span class="hide-sm">定例の</span>進捗<span class="hide-sm">を書く</span></a>` : ""}
     </nav>` : ""}
-    ${stageStepper(p, data.stages)}
+    ${stageStepper(p, data.stages, { progress: hint ? hint.from : stageProgress })}
     <div class="tabs" role="tablist">
       ${tabs.map(([k, l]) => `<a role="tab" class="tab" aria-selected="${tab === k}" href="#/projects/${p.id}?tab=${k}">${l}</a>`).join("")}
     </div>
     <div id="tab-body"></div>`;
 
   bindFold(el);
+  if (hint) animateStepper(el, hint, stageProgress);
   bindCompletion(el, p, () => keepView(el, () => renderProject(el, id)));
   const body = el.querySelector("#tab-body");
   // チェックなどで描き直しても、開いていた欄とスクロールの位置はそのまま（上に戻らないように）
@@ -409,3 +415,15 @@ function bindCompletion(el, p, reload) {
   }));
 }
 
+
+// MTGを終えて戻ってきたとき：次の工程への線が「ぐいっ」と伸び、いまの工程の丸が弾む
+function animateStepper(el, hint, to) {
+  const next = el.querySelector(".stepper li.is-next");
+  const curDot = el.querySelector(".stepper li.is-current .dot");
+  next?.scrollIntoView?.({ block: "nearest", inline: "center" });
+  setTimeout(() => {
+    if (next) next.style.setProperty("--fill", to.toFixed(3));
+    curDot?.classList.add("is-pulse");
+    toast(hint.gained ? `このMTGで ${hint.gained}項目 進みました！${hint.next ? `（${hint.next}）` : ""}` : `MTGを終えました。おつかれさまでした${hint.next ? `（${hint.next}）` : ""}`);
+  }, 500);
+}

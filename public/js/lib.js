@@ -194,7 +194,8 @@ export function embedUrl(url) {
 }
 
 // 工程の数直線（PJ画面の上部とPJ一覧のカードで共通）。compact：カード用に日付を曜日なしで短く
-export function stageStepper(project, stages, { compact = false } = {}) {
+// progress：いまの工程のチェックの進み具合（0〜1）。次の工程への線が、その分だけ伸びる
+export function stageStepper(project, stages, { compact = false, progress = null } = {}) {
   const type = state.types[project.type];
   if (!type) return "";
   const done = project.status === "done";
@@ -202,7 +203,8 @@ export function stageStepper(project, stages, { compact = false } = {}) {
   return `<ol class="stepper">${type.stages.map((s) => {
     const past = done || s.no < project.current_stage;
     const cls = past ? "is-done" : s.no === project.current_stage ? "is-current" : "";
-    return `<li class="${cls}"><span class="dot">${past ? "✓" : s.no}</span>
+    const isNext = !done && progress !== null && s.no === project.current_stage + 1;
+    return `<li class="${cls}${isNext ? " is-next" : ""}" ${isNext ? `style="--fill:${progress.toFixed(3)}"` : ""}><span class="dot">${past ? "✓" : s.no}</span>
       <span class="label">${esc(s.name)}</span><span class="date">${due(s.no) ? (compact ? due(s.no).slice(5).replace("-", "/").replace(/(^|\/)0/g, "$1") : fmtDate(due(s.no))) : ""}</span></li>`;
   }).join("")}</ol>`;
 }
@@ -604,4 +606,15 @@ export function celebrateProgress({ title, sub = "", from, to, total, items = []
     }, reduce ? 0 : 450);
     setTimeout(close, 4500 + items.length * 350);
   });
+}
+
+
+// MTGを終えてPJ画面に戻ったとき、数直線を「MTGの前 → 後」に伸ばすための合図（画面を開いているあいだだけ）
+let progressHint = null;
+export function setProgressHint(hint) { progressHint = hint; }
+export function takeProgressHint(projectId) {
+  if (!progressHint || progressHint.projectId !== projectId) return null;
+  const h = progressHint;
+  progressHint = null;
+  return h;
 }

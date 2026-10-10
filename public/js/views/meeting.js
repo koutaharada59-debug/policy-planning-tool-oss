@@ -1,6 +1,6 @@
 // 議事録：前回の宿題（自動引き継ぎ）／話し合うこと／概要／キーワード／次回までにやること
 // 詳細なフィードバックはGoogleドキュメントに残す運用なので、入力欄は短くしている
-import { api, esc, state, fmtDateTime, fmtDate, busy, toast, memberOptions, dueBadge, addDays, embedUrl, membersFirst, copyForNotion, copyButton, bindCopyButtons, hashQuery, timerHtml, bindTimer, clearTimer, syncTimerStart, confirmDialog, celebrateProgress, skipButton, bindSkipButtons } from "../lib.js";
+import { api, esc, state, fmtDateTime, fmtDate, busy, toast, memberOptions, dueBadge, addDays, embedUrl, membersFirst, copyForNotion, copyButton, bindCopyButtons, hashQuery, timerHtml, bindTimer, clearTimer, syncTimerStart, confirmDialog, celebrateProgress, setProgressHint, skipButton, bindSkipButtons } from "../lib.js";
 
 export async function renderMeeting(el, id) {
   const data = await api(`/api/meetings/${id}`);
@@ -327,7 +327,15 @@ export async function renderMeeting(el, id) {
       const doneNow = items.filter((c) => c.done_at);
       const doneHere = doneNow.filter((c) => c.meeting_id === m.id);
       const next = res.nextMeeting ? `次回は ${fmtDateTime(res.nextMeeting)}` : "";
-      if (items.length) {
+      const from = hashQuery().get("from");
+      const toProject = from !== "home" && from !== "calendar";
+      if (toProject && pj) {
+        // PJ画面の数直線で、いまの工程の進み具合を「前 → 後」に伸ばして見せる
+        const cur = items.filter((c) => c.stage_no === pj.project.current_stage);
+        const doneCur = cur.filter((c) => c.done_at).length;
+        const hereCur = cur.filter((c) => c.done_at && c.meeting_id === m.id).length;
+        setProgressHint({ projectId: p.id, from: cur.length ? (doneCur - hereCur) / cur.length : 0, gained: doneHere.length, next });
+      } else if (items.length) {
         await celebrateProgress({
           title: doneHere.length ? `このMTGで ${doneHere.length}項目 進みました！` : "MTGを終えました。おつかれさまでした",
           sub: [state.types[p.type]?.stages.find((s) => s.no === pj.project.current_stage)?.name ? `いまの工程：${state.types[p.type].stages.find((s) => s.no === pj.project.current_stage).name}` : "", next].filter(Boolean).join("・"),
@@ -338,7 +346,6 @@ export async function renderMeeting(el, id) {
         toast(next ? `MTGを終えました。${next}です` : "MTGを終えました。おつかれさまでした");
       }
       // 始めた画面へ戻る（ホームから始めたらホーム、カレンダーからならカレンダー、それ以外はPJ画面）
-      const from = hashQuery().get("from");
       location.hash = from === "home" ? "#/" : from === "calendar" ? "#/calendar" : `#/projects/${p.id}`;
     }).catch(() => {});
   });
