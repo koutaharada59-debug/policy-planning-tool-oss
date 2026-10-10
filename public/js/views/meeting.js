@@ -1,6 +1,6 @@
 // 議事録：前回の宿題（自動引き継ぎ）／話し合うこと／概要／キーワード／次回までにやること
 // 詳細なフィードバックはGoogleドキュメントに残す運用なので、入力欄は短くしている
-import { api, esc, state, fmtDateTime, fmtDate, busy, toast, memberOptions, dueBadge, addDays, embedUrl, membersFirst, copyForNotion, copyButton, bindCopyButtons, hashQuery, timerHtml, bindTimer, clearTimer, syncTimerStart, confirmDialog, skipButton, bindSkipButtons } from "../lib.js";
+import { api, esc, state, fmtDateTime, fmtDate, busy, toast, memberOptions, dueBadge, addDays, embedUrl, membersFirst, copyForNotion, copyButton, bindCopyButtons, hashQuery, timerHtml, bindTimer, clearTimer, syncTimerStart, confirmDialog, celebrateProgress, skipButton, bindSkipButtons } from "../lib.js";
 
 export async function renderMeeting(el, id) {
   const data = await api(`/api/meetings/${id}`);
@@ -321,7 +321,22 @@ export async function renderMeeting(el, id) {
     busy(b, async () => {
       const res = await save();
       clearTimer(`meeting-${m.id}`);
-      toast(res.nextMeeting ? `MTGを終えました。次回は ${fmtDateTime(res.nextMeeting)} です` : "MTGを終えました。おつかれさまでした");
+      // このMTGでどれだけ進んだか：PJ全体の工程のチェックのうち、このMTGで済んだ分を「前 → 後」で見せる
+      const pj = await api(`/api/projects/${p.id}`).catch(() => null);
+      const items = (pj?.checklist || []).filter((c) => c.stage_no > 0 && !c.skipped_at);
+      const doneNow = items.filter((c) => c.done_at);
+      const doneHere = doneNow.filter((c) => c.meeting_id === m.id);
+      const next = res.nextMeeting ? `次回は ${fmtDateTime(res.nextMeeting)}` : "";
+      if (items.length) {
+        await celebrateProgress({
+          title: doneHere.length ? `このMTGで ${doneHere.length}項目 進みました！` : "MTGを終えました。おつかれさまでした",
+          sub: [state.types[p.type]?.stages.find((s) => s.no === pj.project.current_stage)?.name ? `いまの工程：${state.types[p.type].stages.find((s) => s.no === pj.project.current_stage).name}` : "", next].filter(Boolean).join("・"),
+          from: doneNow.length - doneHere.length, to: doneNow.length, total: items.length,
+          items: doneHere.map((c) => c.label),
+        });
+      } else {
+        toast(next ? `MTGを終えました。${next}です` : "MTGを終えました。おつかれさまでした");
+      }
       // 始めた画面へ戻る（ホームから始めたらホーム、カレンダーからならカレンダー、それ以外はPJ画面）
       const from = hashQuery().get("from");
       location.hash = from === "home" ? "#/" : from === "calendar" ? "#/calendar" : `#/projects/${p.id}`;

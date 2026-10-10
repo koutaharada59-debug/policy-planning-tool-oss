@@ -557,3 +557,51 @@ window.addEventListener("unhandledrejection", (e) => {
   if (r?.silent) return; // 確認画面の「キャンセル」など
   reportClientError(r?.message || String(r), r?.stack);
 });
+
+
+// ---------- MTGを終えたときの「どれだけ進んだか」：進み具合の棒が、前の位置から今の位置へ伸びる ----------
+// from・to：済んだ項目の数（MTGの前・後）、total：全体の数、items：このMTGで済んだ項目（順にチェックが入る）
+// 閉じる（または数秒たつ）と解決する Promise を返す
+export function celebrateProgress({ title, sub = "", from, to, total, items = [] }) {
+  return new Promise((resolve) => {
+    document.querySelector(".celebrate")?.remove();
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const pct = (n) => (total ? Math.round((n / total) * 100) : 0);
+    const box = document.createElement("div");
+    box.className = "celebrate progress-celebrate";
+    box.setAttribute("role", "status");
+    box.innerHTML = `
+      <div class="celebrate-card progress-card">
+        <strong>${esc(title)}</strong>
+        ${sub ? `<small>${esc(sub)}</small>` : ""}
+        <div class="pg-bar" aria-hidden="true">
+          <span class="pg-before" style="width:${pct(from)}%"></span>
+          <span class="pg-gain" style="left:${pct(from)}%;width:0"></span>
+        </div>
+        <div class="pg-numbers"><span class="pg-pct">${pct(from)}%</span><small>${from} → <b>${to}</b> / ${total}項目</small></div>
+        ${items.length ? `<ul class="pg-items">${items.map((t, i) => `<li style="animation-delay:${reduce ? 0 : 0.9 + i * 0.35}s"><span class="pg-check">✓</span>${esc(t)}</li>`).join("")}</ul>` : ""}
+        <button type="button" class="primary small pg-ok">OK</button>
+      </div>`;
+    const close = () => { if (!box.isConnected) return; box.classList.add("is-leaving"); setTimeout(() => { box.remove(); resolve(); }, 350); };
+    box.querySelector(".pg-ok").addEventListener("click", close);
+    document.body.append(box);
+    box.querySelector(".pg-ok").focus();
+    // 少し待ってから、前の位置 → 今の位置へ「ぐいっ」と伸ばし、数字も数え上げる
+    const gain = box.querySelector(".pg-gain");
+    const label = box.querySelector(".pg-pct");
+    setTimeout(() => {
+      gain.style.width = `${pct(to) - pct(from)}%`;
+      const start = performance.now();
+      const dur = reduce ? 0 : 1100;
+      const step = (now) => {
+        const k = dur ? Math.min(1, (now - start) / dur) : 1;
+        const eased = 1 - Math.pow(1 - k, 3);
+        label.textContent = `${Math.round(pct(from) + (pct(to) - pct(from)) * eased)}%`;
+        if (k < 1) requestAnimationFrame(step);
+        else box.classList.add("is-done");
+      };
+      requestAnimationFrame(step);
+    }, reduce ? 0 : 450);
+    setTimeout(close, 4500 + items.length * 350);
+  });
+}
