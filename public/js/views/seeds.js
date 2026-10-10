@@ -79,7 +79,7 @@ export async function renderRound(el, id) {
       <p>${round.closed ? "締め切りました" : round.deadline ? `${fmtDateTime(round.deadline)} 締め切り` : "受付中"}・投票 ${data.respondents}人</p>
     </div>
     ${linked ? `<div class="notice survey-link">
-      <span>🔗 <strong>希望PJアンケートと連動</strong>中${round.closed ? "" : "（投票はアンケートで）"}</span>
+      <span>🔗 ${round.closed ? "種と投票は<strong>希望PJアンケート</strong>から取り込みました" : "<strong>希望PJアンケートと連動</strong>中（投票はアンケートで）"}</span>
       ${!round.closed && data.surveyUrl ? `<a class="button small primary" href="${esc(data.surveyUrl)}" target="_blank" rel="noopener">希望PJアンケートを開く</a>` : ""}</div>` : ""}
     <div class="tabs" role="tablist">
       ${tabs.map(([k, l]) => `<a role="tab" class="tab" aria-selected="${tab === k}" href="#/seeds/${id}?tab=${k}">${l}</a>`).join("")}
@@ -570,7 +570,7 @@ export async function renderStaffing(el, roundId) {
       <tbody>${people.map((u) => {
         const mine = assign.get(u.id) || new Set();
         return `<tr class="${mine.size ? "" : "is-none"}">
-          <th>${avatar(u)} ${esc(u.name)}${extra.has(u.id) ? ` <span class="tag">追加</span>` : best(u.id) === 999 ? ` <span class="tag">希望なし</span>` : ""}</th>
+          <th><button type="button" class="staff-who" data-who="${esc(u.id)}" aria-haspopup="dialog" title="${esc(u.name)}さんの希望を見る">${avatar(u)} ${esc(u.name)}</button>${extra.has(u.id) ? ` <span class="tag">追加</span>` : best(u.id) === 999 ? ` <span class="tag">希望なし</span>` : ""}</th>
           ${picked.map((s) => {
             const r = rankOf(u.id, s.id);
             const on = mine.has(s.id);
@@ -596,7 +596,52 @@ export async function renderStaffing(el, roundId) {
   draw();
   guardForm(form);
 
+  // 人の名前（アイコン）を押すと、その人が希望しているPJを吹き出しで出す（今回PJにするものには印）
+  let bubble = null;
+  const closeBubble = () => { bubble?.remove(); bubble = null; };
+  const openBubble = (btn) => {
+    const uid = btn.dataset.who;
+    const person = allRows().find((u) => u.id === uid);
+    const list = data.seeds.filter((s) => rankOf(uid, s.id) !== undefined)
+      .sort((a, b) => order(rankOf(uid, a.id)) - order(rankOf(uid, b.id)));
+    const pickedIds = new Set(picked.map((s) => s.id));
+    bubble = document.createElement("div");
+    bubble.className = "wish-bubble";
+    bubble.setAttribute("role", "dialog");
+    bubble.dataset.who = uid;
+    bubble.innerHTML = `<strong>${esc(person?.name || "")}さんの希望</strong>
+      ${list.length ? `<ol>${list.map((s) => `<li class="${pickedIds.has(s.id) ? "is-picked" : ""}">
+        <span class="wish-rank">${rankLabel(rankOf(uid, s.id))}</span><span>${esc(s.icon || "")} ${esc(s.title)}</span>
+        ${pickedIds.has(s.id) ? `<small>今回PJにする</small>` : ""}</li>`).join("")}</ol>`
+        : `<p class="muted small">希望を出していません${extra.has(uid) ? "（あとから追加した人）" : ""}</p>`}`;
+    document.body.append(bubble);
+    // ボタンのすぐ下に出す（画面の右端からはみ出さないように）
+    const r = btn.getBoundingClientRect();
+    const left = Math.max(8, Math.min(r.left + window.scrollX, window.scrollX + document.documentElement.clientWidth - bubble.offsetWidth - 8));
+    bubble.style.left = `${left}px`;
+    bubble.style.top = `${r.bottom + window.scrollY + 10}px`;
+    bubble.style.setProperty("--arrow", `${Math.max(14, Math.min(r.left + window.scrollX - left + 18, bubble.offsetWidth - 20))}px`);
+  };
+  matrix.addEventListener("click", (e) => {
+    const btn = e.target.closest(".staff-who");
+    if (!btn) return;
+    const same = bubble?.dataset.who === btn.dataset.who;
+    closeBubble();
+    if (!same) openBubble(btn);
+  });
+  const onDocClick = (e) => { if (bubble && !e.target.closest(".wish-bubble, .staff-who")) closeBubble(); };
+  const onKey = (e) => { if (e.key === "Escape") closeBubble(); };
+  document.addEventListener("click", onDocClick);
+  document.addEventListener("keydown", onKey);
+  matrix.addEventListener("scroll", closeBubble);
+  window.addEventListener("hashchange", () => {
+    closeBubble();
+    document.removeEventListener("click", onDocClick);
+    document.removeEventListener("keydown", onKey);
+  }, { once: true });
+
   matrix.addEventListener("change", (e) => {
+    closeBubble();
     const [uid, sid] = e.target.value.split(":");
     const set = assign.get(uid) || new Set();
     if (e.target.checked) set.add(Number(sid)); else set.delete(Number(sid));

@@ -1051,3 +1051,13 @@ label.chip-check[hidden]{display:none}
 .member-list{list-style:none;margin:8px 0 0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px}
 .member-list a{display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--line);border-radius:12px;background:#fff;color:inherit;text-decoration:none;font-size:14px;font-weight:700}
 .member-list a:hover{background:var(--pale)}
+/* 人事を決める：人を押すと、その人の希望を吹き出しで出す */
+.staff-who{display:inline-flex;align-items:center;gap:6px;min-height:32px;padding:2px 8px 2px 2px;border:1px solid transparent;border-radius:999px;background:none;font:inherit;font-weight:700;color:inherit;cursor:pointer}
+.staff-who:hover,.staff-who:focus-visible{background:var(--pale);border-color:var(--line)}
+.wish-bubble{position:absolute;z-index:70;width:max-content;max-width:min(320px,calc(100vw - 16px));padding:10px 14px;background:#fff;border:1px solid var(--line);border-radius:14px;box-shadow:0 10px 28px #0002;font-size:13px;animation:panel-in .16s ease-out}
+.wish-bubble::before{content:"";position:absolute;top:-7px;left:var(--arrow,18px);width:12px;height:12px;background:#fff;border-left:1px solid var(--line);border-top:1px solid var(--line);transform:rotate(45deg)}
+.wish-bubble ol{list-style:none;margin:8px 0 0;padding:0;display:flex;flex-direction:column;gap:6px}
+.wish-bubble li{display:grid;grid-template-columns:auto 1fr;column-gap:8px;row-gap:2px;align-items:baseline}
+.wish-bubble .wish-rank{flex:none;min-width:58px;padding:1px 8px;border-radius:999px;background:#eef3f0;font-size:11px;font-weight:800;text-align:center}
+.wish-bubble li.is-picked .wish-rank{background:var(--green);color:#fff}
+.wish-bubble li small{grid-column:2;color:var(--green);font-weight:700}

@@ -5,3 +5,6 @@ node_modules
 # 自動テスト（Playwright）の結果
 test-results
 playwright-report
+
+# Cloudflareのチームのアカウント用のAPIトークン（秘密。GitHubに入れない）
+.env

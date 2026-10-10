@@ -15,21 +15,17 @@ run_worker_first = ["/api/*", "/auth/*"]
 binding = "DB"
 database_name = "policy-planning"
 database_id = "<npx wrangler d1 create で出た database_id>"
+# 手元の開発用DB（.wrangler の中）は、移行前のIDで作ってあるので、それを使い続ける
+preview_database_id = "<npx wrangler d1 create で出た database_id>"
 migrations_dir = "migrations"
 
-# 希望PJアンケートのDB（読み取りだけ。PJ決めの「連動する募集回」で、選択肢・投票・締め切りを映す）
-[[d1_databases]]
-binding = "SURVEY_DB"
-database_name = "kibou-pj-survey"
-database_id = "<npx wrangler d1 create で出た database_id>"
+# 希望PJアンケートとの連動（SURVEY_DB）は外した。PJ決めはツールの中で行う（2026年秋の分は取り込み済み）
 
 # 毎朝 8:00 JST（= 23:00 UTC）にリマインドを送る（次回MTGが未定のPJ、止まっているヒアリング申請）
 [triggers]
 crons = ["0 23 * * *"]
 
 [vars]
-# 希望PJアンケートのURL（連動する募集回で「投票はこちら」に出す）
-SURVEY_URL = ""
 # 通知のDMに入れるリンクの先頭
 APP_URL = "https://policy-planning.<アカウント>.workers.dev"
 # このDiscordサーバー（学生チーム）のメンバーなら誰でもログインできる
@@ -62,11 +58,6 @@ database_name = "policy-planning-test"
 database_id = "<npx wrangler d1 create で出た database_id>"
 migrations_dir = "migrations"
 
-[[env.test.d1_databases]]
-binding = "SURVEY_DB"
-database_name = "kibou-pj-survey"
-database_id = "<npx wrangler d1 create で出た database_id>"
-
 # テスト版では、毎朝のリマインドは送らない
 [env.test.triggers]
 crons = []
@@ -74,7 +65,6 @@ crons = []
 [env.test.vars]
 # 画面上部に出す帯（本番と見分けるため）
 SITE_LABEL = "テスト版"
-SURVEY_URL = ""
 APP_URL = "https://policy-planning-test.<アカウント>.workers.dev"
 DISCORD_GUILD_ID = ""
 DEPT_ROLE_ID = ""
