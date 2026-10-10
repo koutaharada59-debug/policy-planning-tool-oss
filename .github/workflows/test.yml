@@ -1,0 +1,44 @@
+# 自動テスト：GitHub にアップロード（push）するたび・Pull Request のたびに動く
+#   unit … 計算まわり（工程の期限・定例の日付・開票など）のテスト
+#   e2e  … 実際の画面を動かすテスト（Playwright。テスト用の空のデータベースで動く）
+name: test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  unit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm test
+
+  e2e:
+    runs-on: ubuntu-latest
+    env:
+      CI: "true"
+      WRANGLER_SEND_METRICS: "false"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      # ローカル確認用ログイン（DEV_LOGIN）を使うための設定。秘密の値は入っていない見本
+      - run: cp .dev.vars.example .dev.vars
+      - run: npm run test:e2e
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-traces
+          path: test-results
+          retention-days: 7

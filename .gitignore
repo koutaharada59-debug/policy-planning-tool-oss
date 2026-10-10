@@ -1,3 +1,7 @@
 node_modules
 .wrangler
 .dev.vars
+
+# 自動テスト（Playwright）の結果
+test-results
+playwright-report

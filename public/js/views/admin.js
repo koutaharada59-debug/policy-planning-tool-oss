@@ -45,6 +45,7 @@ export async function renderAdmin(el) {
 
     ${staffingSection(data, person)}
     ${loginSection(data, person, adminIds)}
+    ${errorSection(data.errors || [])}
 
     <section class="section">
       <h2>管理者</h2>
@@ -210,4 +211,21 @@ function loginSection({ users, heads, reps }, person, adminIds) {
         <p class="staff-members" style="margin-top:8px">${notYet.map(person).join("")}</p></details>` : ""}
       <p class="muted small">「部門ロール」は、ログインした時点で政策立案部門のロールを持っていた人です（外部ヒアリングを見られる）。</p>
     </section>`;
+}
+
+// エラーの記録：サーバーと画面で起きた想定外のエラー（新しい順に30件）。SENTRY_DSN を入れると Sentry にも送られる
+function errorSection(errors) {
+  const day = Date.now() - 86400000;
+  const recent = errors.filter((e) => e.created_at >= day).length;
+  return `
+    <details class="section error-logs">
+      <summary><strong>⚠️ エラーの記録</strong> <small class="muted">${errors.length ? `直近24時間 ${recent}件・新しい順に${errors.length}件` : "まだありません"}</small></summary>
+      ${errors.length ? `<ul class="list">${errors.map((e) => `
+        <li class="list-item error-log">
+          <span><span class="tag">${e.source === "client" ? "画面" : "サーバー"}</span> <strong>${esc(e.message)}</strong>
+            <small class="muted">${fmtDateTime(jstDateTime(e.created_at))}${e.url ? `・${esc(e.url)}` : ""}${e.user_name ? `・${esc(e.user_name)}` : ""}</small></span>
+          ${e.stack ? `<details><summary class="small">詳しく</summary><pre class="small">${esc(e.stack)}</pre></details>` : ""}
+        </li>`).join("")}</ul>` : `<p class="muted small">エラーは記録されていません。</p>`}
+      <p class="muted small">シークレット SENTRY_DSN を入れると、Sentry（アクションボードと同じ監視サービス）にも送られます。</p>
+    </details>`;
 }

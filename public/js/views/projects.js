@@ -2,7 +2,15 @@
 import { api, esc, state, avatar, dueBadge, fmtDateTime, fmtDate, busy, formData, toast, confirmDialog, WEEK, addDays, nextMonday, stageStepper, guardForm, markSaved, bindMemberFilter } from "../lib.js";
 
 export async function renderProjects(el) {
-  const { projects } = await api("/api/projects");
+  const [{ projects }, { rounds }] = await Promise.all([api("/api/projects"), api("/api/rounds").catch(() => ({ rounds: [] }))]);
+  // いま受付中のPJ決め（思いついた種をすぐ出せるように、いつも上に出す）
+  const open = rounds.find((r) => !r.archived && !r.closed);
+  const current = open || rounds.find((r) => !r.archived);
+  const seedsBanner = `<a class="card seeds-banner ${open ? "is-open" : ""}" href="${current ? `#/seeds/${current.id}` : "#/seeds"}">
+    <span class="seeds-banner-icon" aria-hidden="true">🌱</span>
+    <span><strong>PJ決め</strong>${open ? ` <span class="due is-soon">受付中</span>` : ""}
+      <small>${open ? `${esc(open.title)}：思いついた政策の種を出しましょう` : "政策の種を出し合い、投票してPJを決めます"}</small></span>
+    <span class="pick-arrow" aria-hidden="true">›</span></a>`;
   // 参加中のPJがない人（部門長など）は、進行中すべてから見せる
   let filter = projects.some((p) => p.isMine) ? "mine" : "active";
   const stageName = (p) => state.types[p.type]?.stages.find((s) => s.no === p.current_stage)?.name || "";
@@ -10,10 +18,11 @@ export async function renderProjects(el) {
   const draw = () => {
     const list = projects.filter((p) => filter === "all" || (filter === "mine" ? p.isMine : p.status === filter));
     el.innerHTML = `
-      <div class="page-heading"><h1>PJ一覧</h1></div>
+      <div class="page-heading"><h1>自分のPJ</h1></div>
+      ${seedsBanner}
       <div class="board-tools">
         <div class="tabs" role="tablist">
-          ${[["mine", "参加中"], ["active", "進行中すべて"], ["done", "完了"], ["all", "すべて"]].map(([k, l]) =>
+          ${[["mine", "参加中"], ["active", "進行中すべて（部門）"], ["done", "完了"], ["all", "すべて"]].map(([k, l]) =>
             `<button role="tab" aria-selected="${filter === k}" data-filter="${k}">${l}</button>`).join("")}
         </div>
         <a class="button primary" href="#/projects/new">＋ PJを作る</a>
@@ -46,7 +55,7 @@ export async function renderProjectForm(el, id) {
   const weekdays = new Set((p.meeting_weekdays || "").split(",").filter(Boolean));
 
   el.innerHTML = `
-    <nav class="breadcrumb"><a href="#/projects">PJ一覧</a> / ${id ? `<a href="#/projects/${id}">${esc(p.name)}</a> / 編集` : "PJを作る"}</nav>
+    <nav class="breadcrumb"><a href="#/projects">自分のPJ</a> / ${id ? `<a href="#/projects/${id}">${esc(p.name)}</a> / 編集` : "PJを作る"}</nav>
     <div class="page-heading left"><h1>${id ? "PJを編集" : "PJを作る"}</h1>
       <p>${id ? "" : "PJ決め（工程0）が終わったら作ります。作ると工程1「課題・現状リサーチ」から始まります。"}</p></div>
     <form class="card form" id="pj-form">

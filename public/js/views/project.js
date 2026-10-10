@@ -1,7 +1,7 @@
 // PJ詳細：工程ナビ（チェックリスト・期限）／タスク／MTG
 import {
   api, esc, state, avatar, dueBadge, fmtDate, fmtDateTime, busy, toast, formData, memberOptions, TASK_STATUS,
-  gcalEventUrl, gcalAllDayUrl, gcalLink, gcalChoice, weeklyRrule, hashQuery, WEEK, membersFirst, jstDateTime, stageStepper, bindFold, keepView, doneTasksToggle, bindDoneTasksToggle, confirmDialog, skipButton, bindSkipButtons,
+  gcalEventUrl, gcalAllDayUrl, gcalLink, gcalChoice, weeklyRrule, hashQuery, WEEK, membersFirst, jstDateTime, stageStepper, bindFold, keepView, celebrate, doneTasksToggle, bindDoneTasksToggle, confirmDialog, skipButton, bindSkipButtons,
 } from "../lib.js";
 import { renderTreeTab, renderMeasuresTab, renderSourcesView } from "./research.js";
 import { renderPresentationTab } from "./presentation.js";
@@ -17,7 +17,7 @@ export async function renderProject(el, id) {
   const tabs = [["stages", "工程"], ["tasks", `タスク（${data.tasks.filter((t) => t.status !== "done").length}）`], ["records", "記録"],
     ["tree", "樹形図"], ["measures", "施策"], ["sources", "資料"], ["present", "発表の準備・提出"]];
   el.innerHTML = `
-    <nav class="breadcrumb"><a href="#/projects">PJ一覧</a> / ${esc(p.name)}</nav>
+    <nav class="breadcrumb"><a href="#/projects">自分のPJ</a> / ${esc(p.name)}</nav>
     <div class="pj-header card">
       <div class="pj-header-main">
         <span class="stage-pill">${esc(type.label)}${p.status === "done" ? "・完了" : ""}</span>
@@ -150,7 +150,13 @@ function renderStages(body, data, ro, reload) {
       return;
     }
     busy(cb, () => api(`/api/checklist/${cb.dataset.check}`, { method: "PATCH", body: { done: cb.checked } }))
-      .then(reload).catch(() => (cb.checked = !cb.checked));
+      .then(() => {
+        if (cb.checked && item) {
+          const rest = checklist.filter((c) => c.stage_no === item.stage_no && c.id !== item.id && !c.done_at && !c.skipped_at);
+          if (!rest.length) celebrate("この工程のチェックがすべて済みました！", "準備ができたら、次の工程へ進みましょう");
+        }
+        reload();
+      }).catch(() => (cb.checked = !cb.checked));
   }));
   // チェックした項目に結び付けるMTGを選び直す
   body.querySelectorAll("[data-pick]").forEach((b) => b.addEventListener("click", () => {
@@ -187,7 +193,11 @@ function renderStages(body, data, ro, reload) {
     const toName = type.stages.find((s) => s.no === to)?.name || "";
     if (!await confirmDialog(`工程を「${toName}」にしますか？${left ? `\nチェックが済んでいない項目が${left}件あります。` : ""}\nPJメンバーにお知らせが届きます。`, { ok: "工程を変える" })) return;
     busy(b, () => api(`/api/projects/${p.id}/stage`, { method: "POST", body: { stage_no: to } }))
-      .then(() => { toast("工程を更新しました"); reload(); }).catch(() => {});
+      .then(() => {
+        if (to > p.current_stage) celebrate(`工程「${type.stages.find((s) => s.no === p.current_stage)?.name || ""}」を完了！`, `次は「${toName}」`);
+        else toast("工程を更新しました");
+        reload();
+      }).catch(() => {});
   }));
 }
 
@@ -392,7 +402,8 @@ function bindCompletion(el, p, reload) {
     }
     busy(b, () => api(`/api/projects/${p.id}/completion`, { method: "POST", body }))
       .then(() => {
-        toast({ request: "部門長に完了の承認を依頼しました", cancel: "依頼を取り下げました", approve: "PJを完了にしました", reopen: "進行中に戻しました" }[action]);
+        if (action === "approve") celebrate(`「${p.name}」が完了しました！`, "おつかれさまでした");
+        else toast({ request: "部門長に完了の承認を依頼しました", cancel: "依頼を取り下げました", reopen: "進行中に戻しました" }[action]);
         reload();
       }).catch(() => {});
   }));

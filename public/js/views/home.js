@@ -26,7 +26,8 @@ export async function renderHome(el) {
         <strong>定例</strong>
         <span class="choice-badge" id="badge-teirei" hidden></span>
       </a>
-    </div>`;
+    </div>
+    ${state.me.isAdmin ? `<p class="home-admin"><a class="button small" href="#/admin">🛠️ 管理者メニュー</a></p>` : ""}`;
 
   // 今日のMTGの件数を、選択肢の上に小さく出す（読み込みに失敗しても選択肢は使える）
   try {

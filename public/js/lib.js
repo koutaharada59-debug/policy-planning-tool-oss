@@ -514,3 +514,46 @@ export async function keepView(el, render) {
   el.querySelectorAll("details[data-key]").forEach((d) => { if (open.has(d.dataset.key)) d.open = open.get(d.dataset.key); });
   window.scrollTo(0, y);
 }
+
+
+// ---------- 達成感の演出：工程の完了・PJの完了などで、紙吹雪とひとこと ----------
+// 動きを減らす設定（prefers-reduced-motion）の人には、紙吹雪を出さずにひとことだけ
+export function celebrate(title, sub = "") {
+  document.querySelector(".celebrate")?.remove();
+  const box = document.createElement("div");
+  box.className = "celebrate";
+  box.setAttribute("role", "status");
+  const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const bits = reduce ? "" : Array.from({ length: 28 }, (_, i) => {
+    const left = Math.round(Math.random() * 100);
+    const delay = (Math.random() * 0.4).toFixed(2);
+    const dur = (1.2 + Math.random() * 0.8).toFixed(2);
+    const emoji = ["🎉", "✨", "🌱", "⭐", "🎊"][i % 5];
+    return `<span class="confetti" style="left:${left}%;animation-delay:${delay}s;animation-duration:${dur}s">${emoji}</span>`;
+  }).join("");
+  box.innerHTML = `${bits}<div class="celebrate-card"><strong>${esc(title)}</strong>${sub ? `<small>${esc(sub)}</small>` : ""}</div>`;
+  box.addEventListener("click", () => box.remove());
+  document.body.append(box);
+  setTimeout(() => box.classList.add("is-leaving"), 2200);
+  setTimeout(() => box.remove(), 2700);
+}
+
+
+// ---------- エラーの監視：画面で起きた想定外のエラーを、サーバーに知らせる ----------
+let reported = 0;
+function reportClientError(message, stack) {
+  if (reported >= 5 || !state.me || !message) return;
+  reported += 1;
+  fetch("/api/client-errors", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "same-origin",
+    body: JSON.stringify({ message: String(message).slice(0, 500), stack: String(stack || "").slice(0, 2000), url: location.hash }),
+  }).catch(() => {});
+}
+window.addEventListener("error", (e) => reportClientError(e.message, e.error?.stack));
+window.addEventListener("unhandledrejection", (e) => {
+  const r = e.reason;
+  if (r?.silent) return; // 確認画面の「キャンセル」など
+  reportClientError(r?.message || String(r), r?.stack);
+});

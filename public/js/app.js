@@ -2,6 +2,7 @@
 import { api, esc, avatar, toast, state, hasUnsaved, forgetUnsaved, confirmDialog } from "./lib.js";
 import { renderHome } from "./views/home.js";
 import { renderMinutesSearch } from "./views/search.js";
+import { renderTimeline } from "./views/timeline.js";
 import { renderCheck } from "./views/check.js";
 import { renderNotices, renderMyTasks } from "./views/notices.js";
 import { renderStart } from "./views/start.js";
@@ -31,8 +32,9 @@ const ROUTES = [
   [/^\/projects\/(\d+)$/, "projects", (m) => (el) => renderProject(el, Number(m[1]))],
   [/^\/meetings\/(\d+)$/, "projects", (m) => (el) => renderMeeting(el, Number(m[1]))],
   [/^\/calendar$/, "calendar", () => renderCalendar],
-  [/^\/seeds$/, "seeds", () => renderRounds],
-  [/^\/admin$/, "admin", () => renderAdmin],
+  [/^\/timeline$/, "timeline", () => renderTimeline],
+  [/^\/seeds$/, "projects", () => renderRounds],
+  [/^\/admin$/, "home", () => renderAdmin],
   [/^\/teirei$/, "home", () => renderTeireiHome],
   [/^\/teirei\/minutes$/, "home", () => renderTeireiMinutes],
   [/^\/teirei\/notice$/, "home", () => renderTeireiNotice],
@@ -44,8 +46,8 @@ const ROUTES = [
   [/^\/hearings$/, "projects", () => renderHearings],
   [/^\/hearings\/new$/, "projects", () => renderHearingNew],
   [/^\/hearings\/(\d+)$/, "projects", (m) => (el) => renderHearing(el, Number(m[1]))],
-  [/^\/seeds\/(\d+)$/, "seeds", (m) => (el) => renderRound(el, Number(m[1]))],
-  [/^\/seeds\/(\d+)\/staffing$/, "seeds", (m) => (el) => renderStaffing(el, Number(m[1]))],
+  [/^\/seeds\/(\d+)$/, "projects", (m) => (el) => renderRound(el, Number(m[1]))],
+  [/^\/seeds\/(\d+)\/staffing$/, "projects", (m) => (el) => renderStaffing(el, Number(m[1]))],
 ];
 
 const ERRORS = {
@@ -79,7 +81,7 @@ async function boot() {
   document.getElementById("bell").hidden = false;
   refreshBell();
   setInterval(() => { if (!document.hidden) refreshBell(); }, 60000);
-  document.getElementById("nav-admin").hidden = !me.user.isAdmin;
+  
   document.getElementById("app").hidden = false;
   window.addEventListener("hashchange", route);
   document.getElementById("back-btn").addEventListener("click", goBack);
@@ -186,6 +188,7 @@ function centerSteppers(el) {
 
 // 書きかけを守る：保存していない内容があるまま移ろうとしたら確かめ、やめたら元の画面に戻す
 let shownHash = location.hash || "#/";
+let shownPath = null; // いま表示している画面（クエリを除く）
 let returning = false;
 
 export async function route() {
@@ -213,9 +216,21 @@ export async function route() {
     const m = path.match(re);
     if (!m) continue;
     document.querySelectorAll("[data-nav]").forEach((a) => a.classList.toggle("is-active", a.dataset.nav === nav));
-    el.innerHTML = `<p class="loading">読み込み中…</p>`;
+    // 同じ画面のタブを切り替えただけなら、読み込み中に画面を空にせず、スクロールの位置もそのまま
+    const sameScreen = shownPath === path;
+    const keepY = window.scrollY;
+    // タブの列が画面のどこにあったか（切り替えたあとも、同じ位置に見えるようにする）
+    const tabsTop = sameScreen ? el.querySelector(".tabs")?.getBoundingClientRect().top : null;
+    shownPath = path;
+    if (!sameScreen) el.innerHTML = `<p class="loading">読み込み中…</p>`;
     try {
       await view(m)(el);
+      if (sameScreen) {
+        const tabs = el.querySelector(".tabs");
+        if (tabs && tabsTop != null) window.scrollBy(0, tabs.getBoundingClientRect().top - tabsTop);
+        else window.scrollTo(0, keepY);
+      }
+      else window.scrollTo(0, 0);
       const h1 = el.querySelector("h1")?.textContent.replace(/\s+/g, " ").trim();
       document.title = h1 ? `${h1}｜${baseTitle}` : baseTitle;
       centerSteppers(el);

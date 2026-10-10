@@ -15,7 +15,7 @@ const requireAdmin = (user) => requireAdminFor(user, "管理者メニューは�
 
 async function getAdmin({ env, user }) {
   requireAdmin(user);
-  const [users, admins, archived, staffing] = await Promise.all([
+  const [users, admins, archived, staffing, errors] = await Promise.all([
     // updated_at：最後にこのツールへログインした時刻（希望PJアンケートから取り込んだだけで未ログインの人は 0）
     env.DB.prepare("SELECT id, name, avatar, updated_at AS last_login, is_dept FROM users ORDER BY name").all(),
     env.DB.prepare(
@@ -28,6 +28,10 @@ async function getAdmin({ env, user }) {
       `SELECT p.id, p.name, p.type, p.status, p.current_stage, pm.user_id FROM projects p
        LEFT JOIN project_members pm ON pm.project_id = p.id
        WHERE p.status != 'archived' ORDER BY p.status, p.created_at`
+    ).all(),
+    // エラーの記録（新しい順に30件）
+    env.DB.prepare(
+      "SELECT e.id, e.source, e.message, e.stack, e.url, e.created_at, u.name AS user_name FROM error_logs e LEFT JOIN users u ON u.id = e.user_id ORDER BY e.id DESC LIMIT 30"
     ).all(),
   ]);
   const projects = [];
@@ -47,6 +51,7 @@ async function getAdmin({ env, user }) {
     users: users.results,
     archived: archived.results,
     projects,
+    errors: errors.results,
     settings: {
       bot: botConfigured(env),
       forum: Boolean(env.HEARING_FORUM_ID),

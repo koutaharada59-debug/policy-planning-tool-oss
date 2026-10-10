@@ -7,9 +7,11 @@
     "db:migrate:local": "wrangler d1 migrations apply policy-planning --local",
     "db:migrate:remote": "wrangler d1 migrations apply policy-planning --remote",
     "test": "node --test test/*.test.js",
-    "deploy": "wrangler deploy"
+    "deploy": "wrangler deploy",
+    "test:e2e": "playwright test"
   },
   "devDependencies": {
+    "@playwright/test": "^1.56.1",
     "wrangler": "^4.0.0"
   }
 }
