@@ -63,6 +63,9 @@ test("PJを作ってMTGをし、記録に残る", async ({ page }) => {
   // MTGを終える → PJ画面に戻る
   await page.locator("#end-meeting").click();
   await confirm(page, "MTGを終える");
+  // このMTGでどれだけ進んだかの画面が出る → OK で閉じる
+  await expect(page.locator(".progress-card")).toBeVisible();
+  await page.locator(".pg-ok").click();
   await expect(page.locator(".pj-header h1")).toHaveText(name);
 
   // 記録タブに出る
