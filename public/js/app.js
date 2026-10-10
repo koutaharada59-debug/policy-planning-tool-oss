@@ -1,5 +1,5 @@
 // 起動・ログイン状態・ハッシュルーティング
-import { api, esc, avatar, toast, state, hasUnsaved, forgetUnsaved, confirmDialog } from "./lib.js";
+import { api, esc, avatar, toast, state, hasUnsaved, forgetUnsaved, confirmDialog, fmtDateTime, jstDateTime } from "./lib.js";
 import { renderHome } from "./views/home.js";
 import { renderMinutesSearch } from "./views/search.js";
 import { renderTimeline } from "./views/timeline.js";
@@ -79,6 +79,7 @@ async function boot() {
     <a class="button small" href="/auth/logout">ログアウト</a>`;
   document.getElementById("nav").hidden = false;
   document.getElementById("bell").hidden = false;
+  bindBellPanel();
   refreshBell();
   setInterval(() => { if (!document.hidden) refreshBell(); }, 60000);
   
@@ -143,6 +144,58 @@ export async function refreshBell() {
   const { unread } = await api("/api/notices?count=1").catch(() => ({ unread: 0 }));
   count.textContent = unread > 99 ? "99+" : String(unread);
   count.hidden = !unread;
+}
+
+// 🔔を押すと、その場に小さな枠でお知らせを出す（ページは移らない）。開いたら既読にする
+function bindBellPanel() {
+  const bell = document.getElementById("bell");
+  bell.setAttribute("aria-haspopup", "dialog");
+  bell.setAttribute("aria-expanded", "false");
+  let panel = null;
+  const close = () => {
+    panel?.remove();
+    panel = null;
+    bell.setAttribute("aria-expanded", "false");
+  };
+  const open = async () => {
+    panel = document.createElement("div");
+    panel.className = "bell-panel";
+    panel.setAttribute("role", "dialog");
+    panel.setAttribute("aria-label", "お知らせ");
+    panel.innerHTML = `<div class="bell-panel-head"><strong>🔔 お知らせ</strong><button type="button" class="link-btn" data-close aria-label="閉じる">✕</button></div>
+      <p class="muted small bell-loading">読み込み中…</p>`;
+    document.querySelector(".site-header").append(panel);
+    bell.setAttribute("aria-expanded", "true");
+    panel.querySelector("[data-close]").addEventListener("click", close);
+    const { notices } = await api("/api/notices").catch(() => ({ notices: [] }));
+    if (!panel) return;
+    const list = notices.slice(0, 8);
+    panel.querySelector(".bell-loading").outerHTML = `
+      ${list.length ? `<ul class="bell-list">${list.map((n) => `
+        <li class="${n.read_at ? "" : "is-unread"}">
+          ${n.link ? `<a href="${esc(n.link)}">` : "<span>"}
+            ${n.read_at ? "" : '<span class="unread-dot" aria-label="未読"></span>'}<span class="bell-text">${esc(n.body.split("\n")[0])}</span>
+            <small class="muted">${fmtDateTime(jstDateTime(n.created_at))}</small>
+          ${n.link ? "</a>" : "</span>"}
+        </li>`).join("")}</ul>` : `<p class="muted small">お知らせはまだありません。</p>`}
+      <div class="bell-panel-foot"><a href="#/notices">すべて見る（${notices.length}件）</a><a href="#/my-tasks">✅ 自分のタスク</a></div>`;
+    // 開いたら既読にする（数字を消す）
+    if (notices.some((n) => !n.read_at)) {
+      api("/api/notices/read", { method: "POST", body: {} }).then(() => { document.getElementById("bell-count").hidden = true; }).catch(() => {});
+    }
+  };
+  bell.addEventListener("click", (e) => {
+    e.preventDefault();
+    if (panel) close(); else open();
+  });
+  // 外を押したとき・Esc・お知らせを押して画面を移ったときは閉じる
+  document.addEventListener("click", (e) => {
+    if (!panel) return;
+    if (e.target.closest(".bell-panel a")) { close(); return; }
+    if (!e.target.closest(".bell-panel") && !e.target.closest("#bell")) close();
+  });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && panel) { close(); bell.focus(); } });
+  window.addEventListener("hashchange", close);
 }
 
 // 「戻る」はパンくずと同じ行に置く（縦の場所を取らないように）。パンくずのない画面では上の行に出す

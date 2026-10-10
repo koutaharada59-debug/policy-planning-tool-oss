@@ -84,6 +84,15 @@ test("PJを作ってMTGをし、記録に残る", async ({ page }) => {
   expect(errors).toEqual([]);
 });
 
+test("🔔でお知らせの枠が開く（ページは移らない）", async ({ page }) => {
+  await login(page);
+  await page.locator("#bell").click();
+  await expect(page.locator(".bell-panel")).toBeVisible();
+  await expect(page).toHaveURL(/#/$|/$/);
+  await page.keyboard.press("Escape");
+  await expect(page.locator(".bell-panel")).toHaveCount(0);
+});
+
 test("一般のメンバーには管理者メニューが出ない", async ({ page }) => {
   await login(page, `メンバー${stamp}`);
   await expect(page.locator(".home-admin")).toHaveCount(0);

@@ -1008,3 +1008,19 @@ label.chip-check[hidden]{display:none}
 .stepper .dot.is-pulse{animation:dot-pulse 1.6s ease-out}
 @keyframes dot-pulse{0%{box-shadow:0 0 0 0 #3fc58f99;transform:scale(1)}25%{transform:scale(1.18)}100%{box-shadow:0 0 0 14px #3fc58f00;transform:scale(1)}}
 @media (prefers-reduced-motion: reduce){.stepper li.is-next::before{transition:none}.stepper .dot.is-pulse{animation:none}}
+
+/* 🔔の小さな枠 */
+.site-header{position:sticky}
+.bell-panel{position:absolute;top:calc(100% + 8px);right:12px;z-index:60;width:min(380px,calc(100vw - 24px));max-height:min(70vh,520px);display:flex;flex-direction:column;background:#fff;border:1px solid var(--line);border-radius:16px;box-shadow:0 12px 32px #0002;overflow:hidden;animation:panel-in .18s ease-out}
+@keyframes panel-in{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
+.bell-panel-head{display:flex;justify-content:space-between;align-items:center;padding:10px 14px;border-bottom:1px solid var(--soft-line)}
+.bell-loading{padding:14px}
+.bell-list{list-style:none;margin:0;padding:0;overflow:auto}
+.bell-list li{border-bottom:1px solid var(--soft-line)}
+.bell-list li > a,.bell-list li > span{display:flex;flex-direction:column;gap:2px;padding:10px 14px;color:inherit;text-decoration:none;font-size:13px}
+.bell-list li > a:hover{background:#f3fbf7}
+.bell-list li.is-unread{background:#f6fbf8}
+.bell-list .unread-dot{display:inline-block;margin-right:6px}
+.bell-text{font-weight:600;line-height:1.5}
+.bell-panel-foot{display:flex;justify-content:space-between;gap:8px;padding:10px 14px;font-size:13px;font-weight:700;border-top:1px solid var(--soft-line)}
+@media (max-width:760px){.bell-panel{right:8px;left:8px;width:auto;top:calc(100% + 4px)}}
