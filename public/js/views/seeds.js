@@ -570,7 +570,7 @@ export async function renderStaffing(el, roundId) {
       <tbody>${people.map((u) => {
         const mine = assign.get(u.id) || new Set();
         return `<tr class="${mine.size ? "" : "is-none"}">
-          <th><button type="button" class="staff-who" data-who="${esc(u.id)}" aria-haspopup="dialog" title="${esc(u.name)}さんの希望を見る">${avatar(u)} ${esc(u.name)}</button>${extra.has(u.id) ? ` <span class="tag">追加</span>` : best(u.id) === 999 ? ` <span class="tag">希望なし</span>` : ""}</th>
+          <th><button type="button" class="staff-who" data-who="${esc(u.id)}" aria-haspopup="dialog" title="${esc(u.name)}" aria-label="${esc(u.name)}さんの希望を見る">${avatar(u)}</button>${extra.has(u.id) ? ` <span class="tag">追加</span>` : best(u.id) === 999 ? ` <span class="tag">希望なし</span>` : ""}</th>
           ${picked.map((s) => {
             const r = rankOf(u.id, s.id);
             const on = mine.has(s.id);
