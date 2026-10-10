@@ -1024,3 +1024,5 @@ label.chip-check[hidden]{display:none}
 .bell-text{font-weight:600;line-height:1.5}
 .bell-panel-foot{display:flex;justify-content:space-between;gap:8px;padding:10px 14px;font-size:13px;font-weight:700;border-top:1px solid var(--soft-line)}
 @media (max-width:760px){.bell-panel{right:8px;left:8px;width:auto;top:calc(100% + 4px)}}
+/* 🔔は名前（ログアウト）のすぐ左に寄せる */
+.site-header .bell{margin-left:auto}
