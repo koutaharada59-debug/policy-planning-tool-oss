@@ -28,7 +28,7 @@ export async function renderProject(el, id) {
         <span class="stage-pill">${esc(type.label)}${p.status === "done" ? "・完了" : ""}</span>
         <h1>${esc(p.name)}</h1>
         ${p.description ? `<p class="desc fold">${esc(p.description)}</p>` : ""}
-        <div class="people-stack">${data.members.map((m) => avatar(m)).join("")}<span class="more">${data.members.map((m) => esc(m.name)).join("、")}</span></div>
+        <div class="people-stack">${data.members.map((m) => avatar(m)).join("")}<span class="more">${data.members.map((m) => `<a href="#/members/${encodeURIComponent(m.id)}">${esc(m.name)}</a>`).join("、")}</span></div>
         ${data.origin ? `<p class="muted small pj-origin">🌱 <a href="#/seeds/${data.origin.round_id}">${esc(data.origin.round_title)}</a> から生まれたPJ</p>` : ""}
       </div>
       <div class="pj-header-actions">

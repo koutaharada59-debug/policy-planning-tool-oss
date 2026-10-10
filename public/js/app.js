@@ -25,6 +25,7 @@ const ROUTES = [
   [/^\/notices$/, "home", () => renderNotices],
   [/^\/my-tasks$/, "home", () => renderMyTasks],
   [/^\/me$/, "me", () => renderProfile],
+  [/^\/members\/([^/?]+)$/, "home", (m) => (el) => renderProfile(el, decodeURIComponent(m[1]))],
   [/^\/minutes-search$/, "home", () => renderMinutesSearch],
   [/^\/present$/, "projects", () => renderPresentList],
   [/^\/present\/(\d+)$/, "projects", (m) => (el) => renderPresent(el, Number(m[1]))],

@@ -28,8 +28,11 @@ async function readNotices({ env, user }) {
   return { ok: true };
 }
 
-// 自分が担当のタスク（未完了すべてと、最近完了した20件）
-async function getMyTasks({ env, user }) {
+// 自分が担当のタスク（未完了すべてと、最近完了した20件）。?user=ID なら、そのメンバーのタスク（プロフィール用。PJは部門の全員が見られるので、タスクも見せてよい）
+async function getMyTasks({ env, user: me, url }) {
+  const uid = url.searchParams.get("user");
+  const user = uid && uid !== me.id ? await env.DB.prepare("SELECT id FROM users WHERE id = ?").bind(uid).first() : me;
+  if (!user) throw new HttpError(404, "メンバーが見つかりません");
   const cols = `t.id, t.title, t.status, t.due_date, t.stage_no, t.version, p.id AS project_id, p.name AS project_name`;
   const [open, done] = await Promise.all([
     env.DB.prepare(
