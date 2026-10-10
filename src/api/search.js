@@ -1,5 +1,6 @@
 // 議事録を探す：PJのMTGの議事録・定例の記録・発表の記録を、言葉で探す（ログインしていれば誰でも）
-import { HttpError, clean, int } from "../util.js";
+import { HttpError, clean, int, optDate } from "../util.js";
+import { addDays } from "../project-types.js";
 
 export const routes = [
   ["GET", "/api/search/minutes", searchMinutes],
@@ -23,7 +24,13 @@ async function searchMinutes({ env, url }) {
   const kind = url.searchParams.get("kind") || "all";
   if (!["all", "meeting", "teirei", "present"].includes(kind)) throw new HttpError(400, "種類が正しくありません");
   const projectId = url.searchParams.get("project") ? int(url.searchParams.get("project"), { label: "PJ" }) : null;
-  if (!words.length && !projectId) return { results: [], q };
+  // 日付で絞り込む（この日から・この日まで。時刻は見ない）
+  const from = optDate(url.searchParams.get("from"), "いつから");
+  const to = optDate(url.searchParams.get("to"), "いつまで");
+  if (!words.length && !projectId && !from && !to) return { results: [], q };
+  const dateCond = (col) => `${from ? ` AND ${col} >= '${from}'` : ""}${to ? ` AND ${col} < '${addDays(to, 1)}'` : ""}`;
+  const msFrom = from ? Date.parse(`${from}T00:00:00+09:00`) : null;
+  const msTo = to ? Date.parse(`${addDays(to, 1)}T00:00:00+09:00`) : null;
 
   const results = [];
   // PJのMTGの議事録：今回話し合うこと・概要・次回までにやること
@@ -34,7 +41,7 @@ async function searchMinutes({ env, url }) {
       `SELECT n.meeting_id AS id, m.starts_at AS at, p.id AS project_id, p.name AS project_name,
               n.agenda, n.summary, ${todos} AS todos
        FROM minutes n JOIN meetings m ON m.id = n.meeting_id JOIN projects p ON p.id = n.project_id
-       WHERE p.status != 'archived' ${projectId ? "AND p.id = ?" : ""} ${words.length ? `AND ${w.cond}` : ""}
+       WHERE p.status != 'archived' ${projectId ? "AND p.id = ?" : ""} ${words.length ? `AND ${w.cond}` : ""}${dateCond("m.starts_at")}
        ORDER BY m.starts_at DESC LIMIT ?`
     ).bind(...(projectId ? [projectId] : []), ...w.binds, LIMIT).all();
     for (const r of rows) {
@@ -52,7 +59,7 @@ async function searchMinutes({ env, url }) {
       const { results: rows } = await env.DB.prepare(
         `SELECT d.id, COALESCE(d.starts_at, d.held_on || 'T00:00') AS at, r.done, r.next, r.issues, p.name AS project_name
          FROM dept_reports r JOIN dept_meetings d ON d.id = r.dept_meeting_id JOIN projects p ON p.id = r.project_id
-         WHERE r.project_id = ? ${words.length ? `AND ${w.cond}` : ""} ORDER BY d.held_on DESC LIMIT ?`
+         WHERE r.project_id = ? ${words.length ? `AND ${w.cond}` : ""}${dateCond("d.held_on")} ORDER BY d.held_on DESC LIMIT ?`
       ).bind(projectId, ...w.binds, LIMIT).all();
       for (const r of rows) {
         results.push({
@@ -65,7 +72,7 @@ async function searchMinutes({ env, url }) {
       const w = whereAll(words, ["d.notice", "d.memo", reports]);
       const { results: rows } = await env.DB.prepare(
         `SELECT d.id, COALESCE(d.starts_at, d.held_on || 'T00:00') AS at, d.notice, d.memo, ${reports} AS reports
-         FROM dept_meetings d ${words.length ? `WHERE ${w.cond}` : ""} ORDER BY d.held_on DESC LIMIT ?`
+         FROM dept_meetings d WHERE 1 = 1 ${words.length ? `AND ${w.cond}` : ""}${dateCond("d.held_on")} ORDER BY d.held_on DESC LIMIT ?`
       ).bind(...w.binds, LIMIT).all();
       for (const r of rows) {
         results.push({
@@ -81,7 +88,7 @@ async function searchMinutes({ env, url }) {
     const { results: rows } = await env.DB.prepare(
       `SELECT r.id, r.created_at, r.kind, r.sub, r.memo, p.id AS project_id, p.name AS project_name
        FROM presentation_records r JOIN projects p ON p.id = r.project_id
-       WHERE p.status != 'archived' ${projectId ? "AND p.id = ?" : ""} ${words.length ? `AND ${w.cond}` : ""}
+       WHERE p.status != 'archived' ${projectId ? "AND p.id = ?" : ""} ${words.length ? `AND ${w.cond}` : ""}${msFrom ? ` AND r.created_at >= ${msFrom}` : ""}${msTo ? ` AND r.created_at < ${msTo}` : ""}
        ORDER BY r.created_at DESC LIMIT ?`
     ).bind(...(projectId ? [projectId] : []), ...w.binds, LIMIT).all();
     for (const r of rows) {

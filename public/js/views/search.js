@@ -1,4 +1,4 @@
-// 議事録を探す：PJのMTGの議事録・定例の記録・発表の記録を、言葉・PJ・種類で探す
+// 議事録を探す：PJのMTGの議事録・定例の記録・発表の記録を、言葉・PJ・種類・日付で探す
 import { api, esc, fmtDate, fmtDateTime, hashQuery } from "../lib.js";
 
 const KINDS = [["all", "すべて"], ["meeting", "MTGの議事録"], ["teirei", "定例の記録"], ["present", "発表の記録"]];
@@ -10,12 +10,15 @@ export async function renderMinutesSearch(el) {
   el.innerHTML = `
     <nav class="breadcrumb"><a href="#/check">確認する</a> / 議事録を探す</nav>
     <div class="page-heading left"><h1>🔎 議事録を探す</h1>
-      <p>PJのMTGの議事録・定例の記録・発表の記録から探します。言葉を空白で区切ると、すべて含むものを探します。</p></div>
+      <p>PJのMTGの議事録・定例の記録・発表の記録から探します。言葉を空白で区切ると、すべて含むものを探します。日付だけで探すこともできます。</p></div>
     <form class="search-form" id="search-form" role="search">
       <input type="search" name="q" value="${esc(q0.get("q") || "")}" placeholder="例：ヒアリング　出典" aria-label="探す言葉" autofocus>
       <select name="project" aria-label="PJ"><option value="">すべてのPJ</option>
         ${projects.filter((p) => p.status !== "archived").map((p) => `<option value="${p.id}" ${String(p.id) === q0.get("project") ? "selected" : ""}>${esc(p.name)}</option>`).join("")}</select>
       <select name="kind" aria-label="種類">${KINDS.map(([k, l]) => `<option value="${k}" ${k === (q0.get("kind") || "all") ? "selected" : ""}>${l}</option>`).join("")}</select>
+      <label class="search-date">いつから<input type="date" name="from" value="${esc(q0.get("from") || "")}"></label>
+      <label class="search-date">いつまで<input type="date" name="to" value="${esc(q0.get("to") || "")}"></label>
+      <button type="button" class="small" id="search-day" title="「いつから」の日だけで探す">その日だけ</button>
     </form>
     <p class="muted small" id="search-count"></p>
     <ul class="list search-results" id="search-results"></ul>`;
@@ -28,11 +31,11 @@ export async function renderMinutesSearch(el) {
 
   const run = async () => {
     const params = new URLSearchParams();
-    for (const k of ["q", "project", "kind"]) if (form[k].value.trim() && !(k === "kind" && form[k].value === "all")) params.set(k, form[k].value.trim());
+    for (const k of ["q", "project", "kind", "from", "to"]) if (form[k].value.trim() && !(k === "kind" && form[k].value === "all")) params.set(k, form[k].value.trim());
     // 戻ってきたときに同じ結果を出せるよう、条件を画面のURLに残す（履歴は増やさない）
     history.replaceState(null, "", `#/minutes-search${params.toString() ? `?${params}` : ""}`);
-    if (!params.get("q") && !params.get("project")) {
-      count.textContent = "言葉を入れるか、PJを選んでください。";
+    if (!params.get("q") && !params.get("project") && !params.get("from") && !params.get("to")) {
+      count.textContent = "言葉を入れるか、PJ・日付を選んでください。";
       list.innerHTML = "";
       return;
     }
@@ -44,15 +47,21 @@ export async function renderMinutesSearch(el) {
     list.innerHTML = results.map((r) => `
       <li class="list-item search-hit">
         <a href="${r.href}">
+          <span class="search-date-big">${fmtDate(r.at)}${r.at.endsWith("T00:00") ? "" : ` <small>${r.at.slice(11, 16)}</small>`}</span>
           <span class="search-head">${ICON[r.kind]} <strong>${esc(r.title)}</strong>
-            ${r.project_name ? `<span class="tag">${esc(r.project_name)}</span>` : ""}
-            <small class="muted">${r.at.endsWith("T00:00") ? fmtDate(r.at) : fmtDateTime(r.at)}</small></span>
+            ${r.project_name ? `<span class="tag">${esc(r.project_name)}</span>` : ""}</span>
           <span class="search-snippet">${snippet(r.text, words)}</span>
         </a>
       </li>`).join("");
   };
 
   form.addEventListener("submit", (e) => { e.preventDefault(); clearTimeout(timer); run(); });
+  // その日だけ：「いつまで」を「いつから」と同じ日にする（「いつから」が空なら今日）
+  el.querySelector("#search-day").addEventListener("click", () => {
+    if (!form.from.value) form.from.value = new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 10);
+    form.to.value = form.from.value;
+    run();
+  });
   form.addEventListener("input", () => { clearTimeout(timer); timer = setTimeout(run, 400); });
   form.addEventListener("change", () => { clearTimeout(timer); run(); });
   run();

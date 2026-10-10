@@ -902,3 +902,15 @@ label.chip-check[hidden]{display:none}
 .search-snippet{font-size:13px;color:#4f4f4f;line-height:1.7}
 .search-snippet mark{background:#fff1a8;padding:0 2px;border-radius:3px}
 @media (max-width:760px){.search-form{grid-template-columns:1fr 1fr}.search-form input{grid-column:1 / -1}}
+
+.search-form{grid-template-columns:minmax(0,2fr) minmax(0,1fr) minmax(0,1fr)}
+.search-date{display:flex;flex-direction:column;gap:2px;font-size:12px;font-weight:700;color:var(--muted)}
+#search-day{align-self:end;min-height:40px}
+.search-date-big{font-size:17px;font-weight:800;color:#222}
+.search-date-big small{font-size:13px;font-weight:600;color:var(--muted)}
+/* 議事録を探す：1行目＝言葉、2行目＝PJ・種類、3行目＝いつから・いつまで・その日だけ */
+.search-form{grid-template-columns:repeat(6,minmax(0,1fr))}
+.search-form [name=q]{grid-column:1 / -1}
+.search-form [name=project],.search-form [name=kind]{grid-column:span 3}
+.search-form .search-date,.search-form #search-day{grid-column:span 2}
+@media (max-width:760px){.search-form input[name=q]{grid-column:1 / -1}}
