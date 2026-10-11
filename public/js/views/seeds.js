@@ -71,16 +71,15 @@ export async function renderRound(el, id) {
   const tab = hashQuery().get("tab") || "seeds";
   const canSeeResults = round.closed || state.me.isAdmin;
   const linked = round.source === "survey";
-  const tabs = [["seeds", `政策の種（${data.seeds.length}）`]];
+  const tabs = [["seeds", `政策の種（${data.seeds.filter((s) => !s.project).length}）`]];
   if (!linked) tabs.push(["ballot", `自分の投票（${data.myBallot.length}）`]);
   if (canSeeResults) tabs.push(["results", "開票・PJ化"]);
 
   el.innerHTML = `
-    <nav class="breadcrumb"><a href="#/seeds?all=1">PJ決め</a> / ${esc(round.title)}</nav>
-    <div class="page-heading left">
-      ${viewSwitch("seeds", { asTitle: false })}
-      <h1>${esc(round.title)}</h1>
-      <p>${round.closed ? "締め切りました" : round.deadline ? `${fmtDateTime(round.deadline)} 締め切り` : "受付中"}・投票 ${data.respondents}人</p>
+    <div class="page-heading">${viewSwitch("seeds")}
+      <p class="round-name"><strong>${esc(round.title)}</strong>
+        <span class="due ${round.closed ? "" : "is-soon"}">${round.closed ? "締め切りました" : round.deadline ? `${fmtDateTime(round.deadline)} 締め切り` : "受付中"}</span></p>
+      <p class="small">投票 ${data.respondents}人・<a href="#/seeds?all=1">ほかのPJ決めを見る</a></p>
     </div>
     ${linked ? `<div class="notice survey-link">
       <span>🔗 ${round.closed ? "種と投票は<strong>希望PJアンケート</strong>から取り込みました" : "<strong>希望PJアンケートと連動</strong>中（投票はアンケートで）"}</span>

@@ -649,7 +649,7 @@ export function viewSwitch(current, { asTitle = true, seedsOpen = false } = {}) 
   const name = asTitle ? `<h1>${label}</h1>` : `<span class="view-switch-label">🌱 ${label}</span>`;
   return `<div class="view-switch ${asTitle ? "" : "is-small"}">
     ${name}
-    <button type="button" class="view-switch-btn" aria-haspopup="menu" aria-expanded="false" aria-label="PJとPJ決めを切り替える">▾</button>
+    <button type="button" class="view-switch-btn" aria-haspopup="menu" aria-expanded="false" aria-label="PJとPJ決めを切り替える"><svg width="14" height="10" viewBox="0 0 14 10" aria-hidden="true"><path d="M1 1.5h12L7 9z" fill="currentColor"/></svg></button>
     <div class="view-switch-menu" role="menu" hidden>
       <a role="menuitem" href="#/projects" class="${current === "pj" ? "is-current" : ""}">📁 PJ${current === "pj" ? "<small>いまここ</small>" : ""}</a>
       <a role="menuitem" href="#/seeds" class="${current === "seeds" ? "is-current" : ""}">🌱 PJ決め${seedsOpen ? ' <span class="due is-soon">受付中</span>' : ""}${current === "seeds" ? "<small>いまここ</small>" : ""}</a>
