@@ -1163,12 +1163,3 @@ html[data-vt="left"]::view-transition-new(main){animation:vt-in-left .26s cubic-
 .schedule-table small{display:block;margin-top:2px}
 .schedule-span{font-weight:800;color:#245949;white-space:nowrap}
 
-/* スライドの構成 */
-.slide-list{list-style:none;margin:12px 0;padding:0;display:flex;flex-direction:column;gap:10px}
-.slide-card{display:flex;gap:14px;align-items:flex-start;margin:0}
-.slide-no{flex:none;display:grid;place-items:center;width:34px;height:34px;border-radius:10px;background:var(--pale);color:#245949;font-weight:800}
-.slide-body{min-width:0;flex:1}
-.slide-body h3{margin:2px 0 2px;font-size:16px}
-.slide-body p{margin:0}
-.slide-draft{margin:8px 0 0;padding:10px 12px;border-radius:10px;background:#f6faf8;border:1px solid var(--soft-line);white-space:pre-wrap;font:inherit;font-size:13px;line-height:1.7;overflow-wrap:anywhere}
-.slide-empty{margin-top:8px !important;color:#9aa5a0}

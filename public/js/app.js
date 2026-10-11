@@ -10,7 +10,6 @@ import { renderStart } from "./views/start.js";
 import { renderPresentList, renderPresent } from "./views/present.js";
 import { renderProjects, renderProjectForm } from "./views/projects.js";
 import { renderSchedule } from "./views/schedule.js";
-import { renderSlides } from "./views/slides.js";
 import { renderProject } from "./views/project.js";
 import { renderMeeting } from "./views/meeting.js";
 import { renderCalendar } from "./views/calendar.js";
@@ -33,7 +32,6 @@ const ROUTES = [
   [/^\/present\/(\d+)$/, "projects", (m) => (el) => renderPresent(el, Number(m[1]))],
   [/^\/projects$/, "projects", () => renderProjects],
   [/^\/schedule$/, "projects", () => renderSchedule],
-  [/^\/projects\/(\d+)\/slides$/, "projects", (m) => (el) => renderSlides(el, Number(m[1]))],
   [/^\/projects\/new$/, "projects", () => (el) => renderProjectForm(el, null)],
   [/^\/projects\/(\d+)\/edit$/, "projects", (m) => (el) => renderProjectForm(el, Number(m[1]))],
   [/^\/projects\/(\d+)$/, "projects", (m) => (el) => renderProject(el, Number(m[1]))],
