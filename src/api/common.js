@@ -37,9 +37,21 @@ export async function assertUsers(env, ids) {
   if (results.length !== unique.length) throw new HttpError(400, "存在しないメンバーが指定されています");
 }
 
+// 部門の目安日程（管理者が「期日を設定する」で変えたもの）。なければ null（型の既定を使う）
+export async function loadSchedule(env, type) {
+  const row = await env.DB.prepare("SELECT value FROM schedule_settings WHERE type = ?").bind(type).first();
+  return row ? JSON.parse(row.value) : null;
+}
+
+export async function loadAllSchedules(env) {
+  const { results } = await env.DB.prepare("SELECT type, value FROM schedule_settings").all();
+  return Object.fromEntries(results.map((r) => [r.type, JSON.parse(r.value)]));
+}
+
 // 工程の予定期間を（手で変えたもの以外）計算し直す文を返す
-export function stageDateStatements(env, project, { onlyAuto = true } = {}) {
-  return computeStageDates(project.type, project.start_date, project.presentation_date).map((s) =>
+export async function stageDateStatements(env, project, { onlyAuto = true, custom } = {}) {
+  if (custom === undefined) custom = await loadSchedule(env, project.type);
+  return computeStageDates(project.type, project.start_date, project.presentation_date, custom).map((s) =>
     env.DB.prepare(
       `INSERT INTO project_stages (project_id, stage_no, start_date, due_date) VALUES (?1, ?2, ?3, ?4)
        ON CONFLICT(project_id, stage_no) DO UPDATE SET start_date = ?3, due_date = ?4

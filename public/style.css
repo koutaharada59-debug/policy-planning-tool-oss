@@ -114,7 +114,6 @@ input[type=checkbox],input[type=radio]{width:18px;height:18px;accent-color:var(-
 .link-btn.danger:hover{color:var(--warn)}
 .gcal{display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border:1px solid var(--soft-line);border-radius:999px;font-size:11px;font-weight:700;text-decoration:none;color:var(--green);background:#fff}
 .gcal:hover{background:var(--mint-bg)}
-.gcal-inline{padding:1px 6px;border:1px solid var(--soft-line);border-radius:999px;font-size:12px;color:var(--green)}
 
 /* Cards */
 .pj-card{display:flex;flex-direction:column;gap:8px;color:inherit;text-decoration:none;transition:transform .15s,box-shadow .15s;margin:0}
@@ -124,7 +123,6 @@ input[type=checkbox],input[type=radio]{width:18px;height:18px;accent-color:var(-
 .pj-card p{margin:0}
 .next-step{padding:10px 12px;border-radius:8px;background:var(--mint-bg);font-size:13px;font-weight:700;line-height:1.7}
 .next-step span{display:block;font-size:10px;color:var(--green);letter-spacing:.06em}
-.card-bottom{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-top:auto;padding-top:12px;border-top:1px solid #e6e6e6}
 
 /* Lists */
 .list{list-style:none;margin:0;padding:0;background:#fff;border:1px solid var(--line);border-radius:12px;overflow:hidden}
@@ -201,14 +199,7 @@ input[type=checkbox],input[type=radio]{width:18px;height:18px;accent-color:var(-
 .segmented label:has(input:checked){background:var(--pale);border-color:var(--green)}
 
 /* Minutes */
-.minutes-layout.with-doc{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:20px;align-items:start}
-.minutes-layout.with-doc .doc-panel{order:2;position:sticky;top:96px;margin:0}
-.minutes-layout.with-doc .minutes{order:1}
-.doc-panel summary{display:flex;align-items:center;justify-content:space-between;gap:8px;cursor:pointer;list-style:none}
-.doc-panel summary::-webkit-details-marker{display:none}
-.doc-panel .doc-frame{margin-top:12px;height:calc(100vh - 220px);min-height:360px}
-.doc-panel p{margin:6px 0 0}
-.doc-missing{margin:0 0 12px}
+
 .minutes h2{margin-bottom:8px}
 .minutes label h2{display:inline}
 .minutes label{display:flex;flex-direction:column;gap:8px}
@@ -235,7 +226,7 @@ input[type=checkbox],input[type=radio]{width:18px;height:18px;accent-color:var(-
 .choice strong{font-size:20px}
 .choice span{font-size:13px;color:var(--muted);line-height:1.7}
 .choice .choice-badge{position:absolute;top:14px;right:14px;padding:3px 10px;border-radius:999px;background:var(--done);color:#222;font-size:11px;font-weight:800}
-.start-card .button,.start-card button{width:100%}
+
 /* 部門の定例 */
 .choices.two{grid-template-columns:repeat(2,minmax(0,1fr));max-width:680px}
 button.choice{font:inherit;color:inherit;cursor:pointer;width:100%;height:auto;border-radius:20px;white-space:normal}
@@ -254,7 +245,7 @@ details.card h4{margin:10px 0 2px;font-size:12px;color:var(--muted)}
 .confirm-start p{margin:0}
 .confirm-start label{display:flex;flex-direction:column;gap:4px;font-weight:700}
 .confirm-start .form-actions button{width:auto;flex:1}
-.confirm-start .link-like{background:none;border:0;color:var(--muted);text-decoration:underline;box-shadow:none}
+
 .planned-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
 .planned-list li{display:flex;flex-direction:column;gap:6px;padding:8px 10px;background:#fff;border:1px solid var(--soft-line);border-radius:8px}
 .planned-list li div{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
@@ -379,14 +370,9 @@ details.card h4{margin:10px 0 2px;font-size:12px;color:var(--muted)}
 .review textarea{margin-bottom:10px}
 
 /* PJ決め */
-.category-bar{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 20px}
-.category-bar button{min-height:36px;padding:6px 14px;font-size:13px;border-color:#cfd8d3;background:#fff;color:#444}
-.category-bar button[aria-pressed="true"]{background:#222;border-color:#222;color:#fff}
+
 .src{display:inline-block;padding:3px 9px;border-radius:999px;font-size:11px;font-weight:700;white-space:nowrap}
-.src-news{background:#e2f1f7;color:#2f6f82}
-.src-seicho{background:#efe9f8;color:#5d4590}
-.src-bucho{background:#faf0d9;color:#87661f}
-.src-member{background:#f2f2f2;color:#555}
+
 .seed-card{display:flex;flex-direction:column;gap:10px;margin:0}
 .seed-card.is-selected{background:#f3fbf7;box-shadow:0 0 0 2px var(--green) inset,0 2px 3px #00000008}
 .seed-card h3{display:flex;gap:10px;align-items:flex-start;margin:0;font-size:17px;line-height:1.6;overflow-wrap:anywhere}
@@ -419,10 +405,7 @@ table.rounds th{background:var(--mint-bg)}
 .toast.error{background:var(--warn)}
 
 /* Mobile */
-@media (max-width:1100px){
-  .minutes-layout.with-doc{display:block}
-  .minutes-layout.with-doc .doc-panel{position:static;margin-bottom:16px}
-}
+
 @media (max-width:760px){
   /* スマホでは、長いボタンの文字も折り返す（画面からはみ出さないように） */
   button,.button{white-space:normal;max-width:100%;text-align:center}
@@ -433,12 +416,12 @@ table.rounds th{background:var(--mint-bg)}
   .main-nav a{padding:6px 10px;font-size:13px;white-space:nowrap}
   .hide-sm{display:none}
   a.button{white-space:normal;text-align:center}
-  .account-name,.account .avatar{display:none}
+  .account .avatar{display:none}
   .content{padding:8px 16px 80px}
   .back-bar{padding:4px 16px 0}
   .two-col,.grid-2{grid-template-columns:1fr}
   .grid-3{grid-template-columns:1fr 1fr}
-  .doc-panel .doc-frame{height:55vh}
+  
   .card{padding:16px}
   .card-grid{grid-template-columns:1fr}
   .stepper .label{font-size:9px}
@@ -941,11 +924,7 @@ label.chip-check[hidden]{display:none}
 .record-month{list-style:none;padding:12px 4px 4px;font-size:13px;font-weight:800;color:var(--muted);border:0;background:none}
 
 /* 自分のPJ：PJ決めの入口 */
-.seeds-banner{display:flex;align-items:center;gap:12px;color:inherit;text-decoration:none;padding:12px 16px}
-.seeds-banner.is-open{border-color:var(--green);background:#f3fbf7}
-.seeds-banner small{display:block;color:var(--muted);font-size:12px;margin-top:2px}
-.seeds-banner-icon{font-size:24px}
-.seeds-banner .pick-arrow{margin-left:auto}
+
 .home-admin{text-align:center;margin:16px 0 0}
 
 /* タイムライン */
@@ -1064,7 +1043,7 @@ label.chip-check[hidden]{display:none}
 /* 上のバー（PC）：名前は出さず、アイコンだけ */
 .account-me{padding:2px;border-radius:50%}
 .account-me .avatar{width:36px;height:36px;font-size:15px}
-.seed-box-row{margin:-4px 0 12px;display:flex;justify-content:flex-end}
+
 /* PM（PJのマネージャー） */
 .pm-tag{display:inline-block;margin-left:4px;padding:0 6px;border-radius:999px;background:#fff4d6;color:#8a5a00;font-size:10px;font-weight:800;vertical-align:middle}
 .pm-pick{border-color:#f0d58a;background:#fffcf2}
@@ -1078,12 +1057,6 @@ label.chip-check[hidden]{display:none}
 .view-switch-arrow.is-right:hover{transform:translateX(3px)}
 .view-switch-arrow.is-left:hover{transform:translateX(-3px)}
 .view-switch-dot{position:absolute;top:6px;right:2px;width:8px;height:8px;border-radius:50%;background:var(--warn)}
-/* 三角を押したあと、次の画面を横からすべり込ませる */
-@keyframes slide-from-right{from{opacity:0;transform:translateX(40px)}to{opacity:1;transform:none}}
-@keyframes slide-from-left{from{opacity:0;transform:translateX(-40px)}to{opacity:1;transform:none}}
-#app.slide-right{animation:slide-from-right .22s ease-out}
-#app.slide-left{animation:slide-from-left .22s ease-out}
-@media (prefers-reduced-motion: reduce){#app.slide-right,#app.slide-left{animation:none}}
 .page-heading .view-switch{justify-content:center}
 
 /* 画面を移るあいだは、前の画面を少しだけ薄くする（すぐに「読み込み中…」にしない） */
@@ -1182,3 +1155,11 @@ html[data-vt="left"]::view-transition-new(main){animation:vt-in-left .26s cubic-
   .bell-count:not([hidden]){animation:bell-pop .4s cubic-bezier(.3,1.6,.5,1)}
   @keyframes bell-pop{0%{transform:scale(.4)}100%{transform:scale(1)}}
 }
+
+/* 期日を設定する */
+.schedule-table{width:100%;border-collapse:collapse;font-size:14px}
+.schedule-table th,.schedule-table td{padding:10px 8px;border-bottom:1px solid var(--soft-line);text-align:left;vertical-align:middle}
+.schedule-table thead th{font-size:12px;color:var(--muted)}
+.schedule-table input[type=number]{width:72px;min-height:38px;padding:6px 8px;text-align:right}
+.schedule-table small{display:block;margin-top:2px}
+.schedule-span{font-weight:800;color:#245949;white-space:nowrap}

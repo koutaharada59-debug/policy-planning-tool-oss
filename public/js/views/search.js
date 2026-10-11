@@ -74,18 +74,7 @@ export async function renderMinutesSearch(el) {
     el.querySelector("#kind-chips").innerHTML = results.length ? KINDS.map(([k, l]) =>
       `<button type="button" role="tab" class="chip-btn ${kind === k ? "is-on" : ""}" data-kind="${k}" aria-selected="${kind === k}" ${counts[k] || k === "all" ? "" : "disabled"}>${l} <small>${counts[k]}</small></button>`).join("") : "";
     const shown = results.filter((r) => kind === "all" || r.kind === kind);
-    list.innerHTML = shown.map((r, i) => `
-      <li class="list-item search-hit">
-        <div class="search-top">
-          <span class="search-date-big">${fmtDate(r.at)}${r.at.endsWith("T00:00") ? "" : ` <small>${r.at.slice(11, 16)}</small>`}</span>
-          <a class="button small" href="${r.href}">開く →</a>
-        </div>
-        <span class="search-head">${ICON[r.kind]} <strong>${esc(r.title)}</strong>
-          ${r.project_name ? `<span class="tag">${esc(r.project_name)}</span>` : ""}</span>
-        <span class="search-snippet">${snippet(r.text, words)}</span>
-        ${r.text && r.text.replace(/\s+/g, " ").length > 140 ? `<details class="search-full"><summary class="small">全文を見る</summary>
-          <p class="pre small">${mark(esc(r.text), words)}</p></details>` : ""}
-      </li>`).join("");
+    list.innerHTML = shown.map((r) => hitItem(r, words)).join("");
     el.querySelectorAll("[data-kind]").forEach((b) => b.addEventListener("click", () => {
       kind = b.dataset.kind;
       saveUrl();
@@ -172,19 +161,26 @@ export async function renderProjectRecords(body, projectId) {
         const m = r.at.slice(0, 7);
         const head = m !== month ? `<li class="record-month">${Number(m.slice(0, 4))}年${Number(m.slice(5))}月</li>` : "";
         month = m;
-        return `${head}
-        <li class="list-item search-hit">
-          <div class="search-top">
-            <span class="search-date-big">${fmtDate(r.at)}${r.at.endsWith("T00:00") ? "" : ` <small>${r.at.slice(11, 16)}</small>`}</span>
-            <a class="button small" href="${r.href}">開く →</a>
-          </div>
-          <span class="search-head">${ICON[r.kind]} <strong>${esc(r.title)}</strong></span>
-          <span class="search-snippet">${snippet(r.text, [])}</span>
-          ${r.text && r.text.replace(/\s+/g, " ").length > 140 ? `<details class="search-full"><summary class="small">全文を見る</summary><p class="pre small">${esc(r.text)}</p></details>` : ""}
-        </li>`;
+        return head + hitItem({ ...r, project_name: null }, []);
       }).join("")}</ul>` : `<div class="empty"><p>まだ記録はありません。MTGの議事録・定例の進捗・発表の記録が、ここに日付順に並びます。</p></div>`}`;
     body.querySelectorAll("[data-kind]").forEach((b) => b.addEventListener("click", () => { kind = b.dataset.kind; draw(); }));
   };
   draw();
 }
 
+
+// 検索結果・記録の1件（日付を大きく、本文の一部。長いものは「全文を見る」で開く）
+function hitItem(r, words) {
+  return `
+    <li class="list-item search-hit">
+      <div class="search-top">
+        <span class="search-date-big">${fmtDate(r.at)}${r.at.endsWith("T00:00") ? "" : ` <small>${r.at.slice(11, 16)}</small>`}</span>
+        <a class="button small" href="${r.href}">開く →</a>
+      </div>
+      <span class="search-head">${ICON[r.kind]} <strong>${esc(r.title)}</strong>
+        ${r.project_name ? `<span class="tag">${esc(r.project_name)}</span>` : ""}</span>
+      <span class="search-snippet">${snippet(r.text, words)}</span>
+      ${r.text && r.text.replace(/\s+/g, " ").length > 140 ? `<details class="search-full"><summary class="small">全文を見る</summary>
+        <p class="pre small">${mark(esc(r.text), words)}</p></details>` : ""}
+    </li>`;
+}

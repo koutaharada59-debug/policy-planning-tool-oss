@@ -20,7 +20,7 @@ export const routes = [
 }]);
 
 // 相手の種類。approval=true は事前確認（部門長 → 代表）が必要
-export const TARGET_TYPES = {
+const TARGET_TYPES = {
   political_org: { label: "政治関連の団体", approval: true },
   npo: { label: "NPO団体", approval: true },
   party_hq: { label: "チームみらいの党本部", approval: true },
@@ -31,7 +31,7 @@ export const TARGET_TYPES = {
   acquaintance: { label: "学生チームメンバーの知人・友人", approval: false },
 };
 
-export const STATUS = {
+const STATUS = {
   pending: "申請中",
   head_ok: "部門長確認済",
   rep_ok: "代表確認済",

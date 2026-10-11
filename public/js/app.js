@@ -9,6 +9,7 @@ import { renderProfile } from "./views/profile.js";
 import { renderStart } from "./views/start.js";
 import { renderPresentList, renderPresent } from "./views/present.js";
 import { renderProjects, renderProjectForm } from "./views/projects.js";
+import { renderSchedule } from "./views/schedule.js";
 import { renderProject } from "./views/project.js";
 import { renderMeeting } from "./views/meeting.js";
 import { renderCalendar } from "./views/calendar.js";
@@ -30,6 +31,7 @@ const ROUTES = [
   [/^\/present$/, "projects", () => renderPresentList],
   [/^\/present\/(\d+)$/, "projects", (m) => (el) => renderPresent(el, Number(m[1]))],
   [/^\/projects$/, "projects", () => renderProjects],
+  [/^\/schedule$/, "projects", () => renderSchedule],
   [/^\/projects\/new$/, "projects", () => (el) => renderProjectForm(el, null)],
   [/^\/projects\/(\d+)\/edit$/, "projects", (m) => (el) => renderProjectForm(el, Number(m[1]))],
   [/^\/projects\/(\d+)$/, "projects", (m) => (el) => renderProject(el, Number(m[1]))],
@@ -358,14 +360,6 @@ export async function route() {
       const h1 = el.querySelector("h1")?.textContent.replace(/\s+/g, " ").trim();
       document.title = h1 ? `${h1}｜${baseTitle}` : baseTitle;
       centerSteppers(el);
-      // ビュー遷移が使えないブラウザでは、PJ ⇄ PJ決め の三角で来たときだけ、押した向きに横からすべり込ませる
-      if (slide && !smoothSwitch() && el.querySelector(".view-switch")) {
-        const cls = `slide-${slide}`;
-        el.classList.remove("slide-left", "slide-right");
-        void el.offsetWidth;
-        el.classList.add(cls);
-        el.addEventListener("animationend", () => el.classList.remove(cls), { once: true });
-      }
     } catch (e) {
       clearTimeout(loadingTimer);
       if (seq !== routeSeq) return;

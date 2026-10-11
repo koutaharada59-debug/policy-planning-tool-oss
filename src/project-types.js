@@ -164,11 +164,36 @@ export function addDays(date, days) {
   return d.toISOString().slice(0, 10);
 }
 
-// 開始日と発表日から、各工程の予定期間を出す。発表日が未定なら型の既定（8週目末）を使う
-export function computeStageDates(type, startDate, presentationDate) {
+// 部門の設定（管理者が変えた目安日程）をのせた、工程ごとの日程の決め方
+// custom：{ stages: { 工程番号: [開始日, 終了日] }, presentationDay, finalDays }（日＝開始日からの日数。0 が1日目）
+export function effectiveSchedule(type, custom = null) {
   const t = getType(type);
-  const presentation = presentationDate || addDays(startDate, t.defaultPresentationOffset);
-  return t.stages.map((s) => {
+  const presentationDay = custom?.presentationDay ?? t.defaultPresentationOffset;
+  const stages = t.stages.map((s) => {
+    const c = custom?.stages?.[s.no];
+    let sc = s.schedule;
+    if (sc.fromStart && c) sc = { ...sc, fromStart: sc.beforePresentation ? [c[0], null] : [c[0], c[1]] };
+    if (sc.afterPresentation && custom?.finalDays) sc = { ...sc, afterPresentation: [1, custom.finalDays] };
+    return { ...s, schedule: sc, period: custom ? periodLabel(sc, presentationDay) : s.period };
+  });
+  return { presentationDay, stages };
+}
+
+// 目安の期間を「〇〜〇週目」の形で出す（部門の設定を変えたとき、画面の説明もそれに合わせる）
+function periodLabel(sc, presentationDay) {
+  const week = (day) => Math.floor(day / 7) + 1;
+  const span = (a, b) => (week(a) === week(b) ? `${week(a)}週目` : `${week(a)}〜${week(b)}週目`);
+  if (sc.presentation) return `${week(presentationDay)}週目（発表の日）`;
+  if (sc.afterPresentation) return `発表のあと${Math.round(sc.afterPresentation[1] / 7)}週間`;
+  if (sc.fromStart[0] < 0) return "0週目";
+  return span(sc.fromStart[0], sc.beforePresentation ? presentationDay - 1 : sc.fromStart[1]);
+}
+
+// 開始日と発表日から、各工程の予定期間を出す。発表日が未定なら型の既定（8週目末）を使う
+export function computeStageDates(type, startDate, presentationDate, custom = null) {
+  const { presentationDay, stages } = effectiveSchedule(type, custom);
+  const presentation = presentationDate || addDays(startDate, presentationDay);
+  return stages.map((s) => {
     const sc = s.schedule;
     let start;
     let due;
@@ -185,12 +210,12 @@ export function computeStageDates(type, startDate, presentationDate) {
   });
 }
 
-// 画面に渡す用（関数を含まない形）
-export function typesForClient() {
+// 画面に渡す用（関数を含まない形）。customs：型ごとの部門の設定
+export function typesForClient(customs = {}) {
   return Object.fromEntries(
     Object.entries(PROJECT_TYPES).map(([key, t]) => [
       key,
-      { label: t.label, stages: t.stages.map(({ no, role, name, period, summary }) => ({ no, role, name, period, summary })) },
+      { label: t.label, stages: effectiveSchedule(key, customs[key]).stages.map(({ no, role, name, period, summary }) => ({ no, role, name, period, summary })) },
     ])
   );
 }

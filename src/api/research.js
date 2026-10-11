@@ -16,7 +16,7 @@ export const routes = [
   ["DELETE", "/api/measures/:id", deleteMeasure],
 ];
 
-export const SOURCE_KINDS = {
+const SOURCE_KINDS = {
   paper: "論文", book: "書籍", whitepaper: "白書", statistics: "統計", news: "報道",
   hearing: "ヒアリング", government: "行政資料", other: "その他",
 };

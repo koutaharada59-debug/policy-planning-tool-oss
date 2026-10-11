@@ -2,7 +2,8 @@
 import { HttpError, readJson, idList, headIds } from "../util.js";
 import { notify } from "../notify.js";
 import { botConfigured } from "../discord.js";
-import { requireAdmin as requireAdminFor } from "./common.js";
+import { requireAdmin as requireAdminFor, loadSchedule, stageDateStatements } from "./common.js";
+import { getType, effectiveSchedule } from "../project-types.js";
 
 export const routes = [
   ["GET", "/api/admin", getAdmin],
@@ -13,6 +14,8 @@ export const routes = [
   ["POST", "/api/admin/heads", (c) => addRole(c, "heads")],
   ["POST", "/api/admin/heads/remove", (c) => removeRole(c, "heads")],
   ["POST", "/api/admin/staffing", moveMember],
+  ["GET", "/api/admin/schedule", getSchedule],
+  ["PUT", "/api/admin/schedule", saveSchedule],
 ];
 
 const requireAdmin = (user) => requireAdminFor(user, "管理者メニューは管理者だけが使えます");
@@ -156,4 +159,62 @@ async function moveMember({ request, env, user }) {
     : to ? `「${to.name}」のメンバーになりました` : `「${from.name}」のメンバーから外れました`;
   await notify(env, [uid], message, to ? `#/projects/${to.id}` : "#/projects", { dm: false, except: user.id });
   return { ok: true };
+}
+
+// ---------- 期日を設定する：工程の目安日程（部門の基本）。PJごとに手で変えた期限はそのまま ----------
+const TYPE = "teigen";
+
+async function getSchedule({ env, user }) {
+  requireAdmin(user);
+  const custom = await loadSchedule(env, TYPE);
+  const base = effectiveSchedule(TYPE, null);
+  const now = effectiveSchedule(TYPE, custom);
+  const active = await env.DB.prepare("SELECT COUNT(*) AS n FROM projects WHERE status = 'active' AND type = ?").bind(TYPE).first();
+  const row = custom ? await env.DB.prepare(
+    "SELECT s.updated_at, u.name FROM schedule_settings s LEFT JOIN users u ON u.id = s.updated_by WHERE s.type = ?"
+  ).bind(TYPE).first() : null;
+  const view = (sch) => ({
+    presentationDay: sch.presentationDay,
+    stages: sch.stages.map((x) => ({ no: x.no, name: x.name, period: x.period, schedule: x.schedule })),
+  });
+  return { base: view(base), current: view(now), customized: Boolean(custom), activeProjects: active.n, updated: row };
+}
+
+// 保存したら、進行中のPJの「手で変えていない期限」を新しい目安で計算し直す。reset=true で既定に戻す
+async function saveSchedule({ request, env, user }) {
+  requireAdmin(user);
+  const body = await readJson(request);
+  let custom = null;
+  if (!body.reset) {
+    const day = (v, label, min, max) => {
+      const n = Number(v);
+      if (!Number.isInteger(n) || n < min || n > max) throw new HttpError(400, `${label}は${min + 1}〜${max + 1}日目の範囲で入れてください`);
+      return n;
+    };
+    const t = getType(TYPE);
+    const stages = {};
+    for (const s of t.stages) {
+      if (!s.schedule.fromStart || s.schedule.fromStart[0] < 0) continue;
+      const v = body.stages?.[s.no];
+      if (!v) continue;
+      const a = day(v[0], `「${s.name}」の開始`, 0, 180);
+      const b = s.schedule.beforePresentation ? null : day(v[1], `「${s.name}」の期限`, 0, 180);
+      if (b !== null && b < a) throw new HttpError(400, `「${s.name}」の期限が開始より前になっています`);
+      stages[s.no] = [a, b];
+    }
+    const presentationDay = day(body.presentationDay, "最終発表の日", 7, 200);
+    const finalDays = Number(body.finalDays);
+    if (!Number.isInteger(finalDays) || finalDays < 7 || finalDays > 120) throw new HttpError(400, "修正・最終提出の期間は7〜120日で入れてください");
+    custom = { stages, presentationDay, finalDays };
+  }
+  await env.DB.prepare(custom
+    ? "INSERT INTO schedule_settings (type, value, updated_by, updated_at) VALUES (?1, ?2, ?3, ?4) ON CONFLICT(type) DO UPDATE SET value = ?2, updated_by = ?3, updated_at = ?4"
+    : "DELETE FROM schedule_settings WHERE type = ?1"
+  ).bind(...(custom ? [TYPE, JSON.stringify(custom), user.id, Date.now()] : [TYPE])).run();
+  // 進行中のPJの、手で変えていない期限を計算し直す
+  const { results: projects } = await env.DB.prepare("SELECT * FROM projects WHERE status = 'active' AND type = ?").bind(TYPE).all();
+  const stmts = [];
+  for (const p of projects) stmts.push(...(await stageDateStatements(env, p, { custom })));
+  for (let i = 0; i < stmts.length; i += 50) await env.DB.batch(stmts.slice(i, i + 50));
+  return { ok: true, updatedProjects: projects.length };
 }

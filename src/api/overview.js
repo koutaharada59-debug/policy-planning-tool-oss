@@ -1,7 +1,7 @@
 // ログインユーザー情報・ホーム・カレンダー
 import { HttpError, optDate, nowJst, todayJst } from "../util.js";
 import { addDays, typesForClient } from "../project-types.js";
-import { ensureAllRegularMeetings } from "./common.js";
+import { ensureAllRegularMeetings, loadAllSchedules } from "./common.js";
 import { teireiEvents } from "./dept.js";
 
 export const routes = [
@@ -79,7 +79,7 @@ async function getMeetingStart({ env, user }) {
 
 async function getMe({ env, user }) {
   const { results: users } = await env.DB.prepare("SELECT id, name, avatar FROM users ORDER BY name").all();
-  return { user, users, types: typesForClient() };
+  return { user, users, types: typesForClient(await loadAllSchedules(env)) };
 }
 
 async function getCalendar({ env, url, user }) {

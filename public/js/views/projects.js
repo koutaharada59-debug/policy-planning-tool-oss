@@ -25,7 +25,7 @@ export async function renderProjects(el) {
           ${[["mine", "参加中"], ["active", "進行中すべて（部門）"], ["done", "完了"], ["all", "すべて"]].map(([k, l]) =>
             `<button role="tab" aria-selected="${filter === k}" data-filter="${k}">${l}</button>`).join("")}
         </div>
-        <span class="row-left"><button type="button" class="button" data-seed-box>🌱 政策の種を出す</button>
+        <span class="row-left">${state.me.isAdmin ? `<a class="button" href="#/schedule">🗓 期日を設定する</a>` : ""}<button type="button" class="button" data-seed-box>🌱 政策の種を出す</button>
           <a class="button primary" href="#/projects/new">＋ PJを作る</a></span>
       </div>
       ${list.length ? `<div class="card-grid">${list.map((p) => `

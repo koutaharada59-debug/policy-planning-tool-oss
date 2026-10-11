@@ -5,7 +5,7 @@ import {
 import { PROJECT_TYPES, getType, addDays, computeStageDates } from "../project-types.js";
 import { parseWeekdays } from "../schedule.js";
 import {
-  loadProject, requireEditor, assertUsers, stageDateStatements, regularMeetingStatements,
+  loadProject, requireEditor, assertUsers, stageDateStatements, regularMeetingStatements, loadSchedule,
   ensureRegularMeetings,
 } from "./common.js";
 import { notify, notifyProject } from "../notify.js";
@@ -109,7 +109,8 @@ export async function insertProject(env, user, body, { includeCreator = true } =
     )
   );
   // 雛形のタスク（例：Figmaで発表資料を作る）。担当は未定、期限はその工程の期限
-  const stageDue = Object.fromEntries(computeStageDates(type, row.start_date, row.presentation_date).map((s) => [s.stage_no, s.due_date]));
+  const custom = await loadSchedule(env, type);
+  const stageDue = Object.fromEntries(computeStageDates(type, row.start_date, row.presentation_date, custom).map((s) => [s.stage_no, s.due_date]));
   const templateTasks = getType(type).stages.flatMap((s) => (s.tasks || []).map((title) =>
     env.DB.prepare(
       `INSERT INTO tasks (project_id, stage_no, title, due_date, status, created_by, created_at, updated_at) VALUES (?, ?, ?, ?, 'todo', ?, ?, ?)`
@@ -117,7 +118,7 @@ export async function insertProject(env, user, body, { includeCreator = true } =
   await env.DB.batch([
     ...members.map((uid) => env.DB.prepare("INSERT INTO project_members (project_id, user_id) VALUES (?, ?)").bind(row.id, uid)),
     ...templateTasks,
-    ...stageDateStatements(env, row, { onlyAuto: false }),
+    ...(await stageDateStatements(env, row, { onlyAuto: false, custom })),
     env.DB.prepare("UPDATE project_stages SET completed_at = ? WHERE project_id = ? AND stage_no = 0").bind(now, row.id),
     ...checklist,
     ...regularMeetingStatements(env, row, now),
@@ -215,7 +216,7 @@ async function updateProject({ request, env, user, params }) {
   const stmts = [
     env.DB.prepare("DELETE FROM project_members WHERE project_id = ?").bind(project.id),
     ...members.map((uid) => env.DB.prepare("INSERT INTO project_members (project_id, user_id) VALUES (?, ?)").bind(project.id, uid)),
-    ...stageDateStatements(env, updated),
+    ...(await stageDateStatements(env, updated)),
   ];
   const meetingChanged = ["meeting_mode", "meeting_weekdays", "meeting_time", "meeting_interval", "meeting_duration", "meeting_place", "start_date"]
     .some((k) => String(project[k]) !== String(updated[k]));
@@ -265,7 +266,7 @@ async function setStageDue({ request, env, user, params }) {
     // 空にしたら自動計算に戻す
     await env.DB.batch([
       env.DB.prepare("UPDATE project_stages SET due_manual = 0 WHERE project_id = ? AND stage_no = ?").bind(project.id, params.no),
-      ...stageDateStatements(env, project),
+      ...(await stageDateStatements(env, project)),
     ]);
   }
   return { ok: true };

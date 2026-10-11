@@ -57,3 +57,15 @@ test("工程は役割（role）で探せる", () => {
   assert.equal(stageNo("teigen", "presentation"), 6);
   assert.equal(stageNo("teigen", "final"), 7);
 });
+
+test("工程の期限：部門の目安日程（管理者が変えたもの）を使う", () => {
+  const custom = { stages: { 1: [0, 20], 5: [42, null] }, presentationDay: 62, finalDays: 21 };
+  const s = computeStageDates("teigen", "2026-10-05", null, custom);
+  const by = Object.fromEntries(s.map((x) => [x.stage_no, x]));
+  assert.equal(by[1].due_date, addDays("2026-10-05", 20));
+  assert.equal(by[5].start_date, addDays("2026-10-05", 42));
+  assert.equal(by[6].start_date, addDays("2026-10-05", 62));
+  assert.equal(by[7].due_date, addDays("2026-10-05", 62 + 21));
+  // 変えていない工程は既定のまま
+  assert.equal(by[4].due_date, "2026-11-08");
+});
