@@ -1070,3 +1070,28 @@ label.chip-check[hidden]{display:none}
 .pm-pick{border-color:#f0d58a;background:#fffcf2}
 .pm-pick .row-left{gap:8px;flex-wrap:wrap;align-items:center}
 .pm-pick select{width:auto;min-width:180px}
+/* 「PJ ▾」：PJ と PJ決め の切り替え */
+.view-switch{position:relative;display:inline-flex;align-items:center;gap:6px}
+.view-switch h1{margin:0}
+.view-switch-btn{display:inline-grid;place-items:center;width:34px;height:34px;min-height:34px;padding:0;border:1px solid var(--line);border-radius:50%;background:#fff;font-size:16px;line-height:1;cursor:pointer;color:#245949}
+.view-switch-btn:hover,.view-switch-btn[aria-expanded="true"]{background:var(--pale)}
+.view-switch-btn[aria-expanded="true"]{transform:rotate(180deg)}
+.view-switch-menu{position:absolute;top:calc(100% + 6px);left:0;z-index:40;min-width:200px;padding:6px;background:#fff;border:1px solid var(--line);border-radius:14px;box-shadow:0 10px 26px #0002;display:flex;flex-direction:column;gap:2px;animation:panel-in .15s ease-out}
+.view-switch-menu[hidden]{display:none}
+.view-switch-menu a{display:flex;align-items:center;gap:8px;padding:10px 12px;border-radius:10px;color:inherit;text-decoration:none;font-weight:700}
+.view-switch-menu a:hover{background:#f3fbf7}
+.view-switch-menu a.is-current{background:var(--pale)}
+.view-switch-menu small{margin-left:auto;color:var(--muted);font-weight:600;font-size:11px}
+.view-switch.is-small{margin-bottom:4px}
+.view-switch.is-small .view-switch-label{font-weight:800;color:#245949}
+.view-switch.is-small .view-switch-btn{width:28px;height:28px;min-height:28px;font-size:13px}
+.page-heading .view-switch{justify-content:center}
+
+/* 画面を移るあいだは、前の画面を少しだけ薄くする（すぐに「読み込み中…」にしない） */
+#app.is-switching{opacity:.55;transition:opacity .15s .1s;pointer-events:none}
+/* PJ画面の「どうやって選ばれたか」 */
+.pj-origin{margin-top:6px}
+.pj-origin summary{cursor:pointer}
+.pj-origin-body{margin-top:8px}
+.rounds.is-compact td:nth-child(2){min-width:220px}
+.rounds-me{background:#fff4d6;padding:0 4px;border-radius:4px}

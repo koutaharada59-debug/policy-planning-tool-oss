@@ -3,19 +3,42 @@
 // ログイン中の情報（ユーザー・メンバー一覧・PJの型）。画面間で共有するだけで、ブラウザには保存しない
 export const state = { me: null, users: [], types: {}, showDoneTasks: false };
 
+// 先読み：押されそうなリンクの行き先のデータを、押す前に取りに行っておく（数秒だけ・1回だけ使う）
+const prefetched = new Map();
+const PREFETCH_TTL = 8000;
+export function prefetch(path) {
+  const hit = prefetched.get(path);
+  if (hit && Date.now() - hit.at < PREFETCH_TTL) return;
+  const promise = fetch(path, { credentials: "same-origin" })
+    .then(async (res) => ({ status: res.status, ok: res.ok, data: await res.json().catch(() => ({})) }));
+  promise.catch(() => prefetched.delete(path));
+  prefetched.set(path, { at: Date.now(), promise });
+}
+
 export async function api(path, { method = "GET", body } = {}) {
-  const res = await fetch(path, {
+  // 書き込んだら、先読みした古いデータは使わない
+  if (method !== "GET") prefetched.clear();
+  const hit = method === "GET" && prefetched.get(path);
+  if (hit) prefetched.delete(path);
+  const res = hit && Date.now() - hit.at < PREFETCH_TTL
+    ? await hit.promise.catch(() => null)
+    : null;
+  if (res) return handleResponse(res.status, res.ok, res.data);
+  const raw = await fetch(path, {
     method,
     headers: { "Content-Type": "application/json" },
     body: body === undefined ? undefined : JSON.stringify(body),
     credentials: "same-origin",
   });
-  if (res.status === 401) {
+  return handleResponse(raw.status, raw.ok, await raw.json().catch(() => ({})));
+}
+
+function handleResponse(status, ok, data) {
+  if (status === 401) {
     location.href = `/?returnTo=${encodeURIComponent(location.pathname + location.hash)}`;
     throw new Error("ログインしてください");
   }
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error || "通信に失敗しました");
+  if (!ok) throw new Error(data.error || "通信に失敗しました");
   return data;
 }
 
@@ -617,4 +640,35 @@ export function takeProgressHint(projectId) {
   const h = progressHint;
   progressHint = null;
   return h;
+}
+
+// 「PJ ▾」：三角を押すと、PJ と PJ決め を切り替えるメニューが出る（PJ一覧・PJ決めの見出しで使う）
+// current：'pj' | 'seeds'。asTitle=true なら見出し（h1）として出す
+export function viewSwitch(current, { asTitle = true, seedsOpen = false } = {}) {
+  const label = current === "pj" ? "PJ" : "PJ決め";
+  const name = asTitle ? `<h1>${label}</h1>` : `<span class="view-switch-label">🌱 ${label}</span>`;
+  return `<div class="view-switch ${asTitle ? "" : "is-small"}">
+    ${name}
+    <button type="button" class="view-switch-btn" aria-haspopup="menu" aria-expanded="false" aria-label="PJとPJ決めを切り替える">▾</button>
+    <div class="view-switch-menu" role="menu" hidden>
+      <a role="menuitem" href="#/projects" class="${current === "pj" ? "is-current" : ""}">📁 PJ${current === "pj" ? "<small>いまここ</small>" : ""}</a>
+      <a role="menuitem" href="#/seeds" class="${current === "seeds" ? "is-current" : ""}">🌱 PJ決め${seedsOpen ? ' <span class="due is-soon">受付中</span>' : ""}${current === "seeds" ? "<small>いまここ</small>" : ""}</a>
+    </div>
+  </div>`;
+}
+
+export function bindViewSwitch(root) {
+  const box = root.querySelector(".view-switch");
+  if (!box) return;
+  const btn = box.querySelector(".view-switch-btn");
+  const menu = box.querySelector(".view-switch-menu");
+  const close = () => { menu.hidden = true; btn.setAttribute("aria-expanded", "false"); };
+  btn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    menu.hidden = !menu.hidden;
+    btn.setAttribute("aria-expanded", String(!menu.hidden));
+  });
+  const outside = (e) => { if (!box.isConnected) return document.removeEventListener("click", outside); if (!box.contains(e.target)) close(); };
+  document.addEventListener("click", outside);
+  box.addEventListener("keydown", (e) => { if (e.key === "Escape") { close(); btn.focus(); } });
 }

@@ -1,5 +1,5 @@
 // 起動・ログイン状態・ハッシュルーティング
-import { api, esc, avatar, toast, state, hasUnsaved, forgetUnsaved, confirmDialog, fmtDateTime, jstDateTime } from "./lib.js";
+import { api, esc, avatar, toast, state, hasUnsaved, forgetUnsaved, confirmDialog, fmtDateTime, jstDateTime, prefetch } from "./lib.js";
 import { renderHome } from "./views/home.js";
 import { renderMinutesSearch } from "./views/search.js";
 import { renderTimeline } from "./views/timeline.js";
@@ -280,9 +280,20 @@ export async function route() {
     // タブの列が画面のどこにあったか（切り替えたあとも、同じ位置に見えるようにする）
     const tabsTop = sameScreen ? el.querySelector(".tabs")?.getBoundingClientRect().top : null;
     shownPath = path;
-    if (!sameScreen) el.innerHTML = `<p class="loading">読み込み中…</p>`;
+    // すぐには空にしない。0.4秒たっても描けなければ「読み込み中…」を出す（画面が描かれ始めたら出さない）
+    let loadingTimer = null;
+    let watcher = null;
+    if (!sameScreen) {
+      el.classList.add("is-switching");
+      loadingTimer = setTimeout(() => { el.innerHTML = `<p class="loading">読み込み中…</p>`; }, 400);
+      watcher = new MutationObserver(() => { clearTimeout(loadingTimer); el.classList.remove("is-switching"); watcher.disconnect(); });
+      watcher.observe(el, { childList: true });
+    }
     try {
       await view(m)(el);
+      clearTimeout(loadingTimer);
+      watcher?.disconnect();
+      el.classList.remove("is-switching");
       if (sameScreen) {
         const tabs = el.querySelector(".tabs");
         if (tabs && tabsTop != null) window.scrollBy(0, tabs.getBoundingClientRect().top - tabsTop);
@@ -293,12 +304,39 @@ export async function route() {
       document.title = h1 ? `${h1}｜${baseTitle}` : baseTitle;
       centerSteppers(el);
     } catch (e) {
+      clearTimeout(loadingTimer);
+      watcher?.disconnect();
+      el.classList.remove("is-switching");
       el.innerHTML = `<div class="empty"><p>${esc(e.message)}</p><a class="button" href="#/">ホームへ</a></div>`;
     }
     return;
   }
   location.hash = "#/";
 }
+
+// リンクに指が触れた・マウスが乗った時点で、行き先の画面のデータを先に取りに行く（押したらすぐ出るように）
+function prefetchFor(hash) {
+  const path = hash.replace(/^#/, "").split("?")[0];
+  let m;
+  if ((m = path.match(/^\/projects\/(\d+)$/))) return [`/api/projects/${m[1]}`];
+  if (path === "/projects") return ["/api/projects", "/api/rounds"];
+  if ((m = path.match(/^\/meetings\/(\d+)$/))) return [`/api/meetings/${m[1]}`];
+  if ((m = path.match(/^\/seeds\/(\d+)$/))) return [`/api/rounds/${m[1]}`];
+  if (path === "/me") return ["/api/my-tasks", "/api/projects"];
+  if ((m = path.match(/^\/members\/([^/?]+)$/))) return [`/api/my-tasks?user=${encodeURIComponent(decodeURIComponent(m[1]))}`, "/api/projects"];
+  return [];
+}
+function bindPrefetch() {
+  const onIntent = (e) => {
+    const a = e.target.closest?.('a[href^="#/"]');
+    if (!a || !state.me) return;
+    for (const p of prefetchFor(a.getAttribute("href"))) prefetch(p);
+  };
+  document.addEventListener("pointerover", onIntent, { passive: true });
+  document.addEventListener("touchstart", onIntent, { passive: true });
+  document.addEventListener("focusin", onIntent);
+}
+bindPrefetch();
 
 boot().catch((e) => {
   const box = document.getElementById("boot-loading");

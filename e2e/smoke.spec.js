@@ -26,7 +26,7 @@ test("ホームとメニュー", async ({ page }) => {
   const errors = watchErrors(page);
   await login(page);
   await expect(page.locator(".choice strong")).toHaveText(["ミーティングを始める", "確認する", "発表する", "定例"]);
-  await expect(page.locator("#nav a")).toHaveText([/ホーム/, /自分のPJ/, /タイムライン/, /カレンダー/, /マイページ/]);
+  await expect(page.locator("#nav a")).toHaveText([/ホーム/, /PJ/, /タイムライン/, /カレンダー/, /マイページ/]);
   for (const hash of ["#/check", "#/me", "#/projects", "#/timeline", "#/calendar", "#/teirei", "#/minutes-search", "#/notices", "#/admin"]) {
     await page.goto(`/${hash}`);
     // 読み込みが終わり、エラーの表示が出ていないこと

@@ -1,5 +1,5 @@
 // PJ決め（工程0）：政策の種 → 投票（ランク付け）→ 開票（RCV）→ PJ化と人員の割り振り
-import { api, esc, state, avatar, fmtDate, fmtDateTime, jstDateTime, busy, toast, formData, hashQuery, nextMonday, confirmDialog, bindMemberFilter, guardForm, markSaved } from "../lib.js";
+import { api, esc, state, avatar, fmtDate, fmtDateTime, jstDateTime, busy, toast, formData, hashQuery, nextMonday, confirmDialog, bindMemberFilter, guardForm, markSaved, viewSwitch, bindViewSwitch } from "../lib.js";
 
 import { openSeedBox } from "./projects.js";
 
@@ -15,7 +15,7 @@ export async function renderRounds(el) {
     return;
   }
   el.innerHTML = `
-    <div class="page-heading"><h1>PJ決め</h1>
+    <div class="page-heading">${viewSwitch("seeds")}
       <p>政策の種を出し合い、関わりたい順に投票して、部門で取り組むPJを決めます。</p></div>
     ${state.me.isAdmin ? roundForm(null, surveyLinkAvailable) : ""}
     ${rounds.length ? `<ul class="list">${rounds.map((r) => `
@@ -28,6 +28,7 @@ export async function renderRounds(el) {
       </li>`).join("")}</ul>`
       : `<div class="empty"><p>まだPJ決めがありません。${state.me.isAdmin ? "上のフォームから作成してください。" : "管理者が作成すると、ここに表示されます。"}</p></div>`}`;
   bindRoundForm(el, null);
+  bindViewSwitch(el);
 }
 
 function roundForm(round, surveyLinkAvailable = false) {
@@ -77,6 +78,7 @@ export async function renderRound(el, id) {
   el.innerHTML = `
     <nav class="breadcrumb"><a href="#/seeds?all=1">PJ決め</a> / ${esc(round.title)}</nav>
     <div class="page-heading left">
+      ${viewSwitch("seeds", { asTitle: false })}
       <h1>${esc(round.title)}</h1>
       <p>${round.closed ? "締め切りました" : round.deadline ? `${fmtDateTime(round.deadline)} 締め切り` : "受付中"}・投票 ${data.respondents}人</p>
     </div>
@@ -89,6 +91,7 @@ export async function renderRound(el, id) {
     <div id="tab-body"></div>
     ${state.me.isAdmin && tab === "results" ? roundForm(round) : ""}`;
   bindRoundForm(el, round);
+  bindViewSwitch(el);
   const body = el.querySelector("#tab-body");
   const reload = () => renderRound(el, id);
   if (tab === "ballot" && !linked) renderBallot(body, data, reload);
@@ -134,7 +137,7 @@ function renderSeeds(body, data, reload) {
   let filter = seedFilter;
 
   const draw = () => {
-    const list = seeds.filter((s) => filter === "all" ? true
+    const list = seeds.filter((s) => !s.project).filter((s) => filter === "all" ? true
       : filter === "mine" ? ballot.has(s.id)
       : filter === "member" ? s.categories.length === 0
       : s.categories.includes(filter));
@@ -149,6 +152,7 @@ function renderSeeds(body, data, reload) {
           : `<button type="button" class="primary small" data-seed-box>🌱 次のPJ決めに種を出す</button>`}
       </div>
       ${canPost ? `<div class="card seed-post" hidden>${seedForm()}</div>` : ""}
+      ${seeds.some((s) => s.project) ? `<p class="muted small">PJになった種（${seeds.filter((s) => s.project).length}件）は、ここには出しません。「開票・PJ化」タブか、各PJの画面で見られます。</p>` : ""}
       <div class="card-grid">${list.map((s) => {
         const rank = myBallot.indexOf(s.id) + 1;
         return `
@@ -429,14 +433,16 @@ async function showUndoPromote(box, seedId, reload) {
       .then(() => { toast(`「${project.name}」を取り消しました`); reload(); }).catch(() => {}));
 }
 
-function roundsTable(rounds, title) {
-  return `<div class="table-wrap"><table class="rounds">
+// highlight：目立たせる種（PJ画面の「どうやって選ばれたか」で、そのPJの種）。hideZero：0票の種は出さない
+export function roundsTable(rounds, title, { highlight = null, hideZero = false } = {}) {
+  const name = (id) => (String(id) === String(highlight) ? `<strong class="rounds-me">${esc(title(id))}</strong>` : esc(title(id)));
+  return `<div class="table-wrap"><table class="rounds ${hideZero ? "is-compact" : ""}">
     <thead><tr><th>ラウンド</th><th>票数</th><th>結果</th></tr></thead>
     <tbody>${rounds.map((rd, i) => `
       <tr><td>${i + 1}</td>
-        <td>${Object.entries(rd.tallies).sort((a, b) => b[1] - a[1]).map(([id, n]) => `${esc(title(id))}：${n}`).join("<br>")}</td>
-        <td>${rd.winner ? `<strong>${esc(title(rd.winner))}</strong> が過半数（${rd.majority}票以上）`
-          : `${rd.eliminated.map((e) => esc(title(e))).join("、")} を除外${rd.tieBreak ? "（同数のため前のラウンドの票数で判定）" : ""}`}
+        <td>${Object.entries(rd.tallies).filter(([, n]) => !hideZero || n > 0).sort((a, b) => b[1] - a[1]).map(([id, n]) => `${name(id)}：${n}`).join("<br>")}</td>
+        <td>${rd.winner ? `<strong>${name(rd.winner)}</strong> が過半数（${rd.majority}票以上）`
+          : `${rd.eliminated.length > 3 && hideZero ? `${rd.eliminated.length}件` : rd.eliminated.map((e) => name(e)).join("、")} を除外${rd.tieBreak ? "（同数のため前のラウンドの票数で判定）" : ""}`}
           ${rd.exhausted ? `<br><span class="muted small">次の希望がない票：${rd.exhausted}</span>` : ""}</td></tr>`).join("")}
     </tbody></table></div>`;
 }

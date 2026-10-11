@@ -6,6 +6,7 @@ import {
 import { renderTreeTab, renderMeasuresTab, renderSourcesView } from "./research.js";
 import { renderPresentationTab } from "./presentation.js";
 import { renderProjectRecords } from "./search.js";
+import { roundsTable } from "./seeds.js";
 
 export async function renderProject(el, id) {
   const data = await api(`/api/projects/${id}`);
@@ -22,14 +23,16 @@ export async function renderProject(el, id) {
   const tabs = [["stages", "工程"], ["tasks", `タスク（${data.tasks.filter((t) => t.status !== "done").length}）`], ["records", "記録"],
     ["tree", "樹形図"], ["measures", "施策"], ["sources", "資料"], ["present", "発表の準備・提出"]];
   el.innerHTML = `
-    <nav class="breadcrumb"><a href="#/projects">自分のPJ</a> / ${esc(p.name)}</nav>
+    <nav class="breadcrumb"><a href="#/projects">PJ</a> / ${esc(p.name)}</nav>
     <div class="pj-header card">
       <div class="pj-header-main">
         <span class="stage-pill">${esc(type.label)}${p.status === "done" ? "・完了" : ""}</span>
         <h1>${esc(p.name)}</h1>
         ${p.description ? `<p class="desc fold">${esc(p.description)}</p>` : ""}
         <div class="people-stack">${data.members.map((m) => avatar(m)).join("")}<span class="more">${data.members.map((m) => `<a href="#/members/${encodeURIComponent(m.id)}">${esc(m.name)}</a>${m.id === p.pm_id ? '<span class="pm-tag">PM</span>' : ""}`).join("、")}</span></div>
-        ${data.origin ? `<p class="muted small pj-origin">🌱 <a href="#/seeds/${data.origin.round_id}">${esc(data.origin.round_title)}</a> から生まれたPJ</p>` : ""}
+        ${data.origin ? `<details class="pj-origin" data-origin-seed="${data.origin.seed_id}" data-origin-round="${data.origin.round_id}">
+          <summary class="muted small">🌱 ${esc(data.origin.round_title)} から生まれたPJ（どうやって選ばれたか）</summary>
+          <div class="pj-origin-body"><p class="loading small">読み込み中…</p></div></details>` : ""}
       </div>
       <div class="pj-header-actions">
         ${p.memo_doc_url ? `<a class="button small" href="${esc(p.memo_doc_url)}" target="_blank" rel="noopener">🔎 リサーチドキュメント</a>` : ""}
@@ -54,6 +57,7 @@ export async function renderProject(el, id) {
     <div id="tab-body"></div>`;
 
   bindFold(el);
+  bindOrigin(el);
   if (hint) animateStepper(el, hint, stageProgress);
   bindCompletion(el, p, () => keepView(el, () => renderProject(el, id)));
   const body = el.querySelector("#tab-body");
@@ -73,24 +77,47 @@ export async function renderProject(el, id) {
   // タブの切り替えは、PJ全体を読み直さずに、下の中身だけを描き替える（すぐ切り替わるように）。
   // 工程・タスクは手元のデータですぐ出す。ほかのタブは新しい枠で読み込み、出来たら差し替える
   let switching = 0;
-  el.querySelector(".tabs")?.addEventListener("click", async (e) => {
+  const tabKey = (a) => new URLSearchParams(a.getAttribute("href").split("?")[1] || "").get("tab") || "stages";
+  const isQuick = (k) => k === "stages" || k === "tasks";
+  // 先読み：タブに指が触れた・マウスが乗った時点で、裏で描いておく（押したときにすぐ出るように）
+  const pre = {};
+  const prerender = (k) => (pre[k] ||= (async () => {
+    const box = document.createElement("div");
+    box.id = "tab-body";
+    try { await renderTab(k, box); } catch (err) { box.innerHTML = `<div class="empty"><p>${esc(err.message)}</p></div>`; }
+    return box;
+  })());
+  const tabsEl = el.querySelector(".tabs");
+  const onIntent = (e) => {
+    const a = e.target.closest?.("a[role=tab]");
+    if (a && a.getAttribute("aria-selected") !== "true" && !isQuick(tabKey(a))) prerender(tabKey(a));
+  };
+  tabsEl?.addEventListener("pointerover", onIntent, { passive: true });
+  tabsEl?.addEventListener("touchstart", onIntent, { passive: true });
+  tabsEl?.addEventListener("focusin", onIntent);
+  tabsEl?.addEventListener("click", async (e) => {
     const a = e.target.closest("a[role=tab]");
     if (!a || e.ctrlKey || e.metaKey || e.shiftKey || e.button !== 0) return;
     e.preventDefault();
     if (a.getAttribute("aria-selected") === "true") return;
-    const k = new URLSearchParams(a.getAttribute("href").split("?")[1] || "").get("tab") || "stages";
+    const k = tabKey(a);
     el.querySelectorAll(".tabs a[role=tab]").forEach((t) => t.setAttribute("aria-selected", String(t === a)));
     history.pushState(null, "", a.getAttribute("href"));
     const mine = ++switching;
-    const current = el.querySelector("#tab-body");
-    const next = document.createElement("div");
-    next.id = "tab-body";
-    const quick = k === "stages" || k === "tasks";
-    if (!quick) current.innerHTML = `<p class="loading" style="min-height:${Math.min(current.offsetHeight, 400)}px">読み込み中…</p>`;
-    try {
-      await renderTab(k, next);
-    } catch (err) {
-      next.innerHTML = `<div class="empty"><p>${esc(err.message)}</p></div>`;
+    let next;
+    if (isQuick(k)) {
+      next = document.createElement("div");
+      next.id = "tab-body";
+      renderTab(k, next);
+    } else {
+      // 先読みが間に合っていればすぐ出る。0.3秒たっても出来なければ「読み込み中…」
+      const current = el.querySelector("#tab-body");
+      const timer = setTimeout(() => {
+        if (mine === switching) current.innerHTML = `<p class="loading" style="min-height:${Math.min(current.offsetHeight, 400)}px">読み込み中…</p>`;
+      }, 300);
+      next = await prerender(k);
+      clearTimeout(timer);
+      delete pre[k]; // 一度使ったら、次に開くときは描き直す（新しい内容にする）
     }
     if (mine !== switching) return; // その間に別のタブを押していたら、そちらを優先する
     el.querySelector("#tab-body").replaceWith(next);
@@ -456,4 +483,30 @@ function animateStepper(el, hint, to) {
     curDot?.classList.add("is-pulse");
     toast(hint.gained ? `このMTGで ${hint.gained}項目 進みました！${hint.next ? `（${hint.next}）` : ""}` : `MTGを終えました。おつかれさまでした${hint.next ? `（${hint.next}）` : ""}`);
   }, 500);
+}
+
+// 「どうやって選ばれたか」：PJ決めの開票（ランク付け投票）で、何位に、どんなラウンドを経て選ばれたか
+function bindOrigin(el) {
+  const box = el.querySelector(".pj-origin");
+  if (!box) return;
+  box.addEventListener("toggle", async () => {
+    if (!box.open || box.dataset.loaded) return;
+    box.dataset.loaded = "1";
+    const body = box.querySelector(".pj-origin-body");
+    const seedId = Number(box.dataset.originSeed);
+    try {
+      // 1位から順に決めるので、数を多めにして、このPJの種が何位で選ばれたかを探す
+      const r = await api(`/api/rounds/${box.dataset.originRound}/results?seats=10`);
+      const seedOf = Object.fromEntries(r.seeds.map((x) => [x.id, x]));
+      const title = (id) => `${seedOf[id]?.icon || ""} ${seedOf[id]?.title || ""}`;
+      const i = r.winners.findIndex((w) => w.winner === seedId);
+      body.innerHTML = i < 0
+        ? `<p class="small">開票の上位ではありませんでしたが、管理者がこの種を選んで正式なPJにしました（投票者 ${r.ballots}人）。</p>`
+        : `<p class="small"><strong>${i + 1}位</strong>で選ばれました（投票者 ${r.ballots}人）。
+            ランク付け投票で、第1希望の票が少ない種から順に外し、その票を次の希望へ移して数え直しました。${i ? `${i}位までに選ばれた種を除いて、もう一度数えています。` : ""}</p>
+           ${roundsTable(r.winners[i].rounds, title, { highlight: seedId, hideZero: true })}`;
+    } catch (e) {
+      body.innerHTML = `<p class="muted small">${esc(e.message)}</p>`;
+    }
+  });
 }
