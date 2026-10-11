@@ -303,9 +303,24 @@ export async function route() {
     // 前の画面の中身（これがまだ残っているときだけ「読み込み中…」に替える。次の画面を描き始めていたら替えない）
     const oldFirst = el.firstElementChild;
     const stillOld = () => seq === routeSeq && el.firstElementChild === oldFirst;
+    // 中身が最初に出たときに1回だけ、カードや行を少しずつふわっと出す。
+    // 画面によっては先に中身を出してから続きを読み込むので、読み込みが終わったときではなく「出たとき」に動かす（2回動いてチラつかないように）
+    const playEnter = () => {
+      el.classList.remove("entering");
+      void el.offsetWidth;
+      el.classList.add("entering");
+      clearTimeout(el._enterTimer);
+      el._enterTimer = setTimeout(() => el.classList.remove("entering"), 700);
+    };
+    const onFirstContent = (cb) => {
+      const ready = () => seq === routeSeq && el.firstElementChild && el.firstElementChild !== oldFirst && !el.firstElementChild.classList.contains("loading-screen");
+      if (ready()) return cb();
+      const watch = new MutationObserver(() => { if (ready()) { watch.disconnect(); cb(); } });
+      watch.observe(el, { childList: true });
+      setTimeout(() => watch.disconnect(), 15000);
+    };
     // 「読み込み中」の画面を出したら、中身ができたときにふわっと出す
-    let loadingShown = false;
-    const showLoading = () => { loadingShown = true; el.innerHTML = loadingScreen(); };
+    const showLoading = () => { el.innerHTML = loadingScreen(); onFirstContent(playEnter); };
     try {
       if (!sameScreen && smoothSwitch()) {
         document.documentElement.dataset.vt = slide || "fade";
@@ -332,25 +347,14 @@ export async function route() {
         if (stillOld()) showLoading();
         await viewDone;
       } else {
-        if (!sameScreen) loadingTimer = setTimeout(() => { if (stillOld()) showLoading(); }, 120);
+        if (!sameScreen) {
+          loadingTimer = setTimeout(() => { if (stillOld()) showLoading(); }, 120);
+          onFirstContent(playEnter);
+        }
         await render();
       }
       clearTimeout(loadingTimer);
       if (seq !== routeSeq) return;
-      // 別の画面へ移ったときは、カードや行を少しずつふわっと出す（同じ画面の描き直しでは出さない）
-      if (!sameScreen) {
-        el.classList.remove("entering");
-        void el.offsetWidth;
-        el.classList.add("entering");
-        clearTimeout(el._enterTimer);
-        el._enterTimer = setTimeout(() => el.classList.remove("entering"), 700);
-      }
-      if (loadingShown) {
-        el.classList.remove("content-in");
-        void el.offsetWidth;
-        el.classList.add("content-in");
-        el.addEventListener("animationend", () => el.classList.remove("content-in"), { once: true });
-      }
       if (sameScreen) {
         const tabs = el.querySelector(".tabs");
         if (tabs && tabsTop != null) window.scrollBy(0, tabs.getBoundingClientRect().top - tabsTop);

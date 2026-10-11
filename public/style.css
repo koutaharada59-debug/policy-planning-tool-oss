@@ -1103,8 +1103,7 @@ html[data-vt="left"]::view-transition-new(main){animation:vt-in-left .26s cubic-
 .skeleton .sk-short{width:60%}
 @keyframes sk-shine{from{background-position:120% 0}to{background-position:-80% 0}}
 /* 中身ができたら、ふわっと出す */
-#app.content-in{animation:vt-in .22s ease-out}
-@media (prefers-reduced-motion: reduce){.loading-dots i,.skeleton span,.loading-screen,#app.content-in{animation:none}}
+@media (prefers-reduced-motion: reduce){.loading-dots i,.skeleton span,.loading-screen{animation:none}}
 
 /* ---------- 全体のアニメーション（動きを減らす設定の人には付けない） ---------- */
 @media (prefers-reduced-motion: no-preference){
