@@ -62,6 +62,8 @@ const ERRORS = {
 
 let baseTitle = document.title;
 let routeSeq = 0;
+// ふわっと切り替えるか（ビュー遷移に対応したブラウザで、動きを減らす設定にしていないとき）
+const smoothSwitch = () => Boolean(document.startViewTransition) && !matchMedia("(prefers-reduced-motion: reduce)").matches;
 
 async function boot() {
   const session = await api("/api/session");
@@ -283,21 +285,47 @@ export async function route() {
     shownPath = path;
     // 新しい画面へ移ったあとは、前の画面の読み込みの続き（エラーなど）を無視する
     const seq = ++routeSeq;
-    // すぐには空にしない。0.4秒たっても描けなければ「読み込み中…」を出す（画面が描かれ始めたら出さない）
+    // 画面を移るときは、前の画面を見せたまま次の画面を用意し、出来たらふわっと切り替える（ブラウザのビュー遷移）。
+    // 0.5秒たっても出来なければ、先に切り替えて「読み込み中…」を出す
     let loadingTimer = null;
-    let watcher = null;
-    if (!sameScreen) {
-      el.classList.add("is-switching");
-      loadingTimer = setTimeout(() => { if (seq === routeSeq) el.innerHTML = `<p class="loading">読み込み中…</p>`; }, 400);
-      watcher = new MutationObserver(() => { clearTimeout(loadingTimer); el.classList.remove("is-switching"); watcher.disconnect(); });
-      watcher.observe(el, { childList: true });
-    }
+    let viewDone = null;
+    const slide = el.dataset.slide;
+    delete el.dataset.slide;
+    const render = () => (viewDone = Promise.resolve().then(() => view(m)(el)));
     try {
-      await view(m)(el);
+      if (!sameScreen && smoothSwitch()) {
+        document.documentElement.dataset.vt = slide || "fade";
+        let called = false;
+        const t = document.startViewTransition(() => {
+          if (called) return;
+          called = true;
+          window.scrollTo(0, 0);
+          return Promise.race([render().catch(() => {}), new Promise((r) => setTimeout(r, 500))]);
+        });
+        // 次の画面へすぐ移ったときなどに「飛ばした」と出るのは問題ないので、エラーにしない
+        t.ready.catch(() => {});
+        t.finished.catch(() => {}).finally(() => { if (seq === routeSeq) delete document.documentElement.dataset.vt; });
+        // 画面が描かれない状態（裏のタブなど）で切り替えが始まらないときは、動きを飛ばしてそのまま描く
+        await Promise.race([t.updateCallbackDone.catch(() => {}), new Promise((r) => setTimeout(r, 700))]);
+        if (!called) {
+          called = true;
+          t.skipTransition();
+          window.scrollTo(0, 0);
+          render();
+        }
+        // まだ描き終わっていなければ、前の画面の中身を「読み込み中…」に替える（描き始めていればそのまま）
+        let started = false;
+        const watch = new MutationObserver(() => { started = true; watch.disconnect(); });
+        watch.observe(el, { childList: true });
+        loadingTimer = setTimeout(() => { if (seq === routeSeq && !started) el.innerHTML = `<p class="loading">読み込み中…</p>`; }, 0);
+        await viewDone;
+        watch.disconnect();
+      } else {
+        if (!sameScreen) loadingTimer = setTimeout(() => { if (seq === routeSeq) el.innerHTML = `<p class="loading">読み込み中…</p>`; }, 400);
+        await render();
+      }
       clearTimeout(loadingTimer);
-      watcher?.disconnect();
       if (seq !== routeSeq) return;
-      el.classList.remove("is-switching");
       if (sameScreen) {
         const tabs = el.querySelector(".tabs");
         if (tabs && tabsTop != null) window.scrollBy(0, tabs.getBoundingClientRect().top - tabsTop);
@@ -307,10 +335,9 @@ export async function route() {
       const h1 = el.querySelector("h1")?.textContent.replace(/\s+/g, " ").trim();
       document.title = h1 ? `${h1}｜${baseTitle}` : baseTitle;
       centerSteppers(el);
-      // PJ ⇄ PJ決め の三角で来たときは、押した向きに横からすべり込ませる
-      if (el.dataset.slide && el.querySelector(".view-switch")) {
-        const cls = `slide-${el.dataset.slide}`;
-        delete el.dataset.slide;
+      // ビュー遷移が使えないブラウザでは、PJ ⇄ PJ決め の三角で来たときだけ、押した向きに横からすべり込ませる
+      if (slide && !smoothSwitch() && el.querySelector(".view-switch")) {
+        const cls = `slide-${slide}`;
         el.classList.remove("slide-left", "slide-right");
         void el.offsetWidth;
         el.classList.add(cls);
@@ -318,9 +345,7 @@ export async function route() {
       }
     } catch (e) {
       clearTimeout(loadingTimer);
-      watcher?.disconnect();
       if (seq !== routeSeq) return;
-      el.classList.remove("is-switching");
       el.innerHTML = `<div class="empty"><p>${esc(e.message)}</p><a class="button" href="#/">ホームへ</a></div>`;
     }
     return;

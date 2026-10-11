@@ -1087,7 +1087,23 @@ label.chip-check[hidden]{display:none}
 .page-heading .view-switch{justify-content:center}
 
 /* 画面を移るあいだは、前の画面を少しだけ薄くする（すぐに「読み込み中…」にしない） */
-#app.is-switching{opacity:.55;transition:opacity .15s .1s;pointer-events:none}
+/* 画面の切り替え：ブラウザのビュー遷移で、中身だけをふわっと（PJ ⇄ PJ決め は横に）切り替える。上のバー・下のメニューは動かさない */
+#app{view-transition-name:main}
+::view-transition-old(root),::view-transition-new(root){animation:none}
+::view-transition-group(main){animation:none}
+::view-transition-old(main),::view-transition-new(main){height:100%;object-fit:none;object-position:50% 0}
+::view-transition-old(main){animation:vt-out .14s ease-in both}
+::view-transition-new(main){animation:vt-in .22s ease-out both}
+html[data-vt="right"]::view-transition-old(main){animation:vt-out-left .2s ease-in both}
+html[data-vt="right"]::view-transition-new(main){animation:vt-in-right .26s cubic-bezier(.2,.8,.2,1) both}
+html[data-vt="left"]::view-transition-old(main){animation:vt-out-right .2s ease-in both}
+html[data-vt="left"]::view-transition-new(main){animation:vt-in-left .26s cubic-bezier(.2,.8,.2,1) both}
+@keyframes vt-out{to{opacity:0}}
+@keyframes vt-in{from{opacity:0;transform:translateY(6px)}}
+@keyframes vt-out-left{to{opacity:0;transform:translateX(-32px)}}
+@keyframes vt-in-right{from{opacity:0;transform:translateX(32px)}}
+@keyframes vt-out-right{to{opacity:0;transform:translateX(32px)}}
+@keyframes vt-in-left{from{opacity:0;transform:translateX(-32px)}}
 /* PJ画面の「どうやって選ばれたか」 */
 .pj-origin{margin-top:6px}
 .pj-origin summary{cursor:pointer}
@@ -1099,3 +1115,4 @@ label.chip-check[hidden]{display:none}
 .page-heading .view-switch .view-switch-arrow{position:absolute;top:50%;margin-top:-20px}
 .page-heading .view-switch .view-switch-arrow.is-right{left:100%;margin-left:6px}
 .page-heading .view-switch .view-switch-arrow.is-left{right:100%;margin-right:6px}
+#tab-body{animation:vt-in .2s ease-out}
