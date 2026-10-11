@@ -1116,3 +1116,69 @@ html[data-vt="left"]::view-transition-new(main){animation:vt-in-left .26s cubic-
 .page-heading .view-switch .view-switch-arrow.is-right{left:100%;margin-left:6px}
 .page-heading .view-switch .view-switch-arrow.is-left{right:100%;margin-right:6px}
 #tab-body{animation:vt-in .2s ease-out}
+/* 読み込み中の画面：跳ねる点 ＋ 光が流れる枠 */
+.loading-screen{display:flex;flex-direction:column;align-items:center;gap:10px;padding:48px 0 24px;color:var(--muted);font-weight:700;animation:vt-in .2s ease-out}
+.loading-screen p{margin:0;font-size:13px}
+.loading-dots{display:flex;gap:8px}
+.loading-dots i{width:11px;height:11px;border-radius:50%;background:var(--green);animation:dot-bounce 1s ease-in-out infinite}
+.loading-dots i:nth-child(2){animation-delay:.15s;background:#3fc58f}
+.loading-dots i:nth-child(3){animation-delay:.3s;background:#8fdcb9}
+@keyframes dot-bounce{0%,80%,100%{transform:translateY(0);opacity:.6}40%{transform:translateY(-10px);opacity:1}}
+.skeleton{width:min(560px,100%);display:flex;flex-direction:column;gap:12px;margin-top:22px}
+.skeleton span{display:block;height:16px;border-radius:8px;background:linear-gradient(90deg,#e8eeea 0%,#f5f8f6 40%,#e8eeea 80%);background-size:200% 100%;animation:sk-shine 1.2s linear infinite}
+.skeleton .sk-title{height:26px;width:55%;margin:0 auto 6px}
+.skeleton .sk-short{width:60%}
+@keyframes sk-shine{from{background-position:120% 0}to{background-position:-80% 0}}
+/* 中身ができたら、ふわっと出す */
+#app.content-in{animation:vt-in .22s ease-out}
+@media (prefers-reduced-motion: reduce){.loading-dots i,.skeleton span,.loading-screen,#app.content-in{animation:none}}
+
+/* ---------- 全体のアニメーション（動きを減らす設定の人には付けない） ---------- */
+@media (prefers-reduced-motion: no-preference){
+  /* 画面を開いたとき：カードや行が、少しずつ下からふわっと出る */
+  @keyframes rise-in{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+  #app.entering .page-heading,
+  #app.entering .card,
+  #app.entering .choice,
+  #app.entering .list-item,
+  #app.entering .timeline > li{animation:rise-in .32s cubic-bezier(.2,.8,.2,1) both}
+  #app.entering :is(.card,.choice,.list-item,.timeline > li):nth-child(2){animation-delay:.04s}
+  #app.entering :is(.card,.choice,.list-item,.timeline > li):nth-child(3){animation-delay:.08s}
+  #app.entering :is(.card,.choice,.list-item,.timeline > li):nth-child(4){animation-delay:.12s}
+  #app.entering :is(.card,.choice,.list-item,.timeline > li):nth-child(5){animation-delay:.16s}
+  #app.entering :is(.card,.choice,.list-item,.timeline > li):nth-child(n+6){animation-delay:.2s}
+
+  /* ボタン：押すと少し沈む、乗せると少し浮く */
+  button,.button{transition:transform .12s ease,box-shadow .15s ease,background-color .15s ease,border-color .15s ease,color .15s ease}
+  button:not(:disabled):active,.button:active{transform:scale(.97)}
+  .choice,.pj-card,.seed-card{transition:transform .18s ease,box-shadow .18s ease}
+  .choice:hover{transform:translateY(-2px);box-shadow:0 8px 20px #0000000f}
+  .choice:active,.pj-card:active{transform:scale(.985)}
+
+  /* タブ・下のメニュー：選んだ印がなめらかに移る */
+  .tabs [role=tab],.main-nav a,.chip-btn{transition:background-color .2s ease,color .2s ease,border-color .2s ease,transform .12s ease}
+  .tabs [role=tab]:active,.main-nav a:active{transform:scale(.95)}
+  .main-nav a.is-active .nav-ico{animation:nav-pop .3s cubic-bezier(.3,1.6,.5,1)}
+  @keyframes nav-pop{0%{transform:scale(.8)}100%{transform:scale(1)}}
+
+  /* チェック：入れたときに小さく弾む */
+  input[type=checkbox]:checked{animation:check-pop .25s cubic-bezier(.3,1.6,.5,1)}
+  @keyframes check-pop{0%{transform:scale(.7)}100%{transform:scale(1)}}
+
+  /* 確認画面・お知らせ：ふわっと出る */
+  .dialog-backdrop{animation:fade-in .15s ease-out}
+  .dialog{animation:dialog-in .22s cubic-bezier(.2,.8,.2,1)}
+  .dialog-backdrop.sheet .dialog{animation:sheet-in .26s cubic-bezier(.2,.8,.2,1)}
+  @keyframes fade-in{from{opacity:0}}
+  @keyframes dialog-in{from{opacity:0;transform:translateY(8px) scale(.97)}}
+  @keyframes sheet-in{from{transform:translateY(100%)}}
+  .toast{transition:transform .28s cubic-bezier(.2,.8,.2,1),opacity .2s ease}
+
+  /* 折りたたみ：開いたときに中身がふわっと出る */
+  details[open] > :not(summary){animation:fold-in .2s ease-out}
+  @keyframes fold-in{from{opacity:0;transform:translateY(-4px)}}
+
+  /* 🔔の数字：届いたときに揺れる */
+  .bell-count:not([hidden]){animation:bell-pop .4s cubic-bezier(.3,1.6,.5,1)}
+  @keyframes bell-pop{0%{transform:scale(.4)}100%{transform:scale(1)}}
+}

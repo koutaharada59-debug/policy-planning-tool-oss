@@ -62,6 +62,12 @@ const ERRORS = {
 
 let baseTitle = document.title;
 let routeSeq = 0;
+// 読み込み中の画面：点が跳ねるアニメーションと、中身の形のうっすらした枠（光が流れる）
+const loadingScreen = () => `<div class="loading loading-screen" role="status" aria-live="polite">
+  <div class="loading-dots" aria-hidden="true"><i></i><i></i><i></i></div>
+  <p>読み込み中…</p>
+  <div class="skeleton" aria-hidden="true"><span class="sk-title"></span><span></span><span></span><span class="sk-short"></span></div>
+</div>`;
 // ふわっと切り替えるか（ビュー遷移に対応したブラウザで、動きを減らす設定にしていないとき）
 const smoothSwitch = () => Boolean(document.startViewTransition) && !matchMedia("(prefers-reduced-motion: reduce)").matches;
 
@@ -295,15 +301,20 @@ export async function route() {
     // 前の画面の中身（これがまだ残っているときだけ「読み込み中…」に替える。次の画面を描き始めていたら替えない）
     const oldFirst = el.firstElementChild;
     const stillOld = () => seq === routeSeq && el.firstElementChild === oldFirst;
+    // 「読み込み中」の画面を出したら、中身ができたときにふわっと出す
+    let loadingShown = false;
+    const showLoading = () => { loadingShown = true; el.innerHTML = loadingScreen(); };
     try {
       if (!sameScreen && smoothSwitch()) {
         document.documentElement.dataset.vt = slide || "fade";
         let called = false;
-        const t = document.startViewTransition(() => {
+        const t = document.startViewTransition(async () => {
           if (called) return;
           called = true;
           window.scrollTo(0, 0);
-          return Promise.race([render().catch(() => {}), new Promise((r) => setTimeout(r, 500))]);
+          // 0.12秒で出来なければ、前の画面は残さず「読み込み中」の画面へ切り替える（違う画面が見えたままにしない）
+          const done = await Promise.race([render().then(() => true, () => true), new Promise((r) => setTimeout(() => r(false), 120))]);
+          if (!done && stillOld()) showLoading();
         });
         // 次の画面へすぐ移ったときなどに「飛ばした」と出るのは問題ないので、エラーにしない
         t.ready.catch(() => {});
@@ -316,15 +327,28 @@ export async function route() {
           window.scrollTo(0, 0);
           render();
         }
-        // まだ描き始めていなければ、前の画面の中身を「読み込み中…」に替える
-        if (stillOld()) el.innerHTML = `<p class="loading">読み込み中…</p>`;
+        if (stillOld()) showLoading();
         await viewDone;
       } else {
-        if (!sameScreen) loadingTimer = setTimeout(() => { if (stillOld()) el.innerHTML = `<p class="loading">読み込み中…</p>`; }, 400);
+        if (!sameScreen) loadingTimer = setTimeout(() => { if (stillOld()) showLoading(); }, 120);
         await render();
       }
       clearTimeout(loadingTimer);
       if (seq !== routeSeq) return;
+      // 別の画面へ移ったときは、カードや行を少しずつふわっと出す（同じ画面の描き直しでは出さない）
+      if (!sameScreen) {
+        el.classList.remove("entering");
+        void el.offsetWidth;
+        el.classList.add("entering");
+        clearTimeout(el._enterTimer);
+        el._enterTimer = setTimeout(() => el.classList.remove("entering"), 700);
+      }
+      if (loadingShown) {
+        el.classList.remove("content-in");
+        void el.offsetWidth;
+        el.classList.add("content-in");
+        el.addEventListener("animationend", () => el.classList.remove("content-in"), { once: true });
+      }
       if (sameScreen) {
         const tabs = el.querySelector(".tabs");
         if (tabs && tabsTop != null) window.scrollBy(0, tabs.getBoundingClientRect().top - tabsTop);
