@@ -1,4 +1,4 @@
-// 議事録を探す：PJのMTGの議事録・定例の記録・発表の記録を、言葉で探す（ログインしていれば誰でも）
+// 議事録を探す：PJのMTGの議事録・定例の議事録・発表の記録を、言葉で探す（ログインしていれば誰でも）
 import { HttpError, clean, int, optDate } from "../util.js";
 import { addDays } from "../project-types.js";
 
@@ -52,7 +52,7 @@ async function searchMinutes({ env, url }) {
       });
     }
   }
-  // 定例の記録：事務連絡・メモ・各PJの進捗共有（PJを選んだときは、そのPJの進捗共有だけ）
+  // 定例の議事録：事務連絡・メモ・各PJの進捗共有（PJを選んだときは、そのPJの進捗共有だけ）
   if (kind === "all" || kind === "teirei") {
     if (projectId) {
       const w = whereAll(words, ["r.done", "r.next", "r.issues"]);
@@ -63,7 +63,7 @@ async function searchMinutes({ env, url }) {
       ).bind(projectId, ...w.binds, LIMIT).all();
       for (const r of rows) {
         results.push({
-          kind: "teirei", at: r.at, href: `#/teirei/${r.id}`, title: "定例の記録（進捗共有）", project_id: projectId, project_name: r.project_name,
+          kind: "teirei", at: r.at, href: `#/teirei/${r.id}`, title: "定例の議事録（進捗共有）", project_id: projectId, project_name: r.project_name,
           text: [r.done && `やったこと：${r.done}`, r.next && `次にやること：${r.next}`, r.issues && `困っていること：${r.issues}`].filter(Boolean).join("\n"),
         });
       }
@@ -76,7 +76,7 @@ async function searchMinutes({ env, url }) {
       ).bind(...w.binds, LIMIT).all();
       for (const r of rows) {
         results.push({
-          kind: "teirei", at: r.at, href: `#/teirei/${r.id}`, title: "定例の記録",
+          kind: "teirei", at: r.at, href: `#/teirei/${r.id}`, title: "定例の議事録",
           text: [r.notice && `事務連絡：${r.notice}`, r.memo && `メモ：${r.memo}`, r.reports && `進捗共有：${r.reports}`].filter(Boolean).join("\n"),
         });
       }

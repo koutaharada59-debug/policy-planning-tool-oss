@@ -1,8 +1,14 @@
-// 議事録を探す：PJのMTGの議事録・定例の記録・発表の記録を、言葉・PJ・期間・種類で探す
+// 議事録を探す：PJのMTGの議事録・定例の議事録・発表の記録を、言葉・PJ・期間・種類で探す
 // 何も入れていないときは、最近の記録を新しい順に出す（開いてすぐ使えるように）
 import { api, esc, fmtDate, hashQuery, addDays } from "../lib.js";
 
-const KINDS = [["all", "すべて"], ["meeting", "📝 MTGの議事録"], ["teirei", "🏛️ 定例の記録"], ["present", "🎤 発表の記録"]];
+const KINDS = [["all", "すべて"], ["meeting", "📝 MTGの議事録"], ["teirei", "🏛️ 定例の議事録"], ["present", "🎤 発表の記録"]];
+// 種類ごとに、まだ1件もないときの説明
+const NONE = {
+  meeting: "MTGの議事録は、まだありません。",
+  teirei: "定例の議事録は、まだありません。定例の画面で「定例を始める」と、事務連絡・メモ・各PJの進捗がここに残ります。",
+  present: "発表の記録は、まだありません。",
+};
 const ICON = { meeting: "📝", teirei: "🏛️", present: "🎤" };
 
 // 期間のすぐ選べるボタン（週は日曜はじまり。カレンダーと同じ）
@@ -26,7 +32,7 @@ export async function renderMinutesSearch(el) {
   el.innerHTML = `
     <nav class="breadcrumb"><a href="#/check">確認する</a> / 議事録を探す</nav>
     <div class="page-heading left"><h1>🔎 議事録を探す</h1>
-      <p class="muted small">MTGの議事録・定例の記録・発表の記録から探します。言葉を空白で区切ると、すべて含むものだけ。</p></div>
+      <p class="muted small">MTGの議事録・定例の議事録・発表の記録から探します。言葉を空白で区切ると、すべて含むものだけ。</p></div>
     <form class="search-form" id="search-form" role="search">
       <input type="search" name="q" value="${esc(q0.get("q") || "")}" placeholder="言葉で探す（例：ヒアリング　出典）" aria-label="探す言葉" autofocus>
       <select name="project" aria-label="PJ"><option value="">すべてのPJ</option>
@@ -71,10 +77,12 @@ export async function renderMinutesSearch(el) {
 
   const drawList = () => {
     const counts = Object.fromEntries(KINDS.map(([k]) => [k, k === "all" ? results.length : results.filter((r) => r.kind === k).length]));
-    el.querySelector("#kind-chips").innerHTML = results.length ? KINDS.map(([k, l]) =>
-      `<button type="button" role="tab" class="chip-btn ${kind === k ? "is-on" : ""}" data-kind="${k}" aria-selected="${kind === k}" ${counts[k] || k === "all" ? "" : "disabled"}>${l} <small>${counts[k]}</small></button>`).join("") : "";
+    // 種類はいつも全部出す（0件の種類も選べる。選ぶと「まだありません」と出る）
+    el.querySelector("#kind-chips").innerHTML = KINDS.map(([k, l]) =>
+      `<button type="button" role="tab" class="chip-btn ${kind === k ? "is-on" : ""}" data-kind="${k}" aria-selected="${kind === k}" >${l} <small>${counts[k]}</small></button>`).join("");
     const shown = results.filter((r) => kind === "all" || r.kind === kind);
-    list.innerHTML = shown.map((r) => hitItem(r, words)).join("");
+    list.innerHTML = shown.length ? shown.map((r) => hitItem(r, words)).join("")
+      : kind !== "all" ? `<li class="empty"><p>${NONE[kind]}</p></li>` : "";
     el.querySelectorAll("[data-kind]").forEach((b) => b.addEventListener("click", () => {
       kind = b.dataset.kind;
       saveUrl();
@@ -108,7 +116,7 @@ export async function renderMinutesSearch(el) {
     words = res.words || [];
     count.textContent = !filtered ? `最近の記録（新しい順）${results.length >= 60 ? "・60件まで" : ""}`
       : results.length ? `${results.length}件${results.length >= 60 ? "（新しい順に60件まで）" : ""}` : "見つかりませんでした。言葉を減らすか、期間を広げてみてください。";
-    if (!results.some((r) => r.kind === kind)) kind = "all";
+
     drawList();
   };
 
@@ -154,7 +162,7 @@ export async function renderProjectRecords(body, projectId) {
     let month = "";
     body.innerHTML = `
       <div class="board-tools">
-        <span class="chip-row">${KINDS.map(([k, l]) => `<button type="button" class="chip-btn ${kind === k ? "is-on" : ""}" data-kind="${k}" ${counts[k] || k === "all" ? "" : "disabled"}>${l} <small>${counts[k]}</small></button>`).join("")}</span>
+        <span class="chip-row">${KINDS.map(([k, l]) => `<button type="button" class="chip-btn ${kind === k ? "is-on" : ""}" data-kind="${k}">${l} <small>${counts[k]}</small></button>`).join("")}</span>
         <a class="button small" href="#/minutes-search?project=${projectId}">🔎 言葉で探す</a>
       </div>
       ${shown.length ? `<ul class="list search-results">${shown.map((r) => {
@@ -162,7 +170,7 @@ export async function renderProjectRecords(body, projectId) {
         const head = m !== month ? `<li class="record-month">${Number(m.slice(0, 4))}年${Number(m.slice(5))}月</li>` : "";
         month = m;
         return head + hitItem({ ...r, project_name: null }, []);
-      }).join("")}</ul>` : `<div class="empty"><p>まだ記録はありません。MTGの議事録・定例の進捗・発表の記録が、ここに日付順に並びます。</p></div>`}`;
+      }).join("")}</ul>` : `<div class="empty"><p>${kind === "all" ? "まだ記録はありません。MTGの議事録・定例の進捗・発表の記録が、ここに日付順に並びます。" : NONE[kind]}</p></div>`}`;
     body.querySelectorAll("[data-kind]").forEach((b) => b.addEventListener("click", () => { kind = b.dataset.kind; draw(); }));
   };
   draw();
