@@ -1,6 +1,6 @@
 // 外部ヒアリングの申請：申請 → 部門長の確認 → 代表の確認 → 渉外フォーラムにスレッド作成 → 実施後の要点
 // 閲覧は政策立案部門のメンバー・代表・管理者（同じ相手への重複連絡を防ぐため）。外部の方の連絡先は保存しない
-import { HttpError, readJson, clean, required, int, oneOf, idList, assertUpdated } from "../util.js";
+import { HttpError, readJson, clean, required, int, oneOf, idList, assertUpdated, repIds } from "../util.js";
 import { createForumThread, threadUrl, mention, botConfigured } from "../discord.js";
 import { notify } from "../notify.js";
 
@@ -42,7 +42,6 @@ export const STATUS = {
 };
 
 const headIds = (env) => idList(env.HEAD_IDS);
-const repIds = (env) => idList(env.REP_IDS);
 const link = (id) => `#/hearings/${id}`;
 
 // 連絡先（メールアドレス・電話番号）は保存しない
@@ -218,7 +217,7 @@ async function reviewHearing({ request, env, user, params }) {
   }
   if (stage === "head") {
     await notify(env, [h.applicant_id], `【ヒアリング申請】${targetLabel(h)}への申請を部門長が確認しました。次は代表の確認です。`, link(h.id));
-    await notify(env, repIds(env), `【ヒアリング申請】${h.applicant_name}さんの、${targetLabel(h)}へのヒアリング申請を部門長が確認しました。代表の確認をお願いします。`, link(h.id));
+    await notify(env, await repIds(env), `【ヒアリング申請】${h.applicant_name}さんの、${targetLabel(h)}へのヒアリング申請を部門長が確認しました。代表の確認をお願いします。`, link(h.id));
     return { ok: true, status: next };
   }
   const threadId = await openThread(env, h);

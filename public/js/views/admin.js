@@ -4,6 +4,7 @@ import { api, esc, state, avatar, busy, toast, fmtDateTime, jstDateTime, confirm
 export async function renderAdmin(el) {
   if (!state.me.isAdmin) throw new Error("管理者メニューは管理者だけが使えます");
   const data = await api("/api/admin");
+  const repSet = new Set([...data.reps.map((u) => u.id), ...(data.addedReps || []).map((r) => r.user_id)]);
   const adminIds = new Set([...data.heads, ...data.fixedAdmins].map((u) => u.id).concat(data.admins.map((a) => a.user_id)));
   const candidates = data.users.filter((u) => !adminIds.has(u.id));
   const person = (u) => `<span class="person">${avatar(u)} ${esc(u.name)}</span>`;
@@ -70,11 +71,24 @@ export async function renderAdmin(el) {
 
     <div class="two-col">
       <section class="section">
-        <h2>ヒアリングの承認者（設定ファイルで固定）</h2>
+        <h2>代表・ヒアリングの承認者</h2>
         <ul class="list">
-          ${data.heads.map((u) => `<li class="list-item">${person(u)}<span class="tag">部門長：一次確認</span></li>`).join("")}
-          ${data.reps.map((u) => `<li class="list-item">${person(u)}<span class="tag">代表：最終確認</span></li>`).join("")}
+          ${data.heads.map((u) => `<li class="list-item">${person(u)}<span class="tag">部門長：一次確認（固定）</span></li>`).join("")}
+          ${data.reps.map((u) => `<li class="list-item">${person(u)}<span class="tag">代表：最終確認（固定）</span></li>`).join("")}
+          ${(data.addedReps || []).map((r) => `
+            <li class="list-item">${person({ name: r.name, avatar: r.avatar })}
+              <div class="meta"><span class="tag">代表：最終確認</span>${r.added_by_name ? `<span class="muted small">${esc(r.added_by_name)}が追加</span>` : ""}
+                <button class="link-btn danger" data-remove-rep="${esc(r.user_id)}">外す</button></div></li>`).join("")}
         </ul>
+        <form class="card form inline-form" id="add-rep" style="margin-top:12px">
+          <strong>代表を選ぶ</strong>
+          <select name="user_id" required>
+            <option value="">メンバーを選ぶ</option>
+            ${data.users.filter((u) => !repSet.has(u.id)).map((u) => `<option value="${esc(u.id)}">${esc(u.name)}</option>`).join("")}
+          </select>
+          <button class="primary">追加する</button>
+        </form>
+        <p class="muted small">代表は、外部ヒアリング申請の最終確認をし、申請の一覧を見られます。設定ファイルで決まっている代表（「固定」）は、ここでは外せません。</p>
       </section>
       <section class="section">
         <h2>設定の状態</h2>
@@ -90,6 +104,22 @@ export async function renderAdmin(el) {
     </div>`;
 
   bindStaffing(el, data, () => renderAdmin(el));
+  el.querySelector("#add-rep").addEventListener("submit", (e) => {
+    e.preventDefault();
+    const userId = e.target.user_id.value;
+    const name = data.users.find((u) => u.id === userId)?.name || "";
+    confirmDialog(`${name}さんを代表にしますか？
+外部ヒアリング申請の最終確認と、申請の一覧の閲覧ができるようになります。`, { ok: "代表にする" }).then((ok) => {
+      if (!ok) return;
+      busy(e.submitter, () => api("/api/admin/reps", { method: "POST", body: { user_id: userId } }))
+        .then(() => { toast("代表に追加しました"); renderAdmin(el); }).catch(() => {});
+    });
+  });
+  el.querySelectorAll("[data-remove-rep]").forEach((b) => b.addEventListener("click", async () => {
+    if (!await confirmDialog("この人を代表から外しますか？")) return;
+    busy(b, () => api("/api/admin/reps/remove", { method: "POST", body: { user_id: b.dataset.removeRep } }))
+      .then(() => { toast("代表から外しました"); renderAdmin(el); }).catch(() => {});
+  }));
   el.querySelector("#add-admin").addEventListener("submit", (e) => {
     e.preventDefault();
     const userId = e.target.user_id.value;
@@ -189,9 +219,9 @@ function bindStaffing(el, data, reload) {
 }
 
 // ログイン状況：このツールにログインしたことがある人（最終ログイン順）と、アンケートで投票しただけの人
-function loginSection({ users, heads, reps }, person, adminIds) {
+function loginSection({ users, heads, reps, addedReps = [] }, person, adminIds) {
   const headIds = new Set(heads.map((u) => u.id));
-  const repIds = new Set(reps.map((u) => u.id));
+  const repIds = new Set([...reps.map((u) => u.id), ...addedReps.map((r) => r.user_id)]);
   const logged = users.filter((u) => u.last_login).sort((a, b) => b.last_login - a.last_login);
   const notYet = users.filter((u) => !u.last_login);
   // 設定ファイルで決めている部門長・代表がまだログインしていなければ、ここでも知らせる

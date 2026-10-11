@@ -106,6 +106,12 @@ export function idList(value) {
   return (value || "").split(",").map((s) => s.trim()).filter(Boolean);
 }
 
+// 代表：設定ファイル（REP_IDS）で決めた人 ＋ 管理者メニューで選んだ人
+export async function repIds(env) {
+  const { results } = await env.DB.prepare("SELECT user_id FROM reps").all();
+  return [...new Set([...idList(env.REP_IDS), ...results.map((r) => r.user_id)])];
+}
+
 // 楽観ロック：更新件数が0なら、他の人が先に更新している
 export function assertUpdated(result, what = "この内容") {
   if (!result.meta || result.meta.changes === 0) {
