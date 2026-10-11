@@ -99,3 +99,18 @@ test("一般のメンバーには管理者メニューが出ない", async ({ pa
   await page.goto("/#/admin");
   await expect(page.locator("#app")).toContainText("管理者だけ");
 });
+
+// 画面の切り替え（ビュー遷移）で「読み込み中…」のまま止まらないこと：開いた最初の画面と、下のメニューでの切り替え
+test("開いた画面・メニューの切り替えで、読み込み中のまま止まらない", async ({ page }) => {
+  await login(page);
+  await page.goto("about:blank");
+  await page.goto("/");
+  await expect(page.locator(".choice").first()).toBeVisible();
+  for (const k of ["projects", "timeline", "calendar", "home", "projects"]) {
+    await page.locator(`#nav a[data-nav=${k}]`).click();
+    await expect(page.locator(`#nav a[data-nav=${k}]`)).toHaveClass(/is-active/);
+    await page.waitForTimeout(700);
+    await expect(page.locator("#app > .loading")).toHaveCount(0);
+    await expect(page.locator("#app > *").first()).toBeVisible();
+  }
+});
