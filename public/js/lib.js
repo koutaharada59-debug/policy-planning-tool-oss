@@ -642,33 +642,21 @@ export function takeProgressHint(projectId) {
   return h;
 }
 
-// 「PJ ▾」：三角を押すと、PJ と PJ決め を切り替えるメニューが出る（PJ一覧・PJ決めの見出しで使う）
-// current：'pj' | 'seeds'。asTitle=true なら見出し（h1）として出す
-export function viewSwitch(current, { asTitle = true, seedsOpen = false } = {}) {
-  const label = current === "pj" ? "PJ" : "PJ決め";
-  const name = asTitle ? `<h1>${label}</h1>` : `<span class="view-switch-label">🌱 ${label}</span>`;
-  return `<div class="view-switch ${asTitle ? "" : "is-small"}">
-    ${name}
-    <button type="button" class="view-switch-btn" aria-haspopup="menu" aria-expanded="false" aria-label="PJとPJ決めを切り替える"><svg width="14" height="10" viewBox="0 0 14 10" aria-hidden="true"><path d="M1 1.5h12L7 9z" fill="currentColor"/></svg></button>
-    <div class="view-switch-menu" role="menu" hidden>
-      <a role="menuitem" href="#/projects" class="${current === "pj" ? "is-current" : ""}">📁 PJ${current === "pj" ? "<small>いまここ</small>" : ""}</a>
-      <a role="menuitem" href="#/seeds" class="${current === "seeds" ? "is-current" : ""}">🌱 PJ決め${seedsOpen ? ' <span class="due is-soon">受付中</span>' : ""}${current === "seeds" ? "<small>いまここ</small>" : ""}</a>
-    </div>
-  </div>`;
+// 「PJ ▶」と「◀ PJ決め」：三角を押すと、PJ と PJ決め を横に行き来する（PJ一覧・PJ決めの見出しで使う）
+// current：'pj' | 'seeds'
+export function viewSwitch(current, { seedsOpen = false } = {}) {
+  const tri = (dir) => `<svg width="16" height="18" viewBox="0 0 16 18" aria-hidden="true"><path d="${dir === "right" ? "M2 1.5L14 9 2 16.5z" : "M14 1.5L2 9l12 7.5z"}" fill="currentColor"/></svg>`;
+  return current === "pj"
+    ? `<div class="view-switch"><h1>PJ</h1>
+        <a class="view-switch-arrow is-right" href="#/seeds" data-slide="right" aria-label="PJ決めへ" title="PJ決めへ">${tri("right")}${seedsOpen ? '<span class="view-switch-dot" aria-hidden="true"></span>' : ""}</a></div>`
+    : `<div class="view-switch"><a class="view-switch-arrow is-left" href="#/projects" data-slide="left" aria-label="PJへ戻る" title="PJへ戻る">${tri("left")}</a>
+        <h1>PJ決め</h1></div>`;
 }
 
+// 押した向きに、次の画面を横からすべり込ませる
 export function bindViewSwitch(root) {
-  const box = root.querySelector(".view-switch");
-  if (!box) return;
-  const btn = box.querySelector(".view-switch-btn");
-  const menu = box.querySelector(".view-switch-menu");
-  const close = () => { menu.hidden = true; btn.setAttribute("aria-expanded", "false"); };
-  btn.addEventListener("click", (e) => {
-    e.stopPropagation();
-    menu.hidden = !menu.hidden;
-    btn.setAttribute("aria-expanded", String(!menu.hidden));
+  root.querySelector(".view-switch-arrow")?.addEventListener("click", (e) => {
+    const app = document.getElementById("app");
+    app.dataset.slide = e.currentTarget.dataset.slide;
   });
-  const outside = (e) => { if (!box.isConnected) return document.removeEventListener("click", outside); if (!box.contains(e.target)) close(); };
-  document.addEventListener("click", outside);
-  box.addEventListener("keydown", (e) => { if (e.key === "Escape") { close(); btn.focus(); } });
 }

@@ -61,6 +61,7 @@ const ERRORS = {
 };
 
 let baseTitle = document.title;
+let routeSeq = 0;
 
 async function boot() {
   const session = await api("/api/session");
@@ -280,12 +281,14 @@ export async function route() {
     // タブの列が画面のどこにあったか（切り替えたあとも、同じ位置に見えるようにする）
     const tabsTop = sameScreen ? el.querySelector(".tabs")?.getBoundingClientRect().top : null;
     shownPath = path;
+    // 新しい画面へ移ったあとは、前の画面の読み込みの続き（エラーなど）を無視する
+    const seq = ++routeSeq;
     // すぐには空にしない。0.4秒たっても描けなければ「読み込み中…」を出す（画面が描かれ始めたら出さない）
     let loadingTimer = null;
     let watcher = null;
     if (!sameScreen) {
       el.classList.add("is-switching");
-      loadingTimer = setTimeout(() => { el.innerHTML = `<p class="loading">読み込み中…</p>`; }, 400);
+      loadingTimer = setTimeout(() => { if (seq === routeSeq) el.innerHTML = `<p class="loading">読み込み中…</p>`; }, 400);
       watcher = new MutationObserver(() => { clearTimeout(loadingTimer); el.classList.remove("is-switching"); watcher.disconnect(); });
       watcher.observe(el, { childList: true });
     }
@@ -293,6 +296,7 @@ export async function route() {
       await view(m)(el);
       clearTimeout(loadingTimer);
       watcher?.disconnect();
+      if (seq !== routeSeq) return;
       el.classList.remove("is-switching");
       if (sameScreen) {
         const tabs = el.querySelector(".tabs");
@@ -303,9 +307,19 @@ export async function route() {
       const h1 = el.querySelector("h1")?.textContent.replace(/\s+/g, " ").trim();
       document.title = h1 ? `${h1}｜${baseTitle}` : baseTitle;
       centerSteppers(el);
+      // PJ ⇄ PJ決め の三角で来たときは、押した向きに横からすべり込ませる
+      if (el.dataset.slide && el.querySelector(".view-switch")) {
+        const cls = `slide-${el.dataset.slide}`;
+        delete el.dataset.slide;
+        el.classList.remove("slide-left", "slide-right");
+        void el.offsetWidth;
+        el.classList.add(cls);
+        el.addEventListener("animationend", () => el.classList.remove(cls), { once: true });
+      }
     } catch (e) {
       clearTimeout(loadingTimer);
       watcher?.disconnect();
+      if (seq !== routeSeq) return;
       el.classList.remove("is-switching");
       el.innerHTML = `<div class="empty"><p>${esc(e.message)}</p><a class="button" href="#/">ホームへ</a></div>`;
     }

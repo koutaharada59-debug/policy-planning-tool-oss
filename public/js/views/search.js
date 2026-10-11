@@ -114,6 +114,7 @@ export async function renderMinutesSearch(el) {
     count.textContent = "探しています…";
     const res = await api(`/api/search/minutes?${p}`);
     if (mine !== seq) return; // 打ち直した後の結果だけを出す
+    if (!count.isConnected) return; // 結果が届く前に、ほかの画面へ移った
     results = res.results;
     words = res.words || [];
     count.textContent = !filtered ? `最近の記録（新しい順）${results.length >= 60 ? "・60件まで" : ""}`
