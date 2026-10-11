@@ -394,6 +394,17 @@ function bindPrefetch() {
 }
 bindPrefetch();
 
+// 同じ画面の中のタブ（?tab=…）を切り替えるリンクは、「戻る」の履歴に積まない（戻るで前の画面へ戻れるように）
+document.addEventListener("click", (e) => {
+  if (e.defaultPrevented || e.button !== 0 || e.ctrlKey || e.metaKey || e.shiftKey) return;
+  const a = e.target.closest?.('.tabs a[href^="#/"]');
+  if (!a) return;
+  const path = (h) => h.replace(/^#/, "").split("?")[0];
+  if (path(a.getAttribute("href")) !== path(location.hash)) return;
+  e.preventDefault();
+  location.replace(`${location.pathname}${location.search}${a.getAttribute("href")}`);
+});
+
 boot().catch((e) => {
   const box = document.getElementById("boot-loading");
   if (box) box.innerHTML = `読み込めませんでした（${esc(e.message)}）。<button type="button" onclick="location.reload()">もう一度読み込む</button>`;

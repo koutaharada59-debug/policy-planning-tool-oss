@@ -102,7 +102,8 @@ export async function renderProject(el, id) {
     if (a.getAttribute("aria-selected") === "true") return;
     const k = tabKey(a);
     el.querySelectorAll(".tabs a[role=tab]").forEach((t) => t.setAttribute("aria-selected", String(t === a)));
-    history.pushState(null, "", a.getAttribute("href"));
+    // タブの切り替えは「戻る」の対象にしない（戻るでPJの前の画面へ戻れるように）。URLだけ今のタブに合わせる
+    history.replaceState(history.state, "", a.getAttribute("href"));
     const mine = ++switching;
     let next;
     if (isQuick(k)) {
