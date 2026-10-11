@@ -292,6 +292,9 @@ export async function route() {
     const slide = el.dataset.slide;
     delete el.dataset.slide;
     const render = () => (viewDone = Promise.resolve().then(() => view(m)(el)));
+    // 前の画面の中身（これがまだ残っているときだけ「読み込み中…」に替える。次の画面を描き始めていたら替えない）
+    const oldFirst = el.firstElementChild;
+    const stillOld = () => seq === routeSeq && el.firstElementChild === oldFirst;
     try {
       if (!sameScreen && smoothSwitch()) {
         document.documentElement.dataset.vt = slide || "fade";
@@ -313,15 +316,11 @@ export async function route() {
           window.scrollTo(0, 0);
           render();
         }
-        // まだ描き終わっていなければ、前の画面の中身を「読み込み中…」に替える（描き始めていればそのまま）
-        let started = false;
-        const watch = new MutationObserver(() => { started = true; watch.disconnect(); });
-        watch.observe(el, { childList: true });
-        loadingTimer = setTimeout(() => { if (seq === routeSeq && !started) el.innerHTML = `<p class="loading">読み込み中…</p>`; }, 0);
+        // まだ描き始めていなければ、前の画面の中身を「読み込み中…」に替える
+        if (stillOld()) el.innerHTML = `<p class="loading">読み込み中…</p>`;
         await viewDone;
-        watch.disconnect();
       } else {
-        if (!sameScreen) loadingTimer = setTimeout(() => { if (seq === routeSeq) el.innerHTML = `<p class="loading">読み込み中…</p>`; }, 400);
+        if (!sameScreen) loadingTimer = setTimeout(() => { if (stillOld()) el.innerHTML = `<p class="loading">読み込み中…</p>`; }, 400);
         await render();
       }
       clearTimeout(loadingTimer);
