@@ -163,6 +163,7 @@ function renderStages(body, data, ro, reload) {
           ${isCurrent ? `<span class="status-now">いまここ</span>` : ""}
         </summary>
         <p class="stage-summary">${esc(s.summary)}</p>
+        ${["share_prep", "final_prep"].includes(s.role) ? `<p><a class="button small" href="#/projects/${p.id}/slides?kind=${s.role === "share_prep" ? "share" : "final"}">📐 ${s.role === "share_prep" ? "課題共有" : "最終発表"}のスライドの構成（Figmaのテンプレート）</a></p>` : ""}
         ${["final_prep", "presentation", "final"].includes(s.role) ? `<p><a class="button small" href="#/projects/${p.id}?tab=present">🎤 ${s.role === "final" ? "フィードバックと最終提出" : "発表準備（役割分担・リハーサルなど）"}を「発表の準備・提出」タブで管理する</a></p>` : ""}
         ${["research", "share_prep", "measures", "final_prep"].includes(s.role) ? `<p class="caution">⚠ AIで調べた情報は必ず一次出典を確認する。出典のない数字は使わない。</p>` : ""}
         <ul class="checklist">
