@@ -1,8 +1,8 @@
 // PJ・工程・チェックリスト
 import {
-  HttpError, readJson, clean, required, reqDate, optDate, optTime, optUrl, int, oneOf, assertUpdated, nowJst, todayJst, idList,
+  HttpError, readJson, clean, required, reqDate, optDate, optTime, optUrl, int, oneOf, assertUpdated, nowJst, todayJst, idList, leaderIds,
 } from "../util.js";
-import { PROJECT_TYPES, getType, addDays } from "../project-types.js";
+import { PROJECT_TYPES, getType, addDays, computeStageDates } from "../project-types.js";
 import { parseWeekdays } from "../schedule.js";
 import {
   loadProject, requireEditor, assertUsers, stageDateStatements, regularMeetingStatements,
@@ -14,6 +14,7 @@ export const routes = [
   ["GET", "/api/projects", listProjects],
   ["POST", "/api/projects", createProject],
   ["GET", "/api/projects/:id", getProject],
+  ["POST", "/api/projects/:id/pm", setPm],
   ["PUT", "/api/projects/:id", updateProject],
   ["POST", "/api/projects/:id/stage", setCurrentStage],
   ["POST", "/api/projects/:id/completion", completion],
@@ -107,8 +108,15 @@ export async function insertProject(env, user, body, { includeCreator = true } =
       ).bind(row.id, s.no, label, hint, i, s.no === 0 ? user.id : null, s.no === 0 ? now : null, opts?.notifyLeaders ? 1 : 0)
     )
   );
+  // 雛形のタスク（例：Figmaで発表資料を作る）。担当は未定、期限はその工程の期限
+  const stageDue = Object.fromEntries(computeStageDates(type, row.start_date, row.presentation_date).map((s) => [s.stage_no, s.due_date]));
+  const templateTasks = getType(type).stages.flatMap((s) => (s.tasks || []).map((title) =>
+    env.DB.prepare(
+      `INSERT INTO tasks (project_id, stage_no, title, due_date, status, created_by, created_at, updated_at) VALUES (?, ?, ?, ?, 'todo', ?, ?, ?)`
+    ).bind(row.id, s.no, title, stageDue[s.no] || null, user.id, now, now)));
   await env.DB.batch([
     ...members.map((uid) => env.DB.prepare("INSERT INTO project_members (project_id, user_id) VALUES (?, ?)").bind(row.id, uid)),
+    ...templateTasks,
     ...stageDateStatements(env, row, { onlyAuto: false }),
     env.DB.prepare("UPDATE project_stages SET completed_at = ? WHERE project_id = ? AND stage_no = 0").bind(now, row.id),
     ...checklist,
@@ -116,6 +124,19 @@ export async function insertProject(env, user, body, { includeCreator = true } =
   ]);
   await notify(env, members, `【${row.name}】PJのメンバーになりました`, `#/projects/${row.id}`, { dm: false, except: user.id });
   return row.id;
+}
+
+// PM（PJのマネージャー）を決める。PJのメンバーから選ぶ（空なら未定に戻す）
+async function setPm({ request, env, user, params }) {
+  const project = await loadProject(env, params.id);
+  await requireEditor(env, user, project.id);
+  const { user_id } = await readJson(request);
+  const pm = user_id ? String(user_id) : null;
+  if (pm && !(await env.DB.prepare("SELECT 1 FROM project_members WHERE project_id = ? AND user_id = ?").bind(project.id, pm).first())) {
+    throw new HttpError(400, "PMはPJのメンバーから選んでください");
+  }
+  await env.DB.prepare("UPDATE projects SET pm_id = ?, updated_at = ? WHERE id = ?").bind(pm, Date.now(), project.id).run();
+  return { ok: true };
 }
 
 async function getProject({ env, user, params }) {
@@ -301,7 +322,7 @@ async function toggleChecklistItem({ request, env, user, params }) {
   // 資料をフォーラムに投稿した項目にチェックが入ったら、送付する部門長・副部門長に知らせる（DMはBot設定時）
   if (done && !item.done_at && item.notify_leaders) {
     const project = await loadProject(env, item.project_id);
-    const leaders = [...idList(env.HEAD_IDS), ...idList(env.ADMIN_IDS)];
+    const leaders = await leaderIds(env);
     await notify(env, leaders, `【${project.name}】${user.name}さんが「${item.label}」にチェックしました。フォーラムの投稿を確認して、資料の送付をお願いします`,
       `#/projects/${project.id}`, { except: user.id });
   }
@@ -336,7 +357,7 @@ async function completion({ request, env, user, params }) {
   const body = await readJson(request);
   const action = oneOf(body.action, ["request", "cancel", "approve", "reject", "reopen"], "操作");
   const now = Date.now();
-  const leaders = [...idList(env.HEAD_IDS), ...idList(env.ADMIN_IDS)];
+  const leaders = await leaderIds(env);
   if (action === "request" || action === "cancel") {
     await requireEditor(env, user, project.id);
     if (project.status !== "active") throw new HttpError(400, "進行中のPJではありません");

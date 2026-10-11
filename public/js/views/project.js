@@ -28,7 +28,7 @@ export async function renderProject(el, id) {
         <span class="stage-pill">${esc(type.label)}${p.status === "done" ? "・完了" : ""}</span>
         <h1>${esc(p.name)}</h1>
         ${p.description ? `<p class="desc fold">${esc(p.description)}</p>` : ""}
-        <div class="people-stack">${data.members.map((m) => avatar(m)).join("")}<span class="more">${data.members.map((m) => `<a href="#/members/${encodeURIComponent(m.id)}">${esc(m.name)}</a>`).join("、")}</span></div>
+        <div class="people-stack">${data.members.map((m) => avatar(m)).join("")}<span class="more">${data.members.map((m) => `<a href="#/members/${encodeURIComponent(m.id)}">${esc(m.name)}</a>${m.id === p.pm_id ? '<span class="pm-tag">PM</span>' : ""}`).join("、")}</span></div>
         ${data.origin ? `<p class="muted small pj-origin">🌱 <a href="#/seeds/${data.origin.round_id}">${esc(data.origin.round_title)}</a> から生まれたPJ</p>` : ""}
       </div>
       <div class="pj-header-actions">
@@ -59,13 +59,43 @@ export async function renderProject(el, id) {
   const body = el.querySelector("#tab-body");
   // チェックなどで描き直しても、開いていた欄とスクロールの位置はそのまま（上に戻らないように）
   const reload = () => keepView(el, () => renderProject(el, id));
-  if (tab === "present") await renderPresentationTab(body, p.id);
-  else if (tab === "tree") await renderTreeTab(body, p.id, reload);
-  else if (tab === "measures") await renderMeasuresTab(body, p.id, reload);
-  else if (tab === "sources") await renderSourcesView(body, { projectId: p.id, canAdd: canEdit });
-  else if (tab === "tasks") renderTasks(body, data, ro, reload);
-  else if (tab === "records") await renderProjectRecords(body, p.id);
-  else renderStages(body, data, ro, reload);
+  const renderTab = async (k, target) => {
+    if (k === "present") await renderPresentationTab(target, p.id);
+    else if (k === "tree") await renderTreeTab(target, p.id, reload);
+    else if (k === "measures") await renderMeasuresTab(target, p.id, reload);
+    else if (k === "sources") await renderSourcesView(target, { projectId: p.id, canAdd: canEdit });
+    else if (k === "tasks") renderTasks(target, data, ro, reload);
+    else if (k === "records") await renderProjectRecords(target, p.id);
+    else renderStages(target, data, ro, reload);
+  };
+  await renderTab(tab, body);
+
+  // タブの切り替えは、PJ全体を読み直さずに、下の中身だけを描き替える（すぐ切り替わるように）。
+  // 工程・タスクは手元のデータですぐ出す。ほかのタブは新しい枠で読み込み、出来たら差し替える
+  let switching = 0;
+  el.querySelector(".tabs")?.addEventListener("click", async (e) => {
+    const a = e.target.closest("a[role=tab]");
+    if (!a || e.ctrlKey || e.metaKey || e.shiftKey || e.button !== 0) return;
+    e.preventDefault();
+    if (a.getAttribute("aria-selected") === "true") return;
+    const k = new URLSearchParams(a.getAttribute("href").split("?")[1] || "").get("tab") || "stages";
+    el.querySelectorAll(".tabs a[role=tab]").forEach((t) => t.setAttribute("aria-selected", String(t === a)));
+    history.pushState(null, "", a.getAttribute("href"));
+    const mine = ++switching;
+    const current = el.querySelector("#tab-body");
+    const next = document.createElement("div");
+    next.id = "tab-body";
+    const quick = k === "stages" || k === "tasks";
+    if (!quick) current.innerHTML = `<p class="loading" style="min-height:${Math.min(current.offsetHeight, 400)}px">読み込み中…</p>`;
+    try {
+      await renderTab(k, next);
+    } catch (err) {
+      next.innerHTML = `<div class="empty"><p>${esc(err.message)}</p></div>`;
+    }
+    if (mine !== switching) return; // その間に別のタブを押していたら、そちらを優先する
+    el.querySelector("#tab-body").replaceWith(next);
+    bindFold(next);
+  });
 }
 
 function renderStages(body, data, ro, reload) {

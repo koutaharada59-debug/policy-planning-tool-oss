@@ -1,5 +1,5 @@
 // 毎朝のリマインド（wrangler.toml の [triggers] で 8:00 JST に動く）
-import { idList, nowJst, todayJst, repIds } from "./util.js";
+import { idList, nowJst, todayJst, repIds, headIds } from "./util.js";
 import { notify } from "./notify.js";
 import { addDays } from "./project-types.js";
 import { regularOccurrences } from "./schedule.js";
@@ -67,7 +67,7 @@ async function remindReviews(env) {
   ).bind(before).all();
   const count = Object.fromEntries(results.map((r) => [r.status, r.n]));
   if (count.pending) {
-    await notify(env, idList(env.HEAD_IDS), `【リマインド】部門長の確認を待っているヒアリング申請が${count.pending}件あります。`, "#/hearings");
+    await notify(env, await headIds(env), `【リマインド】部門長の確認を待っているヒアリング申請が${count.pending}件あります。`, "#/hearings");
   }
   if (count.head_ok) {
     await notify(env, await repIds(env), `【リマインド】代表の確認を待っているヒアリング申請が${count.head_ok}件あります。`, "#/hearings");

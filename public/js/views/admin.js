@@ -4,8 +4,34 @@ import { api, esc, state, avatar, busy, toast, fmtDateTime, jstDateTime, confirm
 export async function renderAdmin(el) {
   if (!state.me.isAdmin) throw new Error("管理者メニューは管理者だけが使えます");
   const data = await api("/api/admin");
-  const repSet = new Set([...data.reps.map((u) => u.id), ...(data.addedReps || []).map((r) => r.user_id)]);
-  const adminIds = new Set([...data.heads, ...data.fixedAdmins].map((u) => u.id).concat(data.admins.map((a) => a.user_id)));
+  // 部門長・代表：管理者メニューで選ぶ（設定ファイルに書いた人は「固定」として出し、ここでは外せない）
+  const roleData = {
+    heads: { fixed: data.heads, added: data.addedHeads || [] },
+    reps: { fixed: data.reps, added: data.addedReps || [] },
+  };
+  const roleBlock = (kind, label, note) => {
+    const { fixed, added } = roleData[kind];
+    const has = new Set([...fixed.map((u) => u.id), ...added.map((r) => r.user_id)]);
+    return `<h3 class="small">${label}</h3>
+      <ul class="list">
+        ${fixed.map((u) => `<li class="list-item">${person(u)}<span class="tag">${label}（固定）</span></li>`).join("")}
+        ${added.map((r) => `
+          <li class="list-item">${person({ name: r.name, avatar: r.avatar })}
+            <div class="meta"><span class="tag">${label}</span>${r.added_by_name ? `<span class="muted small">${esc(r.added_by_name)}が追加</span>` : ""}
+              <button class="link-btn danger" data-remove-role="${kind}" data-user="${esc(r.user_id)}" data-name="${esc(r.name)}">外す</button></div></li>`).join("")}
+        ${has.size ? "" : `<li class="list-item muted">まだいません</li>`}
+      </ul>
+      <form class="card form inline-form" data-add-role="${kind}" style="margin:8px 0 4px">
+        <strong>${label}を選ぶ</strong>
+        <select name="user_id" required>
+          <option value="">メンバーを選ぶ</option>
+          ${data.users.filter((u) => !has.has(u.id)).map((u) => `<option value="${esc(u.id)}">${esc(u.name)}</option>`).join("")}
+        </select>
+        <button class="primary">追加する</button>
+      </form>
+      <p class="muted small">${note}</p>`;
+  };
+  const adminIds = new Set([...data.heads, ...data.fixedAdmins].map((u) => u.id).concat(data.admins.map((a) => a.user_id), (data.addedHeads || []).map((r) => r.user_id)));
   const candidates = data.users.filter((u) => !adminIds.has(u.id));
   const person = (u) => `<span class="person">${avatar(u)} ${esc(u.name)}</span>`;
   const ok = (v, label) => `<li>${v ? "✅" : "⚠️"} ${label}${v ? "" : "：未設定"}</li>`;
@@ -52,6 +78,7 @@ export async function renderAdmin(el) {
       <h2>管理者</h2>
       <ul class="list">
         ${data.heads.map((u) => `<li class="list-item">${person(u)}<div class="meta"><span class="tag">部門長（固定）</span></div></li>`).join("")}
+        ${(data.addedHeads || []).map((r) => `<li class="list-item">${person({ name: r.name, avatar: r.avatar })}<div class="meta"><span class="tag">部門長</span></div></li>`).join("")}
         ${data.fixedAdmins.map((u) => `<li class="list-item">${person(u)}<div class="meta"><span class="tag">固定</span></div></li>`).join("")}
         ${data.admins.map((a) => `
           <li class="list-item">${person({ name: a.name, avatar: a.avatar })}
@@ -71,24 +98,9 @@ export async function renderAdmin(el) {
 
     <div class="two-col">
       <section class="section">
-        <h2>代表・ヒアリングの承認者</h2>
-        <ul class="list">
-          ${data.heads.map((u) => `<li class="list-item">${person(u)}<span class="tag">部門長：一次確認（固定）</span></li>`).join("")}
-          ${data.reps.map((u) => `<li class="list-item">${person(u)}<span class="tag">代表：最終確認（固定）</span></li>`).join("")}
-          ${(data.addedReps || []).map((r) => `
-            <li class="list-item">${person({ name: r.name, avatar: r.avatar })}
-              <div class="meta"><span class="tag">代表：最終確認</span>${r.added_by_name ? `<span class="muted small">${esc(r.added_by_name)}が追加</span>` : ""}
-                <button class="link-btn danger" data-remove-rep="${esc(r.user_id)}">外す</button></div></li>`).join("")}
-        </ul>
-        <form class="card form inline-form" id="add-rep" style="margin-top:12px">
-          <strong>代表を選ぶ</strong>
-          <select name="user_id" required>
-            <option value="">メンバーを選ぶ</option>
-            ${data.users.filter((u) => !repSet.has(u.id)).map((u) => `<option value="${esc(u.id)}">${esc(u.name)}</option>`).join("")}
-          </select>
-          <button class="primary">追加する</button>
-        </form>
-        <p class="muted small">代表は、外部ヒアリング申請の最終確認をし、申請の一覧を見られます。設定ファイルで決まっている代表（「固定」）は、ここでは外せません。</p>
+        <h2>部門長・代表</h2>
+        ${roleBlock("heads", "部門長", "外部ヒアリング申請の一次確認をします。管理者を兼ねます（最後の1人は外せません）")}
+        ${roleBlock("reps", "代表", "外部ヒアリング申請の最終確認をし、申請の一覧を見られます")}
       </section>
       <section class="section">
         <h2>設定の状態</h2>
@@ -104,21 +116,32 @@ export async function renderAdmin(el) {
     </div>`;
 
   bindStaffing(el, data, () => renderAdmin(el));
-  el.querySelector("#add-rep").addEventListener("submit", (e) => {
+  const ROLE_LABEL = { heads: "部門長", reps: "代表" };
+  const ROLE_NOTE = {
+    heads: "外部ヒアリング申請の一次確認と、管理者メニュー（PJ決めの運営・全PJの編集など）が使えるようになります。",
+    reps: "外部ヒアリング申請の最終確認と、申請の一覧の閲覧ができるようになります。",
+  };
+  el.querySelectorAll("[data-add-role]").forEach((f) => f.addEventListener("submit", (e) => {
     e.preventDefault();
-    const userId = e.target.user_id.value;
+    const kind = f.dataset.addRole;
+    const userId = f.user_id.value;
     const name = data.users.find((u) => u.id === userId)?.name || "";
-    confirmDialog(`${name}さんを代表にしますか？
-外部ヒアリング申請の最終確認と、申請の一覧の閲覧ができるようになります。`, { ok: "代表にする" }).then((ok) => {
+    confirmDialog(`${name}さんを${ROLE_LABEL[kind]}にしますか？
+${ROLE_NOTE[kind]}`, { ok: `${ROLE_LABEL[kind]}にする` }).then((ok) => {
       if (!ok) return;
-      busy(e.submitter, () => api("/api/admin/reps", { method: "POST", body: { user_id: userId } }))
-        .then(() => { toast("代表に追加しました"); renderAdmin(el); }).catch(() => {});
+      busy(e.submitter, () => api(`/api/admin/${kind}`, { method: "POST", body: { user_id: userId } }))
+        .then(() => { toast(`${ROLE_LABEL[kind]}に追加しました`); renderAdmin(el); }).catch(() => {});
     });
-  });
-  el.querySelectorAll("[data-remove-rep]").forEach((b) => b.addEventListener("click", async () => {
-    if (!await confirmDialog("この人を代表から外しますか？")) return;
-    busy(b, () => api("/api/admin/reps/remove", { method: "POST", body: { user_id: b.dataset.removeRep } }))
-      .then(() => { toast("代表から外しました"); renderAdmin(el); }).catch(() => {});
+  }));
+  el.querySelectorAll("[data-remove-role]").forEach((b) => b.addEventListener("click", async () => {
+    const kind = b.dataset.removeRole;
+    const self = kind === "heads" && b.dataset.user === state.me.id;
+    if (!await confirmDialog(`${b.dataset.name}さんを${ROLE_LABEL[kind]}から外しますか？${self ? "\n自分を外すと、ほかに管理者の役割がなければ、このページは使えなくなります。" : ""}`)) return;
+    busy(b, () => api(`/api/admin/${kind}/remove`, { method: "POST", body: { user_id: b.dataset.user } }))
+      .then(() => {
+        toast(`${ROLE_LABEL[kind]}から外しました`);
+        if (self) { location.hash = "#/"; location.reload(); } else renderAdmin(el);
+      }).catch(() => {});
   }));
   el.querySelector("#add-admin").addEventListener("submit", (e) => {
     e.preventDefault();
@@ -219,8 +242,8 @@ function bindStaffing(el, data, reload) {
 }
 
 // ログイン状況：このツールにログインしたことがある人（最終ログイン順）と、アンケートで投票しただけの人
-function loginSection({ users, heads, reps, addedReps = [] }, person, adminIds) {
-  const headIds = new Set(heads.map((u) => u.id));
+function loginSection({ users, heads, reps, addedReps = [], addedHeads = [] }, person, adminIds) {
+  const headIds = new Set([...heads.map((u) => u.id), ...addedHeads.map((r) => r.user_id)]);
   const repIds = new Set([...reps.map((u) => u.id), ...addedReps.map((r) => r.user_id)]);
   const logged = users.filter((u) => u.last_login).sort((a, b) => b.last_login - a.last_login);
   const notYet = users.filter((u) => !u.last_login);

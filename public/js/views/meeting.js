@@ -28,6 +28,19 @@ export async function renderMeeting(el, id) {
         <a class="button primary small" href="#/meetings/${m.id}">✏️ このMTGの議事録を書く</a>` : ""}
     </div>
 
+    ${data.isFirst && canEdit && !viewOnly ? `<section class="card pm-pick">
+      <div class="section-head"><h2>👑 PMを決める <small class="muted">初回のMTGだけ</small></h2></div>
+      <p class="muted small">PMは、このPJのまとめ役（マネージャー）です。PJのメンバーから1人選びます。</p>
+      <div class="row-left">
+        <select id="pm-select" aria-label="PM">
+          <option value="">まだ決めていない</option>
+          ${memberUsers.map((u) => `<option value="${esc(u.id)}" ${u.id === p.pm_id ? "selected" : ""}>${esc(u.name)}</option>`).join("")}
+        </select>
+        <button type="button" class="primary small" id="pm-save">決める</button>
+        <span class="small" id="pm-now">${p.pm_id ? `いまのPM：<strong>${esc(data.members.find((u) => u.id === p.pm_id)?.name || "")}</strong>` : ""}</span>
+      </div>
+    </section>` : ""}
+
     <form class="minutes" id="minutes-form">
       <section class="card">
         <div class="section-head"><h2>前回MTGで決まった宿題</h2>${previous?.homework.length ? copyButton("homework") : ""}</div>
@@ -74,6 +87,17 @@ export async function renderMeeting(el, id) {
     </form>`;
 
   const form = el.querySelector("#minutes-form");
+  // 初回のMTG：PMを決める
+  el.querySelector("#pm-save")?.addEventListener("click", (e) => {
+    const sel = el.querySelector("#pm-select");
+    const name = sel.selectedOptions[0]?.textContent || "";
+    busy(e.currentTarget, () => api(`/api/projects/${p.id}/pm`, { method: "POST", body: { user_id: sel.value || null } }))
+      .then(() => {
+        p.pm_id = sel.value || null;
+        el.querySelector("#pm-now").innerHTML = sel.value ? `いまのPM：<strong>${esc(name)}</strong>` : "";
+        toast(sel.value ? `${name}さんをPMにしました` : "PMを未定に戻しました");
+      }).catch(() => {});
+  });
   if (!viewOnly) bindTimer(el, `meeting-${m.id}`, { auto: true });
   const todoBox = el.querySelector("#todos");
   const defaultDue = () => (data.nextMeeting ? data.nextMeeting.starts_at.slice(0, 10) : addDays(m.starts_at.slice(0, 10), 7));

@@ -1,5 +1,5 @@
 // フェーズ3：発表準備・政調からのフィードバック・最終提出
-import { HttpError, readJson, clean, required, int, oneOf, optDate, optUrl, reqDateTime, assertUpdated, todayJst, idList } from "../util.js";
+import { HttpError, readJson, clean, required, int, oneOf, optDate, optUrl, reqDateTime, assertUpdated, todayJst, idList, leaderIds } from "../util.js";
 import { addDays, stageNo } from "../project-types.js";
 import { loadProject, requireEditor, canEdit, assertUsers } from "./common.js";
 import { notify, notifyProject } from "../notify.js";
@@ -119,7 +119,7 @@ async function savePresentation({ request, env, user, params }) {
   let completion = null;
   if (next.final_status === "done" && project.status === "active" && !project.completion_requested_at) {
     await env.DB.prepare("UPDATE projects SET completion_requested_at = ?, completion_requested_by = ? WHERE id = ?").bind(now, user.id, project.id).run();
-    await notify(env, [...idList(env.HEAD_IDS), ...idList(env.ADMIN_IDS)],
+    await notify(env, await leaderIds(env),
       `【承認待ち】${project.name}：最終提出が済みました。確認して、PJの完了を承認してください`, `#/projects/${project.id}`);
     completion = "requested";
   }

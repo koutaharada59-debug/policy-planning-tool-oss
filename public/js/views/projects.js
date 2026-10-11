@@ -1,6 +1,12 @@
 // PJ一覧と、PJの作成・編集フォーム
 import { api, esc, state, avatar, dueBadge, fmtDateTime, fmtDate, busy, formData, toast, confirmDialog, WEEK, addDays, nextMonday, stageStepper, guardForm, markSaved, bindMemberFilter } from "../lib.js";
 
+// 「政策の種を出す」：受付中のPJ決めを開いて、投稿欄を出す（受付中がなければ「次のPJ決め」ができる）
+export function openSeedBox(button) {
+  return busy(button, () => api("/api/seed-box", { method: "POST", body: {} }))
+    .then(({ id }) => { location.hash = `#/seeds/${id}?post=1`; }).catch(() => {});
+}
+
 export async function renderProjects(el) {
   const [{ projects }, { rounds }] = await Promise.all([api("/api/projects"), api("/api/rounds").catch(() => ({ rounds: [] }))]);
   // いま受付中のPJ決め（思いついた種をすぐ出せるように、いつも上に出す）
@@ -10,7 +16,8 @@ export async function renderProjects(el) {
     <span class="seeds-banner-icon" aria-hidden="true">🌱</span>
     <span><strong>PJ決め</strong>${open ? ` <span class="due is-soon">受付中</span>` : ""}
       <small>${open ? `${esc(open.title)}：思いついた政策の種を出しましょう` : "政策の種を出し合い、投票してPJを決めます"}</small></span>
-    <span class="pick-arrow" aria-hidden="true">›</span></a>`;
+    <span class="pick-arrow" aria-hidden="true">›</span></a>
+    <p class="seed-box-row"><button type="button" class="button small" data-seed-box>🌱 政策の種を出す</button></p>`;
   // 参加中のPJがない人（部門長など）は、進行中すべてから見せる
   let filter = projects.some((p) => p.isMine) ? "mine" : "active";
   const stageName = (p) => state.types[p.type]?.stages.find((s) => s.no === p.current_stage)?.name || "";
@@ -35,6 +42,7 @@ export async function renderProjects(el) {
           ${stageStepper(p, p.stages || [], { compact: true })}
         </a>`).join("")}</div>`
         : `<div class="empty"><p>該当するPJはありません。</p></div>`}`;
+    el.querySelector("[data-seed-box]")?.addEventListener("click", (e) => openSeedBox(e.currentTarget));
     el.querySelectorAll("[data-filter]").forEach((b) => b.addEventListener("click", () => {
       filter = b.dataset.filter;
       draw();

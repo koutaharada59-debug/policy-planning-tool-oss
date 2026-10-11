@@ -1,5 +1,5 @@
 // 管理者メニュー：管理者の追加・削除、役割と設定の確認（管理者だけ）
-import { HttpError, readJson, idList } from "../util.js";
+import { HttpError, readJson, idList, headIds } from "../util.js";
 import { notify } from "../notify.js";
 import { botConfigured } from "../discord.js";
 import { requireAdmin as requireAdminFor } from "./common.js";
@@ -8,8 +8,10 @@ export const routes = [
   ["GET", "/api/admin", getAdmin],
   ["POST", "/api/admin/admins", addAdmin],
   ["POST", "/api/admin/admins/remove", removeAdmin],
-  ["POST", "/api/admin/reps", addRep],
-  ["POST", "/api/admin/reps/remove", removeRep],
+  ["POST", "/api/admin/reps", (c) => addRole(c, "reps")],
+  ["POST", "/api/admin/reps/remove", (c) => removeRole(c, "reps")],
+  ["POST", "/api/admin/heads", (c) => addRole(c, "heads")],
+  ["POST", "/api/admin/heads/remove", (c) => removeRole(c, "heads")],
   ["POST", "/api/admin/staffing", moveMember],
 ];
 
@@ -17,7 +19,7 @@ const requireAdmin = (user) => requireAdminFor(user, "管理者メニューは�
 
 async function getAdmin({ env, user }) {
   requireAdmin(user);
-  const [users, admins, archived, staffing, errors, reps] = await Promise.all([
+  const [users, admins, archived, staffing, errors, reps, heads] = await Promise.all([
     // updated_at：最後にこのツールへログインした時刻（希望PJアンケートから取り込んだだけで未ログインの人は 0）
     env.DB.prepare("SELECT id, name, avatar, updated_at AS last_login, is_dept FROM users ORDER BY name").all(),
     env.DB.prepare(
@@ -40,6 +42,11 @@ async function getAdmin({ env, user }) {
       `SELECT r.user_id, r.created_at, u.name, u.avatar, b.name AS added_by_name FROM reps r
        JOIN users u ON u.id = r.user_id LEFT JOIN users b ON b.id = r.added_by ORDER BY r.created_at`
     ).all(),
+    // 管理者メニューで選んだ部門長
+    env.DB.prepare(
+      `SELECT r.user_id, r.created_at, u.name, u.avatar, b.name AS added_by_name FROM heads r
+       JOIN users u ON u.id = r.user_id LEFT JOIN users b ON b.id = r.added_by ORDER BY r.created_at`
+    ).all(),
   ]);
   const projects = [];
   for (const r of staffing.results) {
@@ -55,6 +62,7 @@ async function getAdmin({ env, user }) {
     fixedAdmins: fixed(env.ADMIN_IDS),
     reps: fixed(env.REP_IDS),
     addedReps: reps.results,
+    addedHeads: heads.results,
     admins: admins.results,
     users: users.results,
     archived: archived.results,
@@ -74,7 +82,7 @@ async function addAdmin({ request, env, user }) {
   const { user_id } = await readJson(request);
   const target = typeof user_id === "string" && await env.DB.prepare("SELECT id FROM users WHERE id = ?").bind(user_id).first();
   if (!target) throw new HttpError(400, "一覧にいるメンバーを選んでください");
-  if ([...idList(env.HEAD_IDS), ...idList(env.ADMIN_IDS)].includes(user_id)) throw new HttpError(400, "この人はもともと管理者です（設定ファイルで決まっています）");
+  if ([...(await headIds(env)), ...idList(env.ADMIN_IDS)].includes(user_id)) throw new HttpError(400, "この人はもともと管理者です（部門長は管理者を兼ねます）");
   await env.DB.prepare("INSERT OR IGNORE INTO admins (user_id, added_by, created_at) VALUES (?, ?, ?)")
     .bind(user_id, user.id, Date.now()).run();
   return { ok: true };
@@ -84,7 +92,7 @@ async function addAdmin({ request, env, user }) {
 async function removeAdmin({ request, env, user }) {
   requireAdmin(user);
   const { user_id } = await readJson(request);
-  if ([...idList(env.HEAD_IDS), ...idList(env.ADMIN_IDS)].includes(user_id)) {
+  if ([...(await headIds(env)), ...idList(env.ADMIN_IDS)].includes(user_id)) {
     throw new HttpError(400, "部門長・副部門長など設定ファイルで決まっている管理者は、ここでは外せません");
   }
   await env.DB.prepare("DELETE FROM admins WHERE user_id = ?").bind(user_id).run();
@@ -92,21 +100,32 @@ async function removeAdmin({ request, env, user }) {
 }
 
 // 代表を選ぶ・外す（設定ファイルの REP_IDS で決めた代表は、ここでは外せない）
-async function addRep({ request, env, user }) {
+const ROLE = {
+  heads: { label: "部門長", envIds: (env) => env.HEAD_IDS },
+  reps: { label: "代表", envIds: (env) => env.REP_IDS },
+};
+
+async function addRole({ request, env, user }, table) {
   requireAdmin(user);
+  const role = ROLE[table];
   const { user_id } = await readJson(request);
   const target = typeof user_id === "string" && await env.DB.prepare("SELECT id FROM users WHERE id = ?").bind(user_id).first();
   if (!target) throw new HttpError(400, "一覧にいるメンバーを選んでください");
-  if (idList(env.REP_IDS).includes(user_id)) throw new HttpError(400, "この人はもともと代表です（設定ファイルで決まっています）");
-  await env.DB.prepare("INSERT OR IGNORE INTO reps (user_id, added_by, created_at) VALUES (?, ?, ?)").bind(user_id, user.id, Date.now()).run();
+  if (idList(role.envIds(env)).includes(user_id)) throw new HttpError(400, `この人はもともと${role.label}です（設定ファイルで決まっています）`);
+  await env.DB.prepare(`INSERT OR IGNORE INTO ${table} (user_id, added_by, created_at) VALUES (?, ?, ?)`).bind(user_id, user.id, Date.now()).run();
   return { ok: true };
 }
 
-async function removeRep({ request, env, user }) {
+async function removeRole({ request, env, user }, table) {
   requireAdmin(user);
+  const role = ROLE[table];
   const { user_id } = await readJson(request);
-  if (idList(env.REP_IDS).includes(user_id)) throw new HttpError(400, "設定ファイルで決まっている代表は、ここでは外せません");
-  await env.DB.prepare("DELETE FROM reps WHERE user_id = ?").bind(user_id).run();
+  if (idList(role.envIds(env)).includes(user_id)) throw new HttpError(400, `設定ファイルで決まっている${role.label}は、ここでは外せません`);
+  // 部門長がいなくなると、ヒアリングの一次確認と管理ができなくなるので、最後の1人は外せない
+  if (table === "heads" && (await headIds(env)).filter((id) => id !== user_id).length === 0) {
+    throw new HttpError(400, "部門長が1人もいなくなるので外せません。先にほかの人を部門長にしてください");
+  }
+  await env.DB.prepare(`DELETE FROM ${table} WHERE user_id = ?`).bind(user_id).run();
   return { ok: true };
 }
 

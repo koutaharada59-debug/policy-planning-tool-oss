@@ -27,13 +27,16 @@ test("工程の期限：発表日が未定なら8週目末", () => {
   const by = Object.fromEntries(s.map((x) => [x.stage_no, x]));
   assert.equal(by[0].due_date, "2026-10-04");
   assert.equal(by[1].start_date, "2026-10-05");
-  assert.equal(by[1].due_date, "2026-10-14");
-  // 課題共有：準備は2週目後半、共有は2週目末
-  assert.equal(by[2].start_date, "2026-10-15");
-  assert.equal(by[2].due_date, "2026-10-17");
-  assert.equal(by[3].start_date, "2026-10-18");
-  assert.equal(by[3].due_date, "2026-10-18");
+  // マニュアル：リサーチは1〜2週目まるごと、施策は3〜5週目、発表準備は6〜8週目、修正は9〜12週目
+  assert.equal(by[1].due_date, "2026-10-18");
+  // 課題共有：資料は2週目（リサーチと並行）、共有は3週目のはじめ
+  assert.equal(by[2].start_date, "2026-10-12");
+  assert.equal(by[2].due_date, "2026-10-18");
+  assert.equal(by[3].start_date, "2026-10-19");
+  assert.equal(by[3].due_date, "2026-10-21");
+  assert.equal(by[4].start_date, "2026-10-19");
   assert.equal(by[4].due_date, "2026-11-08");
+  assert.equal(by[5].start_date, "2026-11-09");
   assert.equal(by[6].due_date, addDays("2026-10-05", 55));
   assert.equal(by[5].due_date, addDays("2026-10-05", 54));
   assert.equal(by[7].due_date, addDays("2026-10-05", 55 + 28));

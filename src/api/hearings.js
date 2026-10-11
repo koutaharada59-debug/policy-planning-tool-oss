@@ -1,6 +1,6 @@
 // 外部ヒアリングの申請：申請 → 部門長の確認 → 代表の確認 → 渉外フォーラムにスレッド作成 → 実施後の要点
 // 閲覧は政策立案部門のメンバー・代表・管理者（同じ相手への重複連絡を防ぐため）。外部の方の連絡先は保存しない
-import { HttpError, readJson, clean, required, int, oneOf, idList, assertUpdated, repIds } from "../util.js";
+import { HttpError, readJson, clean, required, int, oneOf, idList, assertUpdated, repIds, headIds } from "../util.js";
 import { createForumThread, threadUrl, mention, botConfigured } from "../discord.js";
 import { notify } from "../notify.js";
 
@@ -41,7 +41,6 @@ export const STATUS = {
   withdrawn: "取り下げ",
 };
 
-const headIds = (env) => idList(env.HEAD_IDS);
 const link = (id) => `#/hearings/${id}`;
 
 // 連絡先（メールアドレス・電話番号）は保存しない
@@ -154,7 +153,7 @@ async function createHearing({ request, env, user }) {
     f.project_id, f.node_id, f.memo, status, now, now).first();
   await event(env, row.id, user.id, "submit").run();
   if (f.requires_approval) {
-    await notify(env, headIds(env),
+    await notify(env, await headIds(env),
       `【ヒアリング申請】${user.name}さんから、${targetLabel(f)}（${TARGET_TYPES[f.target_type].label}）へのヒアリング申請が届きました。確認をお願いします。`,
       link(row.id));
   }
@@ -179,7 +178,7 @@ async function updateHearing({ request, env, user, params }) {
   const resubmitted = h.status === "returned";
   await event(env, h.id, user.id, resubmitted ? "resubmit" : "edit").run();
   if (resubmitted && f.requires_approval) {
-    await notify(env, headIds(env), `【ヒアリング再申請】${user.name}さんが、差し戻された申請（${targetLabel(f)}）を修正して再申請しました。`, link(h.id));
+    await notify(env, await headIds(env), `【ヒアリング再申請】${user.name}さんが、差し戻された申請（${targetLabel(f)}）を修正して再申請しました。`, link(h.id));
   }
   return { ok: true, status };
 }

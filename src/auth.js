@@ -1,5 +1,5 @@
 // Discord OAuth2 ログインと署名付きCookieセッション（希望PJアンケートの実装を流用）
-import { HttpError, json, idList, repIds } from "./util.js";
+import { HttpError, json, idList, repIds, headIds } from "./util.js";
 
 const SESSION_COOKIE = "ppt_session";
 const STATE_COOKIE = "ppt_oauth_state";
@@ -110,9 +110,9 @@ export async function currentUser(request, env) {
   const row = await env.DB.prepare("SELECT id, name, avatar, is_dept FROM users WHERE id = ?").bind(session.uid).first();
   if (!row) return null;
   const { is_dept, ...user } = row;
-  // 部門長・代表はヒアリングの承認者（部門長は wrangler.toml で固定。代表は固定 ＋ 管理者メニューで選んだ人）。
+  // 部門長・代表はヒアリングの承認者（どちらも管理者メニューで選ぶ）。
   // 管理者は部門長 ＋ 管理者メニューで追加された人（PJ決め・全PJの編集などができる）
-  user.isHead = idList(env.HEAD_IDS).includes(user.id);
+  user.isHead = (await headIds(env)).includes(user.id);
   user.isRep = (await repIds(env)).includes(user.id);
   user.isAdmin = user.isHead || idList(env.ADMIN_IDS).includes(user.id)
     || Boolean(await env.DB.prepare("SELECT 1 FROM admins WHERE user_id = ?").bind(user.id).first());

@@ -90,6 +90,10 @@ async function getMeeting({ env, user, params }) {
     env.DB.prepare(`SELECT ${TASK_COLUMNS} FROM tasks t LEFT JOIN users u ON u.id = t.assignee_id
       WHERE t.source_minute_id = ? ORDER BY t.id`).bind(minuteId).all().then((r) => r.results);
 
+  // このPJの初回のMTGか（中止していないMTGのうち、いちばん早いもの）。初回だけPMを決められる
+  const earlier = await env.DB.prepare(
+    "SELECT 1 FROM meetings WHERE project_id = ?1 AND cancelled = 0 AND id != ?3 AND (starts_at < ?2 OR (starts_at = ?2 AND id < ?3)) LIMIT 1"
+  ).bind(project.id, meeting.starts_at, meeting.id).first();
   const [members, homework, todos, nextMeeting, checklist] = await Promise.all([
     env.DB.prepare(
       `SELECT u.id, u.name, u.avatar FROM project_members pm JOIN users u ON u.id = pm.user_id WHERE pm.project_id = ? ORDER BY u.name`
@@ -107,7 +111,8 @@ async function getMeeting({ env, user, params }) {
   const canEdit = user.isAdmin || members.some((m) => m.id === user.id);
   return {
     meeting, minute, members, canEdit,
-    project: { id: project.id, name: project.name, type: project.type, memo_doc_url: project.memo_doc_url, meeting_mode: project.meeting_mode, current_stage: project.current_stage },
+    isFirst: !earlier,
+    project: { id: project.id, name: project.name, type: project.type, memo_doc_url: project.memo_doc_url, meeting_mode: project.meeting_mode, current_stage: project.current_stage, pm_id: project.pm_id },
     previous: prev ? { starts_at: prev.starts_at, homework } : null,
     todos,
     nextMeeting,

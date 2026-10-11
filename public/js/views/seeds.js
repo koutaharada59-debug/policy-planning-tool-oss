@@ -1,6 +1,8 @@
 // PJ決め（工程0）：政策の種 → 投票（ランク付け）→ 開票（RCV）→ PJ化と人員の割り振り
 import { api, esc, state, avatar, fmtDate, fmtDateTime, jstDateTime, busy, toast, formData, hashQuery, nextMonday, confirmDialog, bindMemberFilter, guardForm, markSaved } from "../lib.js";
 
+import { openSeedBox } from "./projects.js";
+
 const CATEGORIES = { news: "ニュース勉強会", seicho: "政調ピックアップ", bucho: "部門長セレクト" };
 const AI_CAUTION = `<p class="caution">⚠ AIで調べた情報は、必ず一次出典を確認してください。出典のない数字は使わない。AIが生成した文章を、自分のソースとして引用しない。</p>`;
 
@@ -143,7 +145,8 @@ function renderSeeds(body, data, reload) {
           ${[["all", "すべての種"], ["mine", "自分が選んだ種"], ...Object.entries(CATEGORIES), ["member", "メンバー提案"]].map(([k, l]) =>
             `<option value="${k}" ${filter === k ? "selected" : ""}>${l}</option>`).join("")}
         </select>
-        ${canPost ? `<button type="button" class="primary small" data-open-post>＋ 種を投稿</button>` : ""}
+        ${canPost ? `<button type="button" class="primary small" data-open-post>＋ 種を投稿</button>`
+          : `<button type="button" class="primary small" data-seed-box>🌱 次のPJ決めに種を出す</button>`}
       </div>
       ${canPost ? `<div class="card seed-post" hidden>${seedForm()}</div>` : ""}
       <div class="card-grid">${list.map((s) => {
@@ -182,6 +185,16 @@ function renderSeeds(body, data, reload) {
         .then(() => { toast("種を投稿しました"); reload(); }).catch(() => {});
     });
     body.querySelector("[data-filter-select]").addEventListener("change", (e) => { filter = seedFilter = e.target.value; draw(); });
+    body.querySelector("[data-seed-box]")?.addEventListener("click", (e) => openSeedBox(e.currentTarget));
+    // 「政策の種を出す」から来たときは、投稿欄を開いておく
+    if (hashQuery().get("post") === "1") {
+      const box = body.querySelector(".seed-post");
+      if (box && box.hidden) {
+        box.hidden = false;
+        body.querySelector("[data-open-post]")?.classList.add("is-on");
+        box.querySelector("[name=title]")?.focus();
+      }
+    }
     body.querySelector("[data-open-post]")?.addEventListener("click", (e) => {
       const box = body.querySelector(".seed-post");
       box.hidden = !box.hidden;

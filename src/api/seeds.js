@@ -12,6 +12,7 @@ export const routes = [
   ["GET", "/api/rounds/:id", getRound],
   ["PUT", "/api/rounds/:id", updateRound],
   ["POST", "/api/rounds/:id/seeds", createSeed],
+  ["POST", "/api/seed-box", openSeedBox],
   ["PUT", "/api/rounds/:id/ballot", saveBallot],
   ["GET", "/api/rounds/:id/results", getResults],
   ["PATCH", "/api/seeds/:id", updateSeed],
@@ -59,6 +60,20 @@ function roundFields(body) {
     deadline,
     seats: int(body.seats, { min: 1, max: 10, fallback: 3, label: "決めるPJの数" }),
   };
+}
+
+// 「政策の種を出す」：いつでも種を出せるように、受付中の募集回を返す。なければ「次のPJ決め」を作る
+// （締め切りなし。管理者があとで名前・締め切り・決めるPJの数を設定する）
+async function openSeedBox({ env, user }) {
+  const { results } = await env.DB.prepare(
+    "SELECT * FROM seed_rounds WHERE archived = 0 AND source != 'survey' ORDER BY created_at DESC"
+  ).all();
+  const open = results.find((r) => !isClosed(r));
+  if (open) return { id: open.id };
+  const row = await env.DB.prepare(
+    "INSERT INTO seed_rounds (title, deadline, seats, source, created_by, created_at) VALUES (?, NULL, 3, '', ?, ?) RETURNING id"
+  ).bind("次のPJ決め", user.id, Date.now()).first();
+  return { id: row.id, created: true };
 }
 
 async function listRounds({ env }) {
