@@ -748,3 +748,42 @@ export function bindViewSwitch(root) {
     app.dataset.slide = e.currentTarget.dataset.slide;
   });
 }
+
+// ---------- 担当を選ぶ（複数人）：押すとメンバーのチェックが開く。「全員」も ----------
+// 値は picker の data-ids（"id1,id2"）。変わると、picker から "assignees" イベント（detail に id の配列）が出る
+export const idsOf = (t) => (t.assignee_ids ? String(t.assignee_ids).split(",").filter(Boolean) : t.assignee_id ? [t.assignee_id] : []);
+export function assigneePicker(users, ids = [], { ro = "", empty = "担当", name = "", members = null } = {}) {
+  // members：PJメンバーのid。「全員」はPJメンバー全員（ほかの人は線の下に並べる）
+  const isMember = (u) => !members || members.includes(u.id);
+  const chosen = new Set(ids);
+  const label = (set) => (set.size ? users.filter((u) => set.has(u.id)).map((u) => u.name).join("・") || `${set.size}人` : empty);
+  return `<details class="ap" data-ap data-ids="${esc([...chosen].join(","))}" ${name ? `data-name="${esc(name)}"` : ""}>
+    <summary class="ap-sum ${ro ? "is-ro" : ""}" ${ro ? 'tabindex="-1"' : ""} aria-label="担当">${chosen.size > 1 ? "👥 " : ""}${esc(label(chosen))}</summary>
+    ${ro ? "" : `<div class="ap-menu">
+      <div class="ap-quick"><button type="button" class="small" data-ap-all>${members ? "PJメンバー全員" : "全員"}</button><button type="button" class="small" data-ap-none>なし</button></div>
+      ${users.map((u, i) => `${members && !isMember(u) && (i === 0 || isMember(users[i - 1])) ? `<p class="ap-sep">PJ外の人</p>` : ""}<label class="ap-item" ${isMember(u) ? "data-member" : ""}><input type="checkbox" value="${esc(u.id)}" ${chosen.has(u.id) ? "checked" : ""}> ${esc(u.name)}</label>`).join("")}
+    </div>`}
+  </details>`;
+}
+document.addEventListener("click", (e) => {
+  // 読むだけの担当は開かない／ほかを押したら閉じる
+  const sum = e.target.closest(".ap-sum.is-ro");
+  if (sum) { e.preventDefault(); return; }
+  document.querySelectorAll("details.ap[open]").forEach((d) => { if (!d.contains(e.target)) d.open = false; });
+  const all = e.target.closest("[data-ap-all],[data-ap-none]");
+  if (all) {
+    const ap = all.closest("[data-ap]");
+    ap.querySelectorAll(".ap-item").forEach((l) => { l.querySelector("input").checked = "apAll" in all.dataset && l.hasAttribute("data-member"); });
+    apChanged(ap);
+  }
+});
+document.addEventListener("change", (e) => { const ap = e.target.closest?.("[data-ap]"); if (ap && e.target.matches(".ap-item input")) apChanged(ap); });
+function apChanged(ap) {
+  const items = [...ap.querySelectorAll(".ap-item")];
+  const ids = items.filter((l) => l.querySelector("input").checked).map((l) => l.querySelector("input").value);
+  const names = items.filter((l) => l.querySelector("input").checked).map((l) => l.textContent.trim());
+  ap.dataset.ids = ids.join(",");
+  ap.querySelector(".ap-sum").textContent = `${ids.length > 1 ? "👥 " : ""}${names.join("・") || "担当"}`;
+  ap.dispatchEvent(new CustomEvent("assignees", { bubbles: true, detail: ids }));
+}
+export const pickerIds = (root) => (root.querySelector("[data-ap]")?.dataset.ids || "").split(",").filter(Boolean);

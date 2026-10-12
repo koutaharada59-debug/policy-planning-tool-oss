@@ -1,6 +1,6 @@
 // 議事録：前回の宿題（自動引き継ぎ）／話し合うこと／概要／キーワード／次回までにやること
 // 詳細なフィードバックはGoogleドキュメントに残す運用なので、入力欄は短くしている
-import { api, esc, state, fmtDateTime, fmtDate, busy, toast, memberOptions, dueBadge, addDays, embedUrl, membersFirst, copyForNotion, copyButton, bindCopyButtons, hashQuery, timerHtml, bindTimer, clearTimer, syncTimerStart, confirmDialog, celebrateProgress, setProgressHint, skipButton, bindSkipButtons } from "../lib.js";
+import { api, esc, state, fmtDateTime, fmtDate, busy, toast, memberOptions, dueBadge, addDays, embedUrl, membersFirst, copyForNotion, copyButton, bindCopyButtons, hashQuery, timerHtml, bindTimer, clearTimer, syncTimerStart, confirmDialog, celebrateProgress, setProgressHint, skipButton, bindSkipButtons, assigneePicker, idsOf, forgetUnsaved } from "../lib.js";
 import { enhanceRich } from "../rich.js";
 import { schedulePollLinks } from "./schedule-poll.js";
 
@@ -15,7 +15,9 @@ export async function renderMeeting(el, id) {
   const live = { focus: null, dirty: new Set(), chain: {}, timers: {}, locked: {}, busy: false, inflight: new Set() };
   // key：画面の行の目印（自動保存で新しく作ったタスクの id を、どの行のものか受け取るため）
   const newKey = () => Math.random().toString(36).slice(2, 10);
-  let todos = data.todos.map((t) => ({ ...t, key: newKey() }));
+  // 担当は複数人（assignee_ids）。notified：もう「担当になりました」を知らせた人
+  const withIds = (t) => ({ ...t, assignee_ids: idsOf(t), notified: (t.notified_ids || "").split(",").filter(Boolean) });
+  let todos = data.todos.map((t) => ({ ...withIds(t), key: newKey() }));
   const memberUsers = membersFirst(data.members);
 
   el.innerHTML = `
@@ -88,6 +90,19 @@ export async function renderMeeting(el, id) {
   enhanceRich(form);
   // 初回のMTG：決めること（PM・MTGの進め方・次回・最初のアクション）
   if (data.isFirst && canEdit && !viewOnly) bindFirstMeeting(el, data, p);
+  // このMTGを削除する（間違えて開いた・二重に始めたとき）。議事録とタスクも消える
+  if (canEdit) {
+    el.insertAdjacentHTML("beforeend", `<p class="danger-zone"><button type="button" class="link-btn danger" id="delete-mtg">🗑 このMTGを削除する</button></p>`);
+    el.querySelector("#delete-mtg").addEventListener("click", async (e) => {
+      const n = todos.filter((t) => t.id).length;
+      const has = form.agenda.value.trim() || form.summary.value.trim() || n;
+      if (!await confirmDialog(`${fmtDateTime(m.starts_at)} のMTGを削除しますか？${has ? `\n議事録${n ? `と、ここで作ったタスク${n}件` : ""}も消えます。元には戻せません。` : ""}${m.kind === "regular" ? "\n定例の回なので「中止」になります。" : ""}`)) return;
+      forgetUnsaved(form);
+      clearTimer(`meeting-${m.id}`);
+      busy(e.currentTarget, () => api(`/api/meetings/${m.id}`, { method: "DELETE", body: { with_minutes: true } }))
+        .then(() => { toast("MTGを削除しました"); location.hash = `#/projects/${p.id}`; }).catch(() => {});
+    });
+  }
   // 次回の日程が決められないとき：日程調整アンケート
   const spBox = el.querySelector("#sp-links");
   if (spBox) schedulePollLinks(spBox, p.id, canEdit).catch(() => {});
@@ -101,7 +116,7 @@ export async function renderMeeting(el, id) {
     todoBox.innerHTML = todos.length ? todos.map((t, i) => `
       <div class="todo-row" data-i="${i}">
         <input data-k="title" maxlength="120" value="${esc(t.title)}" placeholder="やること" ${ro}>
-        <select data-k="assignee_id" ${ro} aria-label="担当">${memberOptions(memberUsers, t.assignee_id, { empty: "担当" })}</select>
+        ${assigneePicker(memberUsers, t.assignee_ids, { ro, members: data.members.map((u) => u.id) })}
         <input data-k="due_date" type="date" value="${esc(t.due_date || "")}" ${ro} aria-label="期限">
         ${t.status === "done" ? `<span class="tag">完了</span>` : ""}
         ${ro ? "" : `<button type="button" class="link-btn danger" data-rm="${i}" aria-label="削除">×</button>`}
@@ -116,6 +131,13 @@ export async function renderMeeting(el, id) {
       markDirty("todos");
     }
   });
+  // 担当を選んだ（複数人）
+  todoBox.addEventListener("assignees", (e) => {
+    const row = e.target.closest("[data-i]");
+    if (!row) return;
+    todos[row.dataset.i].assignee_ids = e.detail;
+    markDirty("todos");
+  });
   todoBox.addEventListener("click", (e) => {
     if (e.target.dataset.rm === undefined) return;
     todos.splice(Number(e.target.dataset.rm), 1);
@@ -123,7 +145,7 @@ export async function renderMeeting(el, id) {
     markDirty("todos");
   });
   el.querySelector("#add-todo")?.addEventListener("click", () => {
-    todos.push({ key: newKey(), title: "", assignee_id: "", due_date: defaultDue() });
+    todos.push({ key: newKey(), title: "", assignee_ids: [], notified: [], due_date: defaultDue() });
     drawTodos();
     todoBox.querySelector(".todo-row:last-child input")?.focus();
   });
@@ -178,7 +200,7 @@ export async function renderMeeting(el, id) {
     return f && canWrite(f) ? f : null;
   };
   const valueOf = (f) => (f === "todos"
-    ? { todos: todos.map(({ key, id, title, assignee_id, due_date }) => ({ key, id, title, assignee_id, due_date })) }
+    ? { todos: todos.map(({ key, id, title, assignee_ids, due_date }) => ({ key, id, title, assignee_ids, due_date })) }
     : { [f]: form[f].value });
   const status = (text) => { const x = el.querySelector("#live-status"); if (x) x.textContent = text; };
 
@@ -217,8 +239,8 @@ export async function renderMeeting(el, id) {
 
   // 自分が書いている・保存待ち・保存中の項目は、ほかの人の内容で上書きしない
   const mine = (f) => live.focus === f || live.dirty.has(f) || live.inflight.has(f);
-  const sameTodos = (a, b) => JSON.stringify(a.map((t) => [t.id, t.title, t.assignee_id || "", t.due_date || "", t.status || ""]))
-    === JSON.stringify(b.map((t) => [t.id, t.title, t.assignee_id || "", t.due_date || "", t.status || ""]));
+  const sameTodos = (a, b) => JSON.stringify(a.map((t) => [t.id, t.title, (t.assignee_ids || []).join(","), t.due_date || "", t.status || ""]))
+    === JSON.stringify(b.map((t) => [t.id, t.title, (t.assignee_ids || []).join(","), t.due_date || "", t.status || ""]));
   const flash = (f) => {
     const sec = form.querySelector(`[data-live="${f}"]`);
     sec?.classList.remove("live-updated");
@@ -240,7 +262,7 @@ export async function renderMeeting(el, id) {
       if (canWrite(f)) form[f].readOnly = Boolean(live.locked[f]);
     }
     if (!mine("todos")) {
-      const next = r.todos.map((t) => ({ ...t, key: todos.find((x) => x.id === t.id)?.key || newKey() }));
+      const next = r.todos.map((t) => ({ ...withIds(t), key: todos.find((x) => x.id === t.id)?.key || newKey() }));
       const drafts = todos.filter((t) => !t.id && !t.title.trim());
       if (!sameTodos(next, todos.filter((t) => t.id || t.title.trim()))) {
         todos = [...next, ...drafts];
@@ -311,8 +333,8 @@ export async function renderMeeting(el, id) {
   const nameOfUser = (uid) => memberUsers.find((u) => u.id === uid)?.name || state.users.find((u) => u.id === uid)?.name || "";
   const pendingNotices = () => {
     if (viewOnly) return [];
-    const lines = todos.filter((t) => t.title.trim() && t.assignee_id && t.assignee_id !== t.notified_assignee)
-      .map((t) => `・${nameOfUser(t.assignee_id)}さん：「${t.title.trim()}」の担当になったこと`);
+    const lines = todos.filter((t) => t.title.trim()).flatMap((t) => (t.assignee_ids || []).filter((uid) => !(t.notified || []).includes(uid))
+      .map((uid) => `・${nameOfUser(uid)}さん：「${t.title.trim()}」の担当になったこと`));
     const next = form.next_starts_at?.value;
     if (next && next !== (data.nextMeeting?.starts_at || "")) lines.push(`・PJメンバー：次回MTGの日程（${fmtDateTime(next)}）`);
     return lines;
@@ -434,7 +456,7 @@ function minutesSections({ previous, form, todos, memberUsers, el }) {
     agenda: block("今回話し合うこと", form.agenda.value),
     summary: block("概要", form.summary.value),
     todos: ["### 次回までにやること", ...(valid.length
-      ? valid.map((t) => `- [ ] ${t.title}（${nameOf(t.assignee_id)}${t.due_date ? `・${fmtDate(t.due_date)}まで` : ""}）`) : ["（なし）"])],
+      ? valid.map((t) => `- [ ] ${t.title}（${(t.assignee_ids || []).map(nameOf).join("・") || "担当未定"}${t.due_date ? `・${fmtDate(t.due_date)}まで` : ""}）`) : ["（なし）"])],
   };
 }
 

@@ -3,6 +3,7 @@ import { HttpError, optDate, nowJst, todayJst } from "../util.js";
 import { addDays, typesForClient } from "../project-types.js";
 import { ensureAllRegularMeetings, loadAllSchedules } from "./common.js";
 import { teireiEvents } from "./dept.js";
+import { ASSIGNEE_COLUMNS, ASSIGNED_TO } from "../task-assignees.js";
 
 export const routes = [
   ["GET", "/api/me", getMe],
@@ -37,11 +38,11 @@ async function getMyTasks({ env, user: me, url }) {
   const [open, done] = await Promise.all([
     env.DB.prepare(
       `SELECT ${cols} FROM tasks t JOIN projects p ON p.id = t.project_id
-       WHERE t.assignee_id = ? AND t.status != 'done' AND p.status != 'archived' ORDER BY t.due_date IS NULL, t.due_date, t.id`
+       WHERE ${ASSIGNED_TO} AND t.status != 'done' AND p.status != 'archived' ORDER BY t.due_date IS NULL, t.due_date, t.id`
     ).bind(user.id).all(),
     env.DB.prepare(
       `SELECT ${cols} FROM tasks t JOIN projects p ON p.id = t.project_id
-       WHERE t.assignee_id = ? AND t.status = 'done' ORDER BY t.updated_at DESC LIMIT 20`
+       WHERE ${ASSIGNED_TO} AND t.status = 'done' ORDER BY t.updated_at DESC LIMIT 20`
     ).bind(user.id).all(),
   ]);
   return { open: open.results, done: done.results };
@@ -102,10 +103,10 @@ async function getCalendar({ env, url, user }) {
        ORDER BY m.starts_at`
     ).bind(`${from}T00:00`, `${addDays(to, 1)}T00:00`, user.id).all(),
     db.prepare(
-      `SELECT t.id, t.title, t.status, t.due_date, t.assignee_id, u.name AS assignee_name, p.id AS project_id, p.name AS project_name
-       FROM tasks t JOIN projects p ON p.id = t.project_id LEFT JOIN users u ON u.id = t.assignee_id
+      `SELECT t.id, t.title, t.status, t.due_date, t.assignee_id, ${ASSIGNEE_COLUMNS}, p.id AS project_id, p.name AS project_name
+       FROM tasks t JOIN projects p ON p.id = t.project_id
        WHERE t.due_date >= ?1 AND t.due_date <= ?2 AND p.status != 'archived'
-         ${mine ? "AND t.assignee_id = ?3" : "AND ?3 IS NOT NULL"}
+         ${mine ? "AND EXISTS (SELECT 1 FROM task_assignees ta WHERE ta.task_id = t.id AND ta.user_id = ?3)" : "AND ?3 IS NOT NULL"}
        ORDER BY t.due_date, t.id`
     ).bind(from, to, user.id).all(),
     db.prepare(

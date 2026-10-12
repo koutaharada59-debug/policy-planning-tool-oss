@@ -1,6 +1,7 @@
 // MTG日程・議事録・ICS
 import { HttpError, readJson, clean, reqDateTime, optDate, int, nowJst, shortDateTime } from "../util.js";
-import { notifyProject, notifyAssignee } from "../notify.js";
+import { notifyProject } from "../notify.js";
+import { ASSIGNEE_COLUMNS, readAssignees, setAssigneeStatements, notifyNewAssignees } from "../task-assignees.js";
 import { addDays } from "../project-types.js";
 import { regularOccurrences, parseWeekdays } from "../schedule.js";
 import { buildIcs, icsResponse, weeklyRule } from "../ics.js";
@@ -60,23 +61,35 @@ async function updateMeeting({ request, env, user, params }) {
   return { ok: true };
 }
 
-async function deleteMeeting({ env, user, params }) {
+// MTGを削除する。議事録があるとき（間違えて開いた・二重に始めた など）は、with_minutes: true で議事録ごと消す
+// （この議事録の「次回までにやること」から作ったタスクも消す）。定例の回は消すと作り直されるので、中止扱いにする
+async function deleteMeeting({ request, env, user, params }) {
   const meeting = await loadMeeting(env, params.id);
   await requireEditor(env, user, meeting.project_id);
-  const minute = await env.DB.prepare("SELECT 1 FROM minutes WHERE meeting_id = ?").bind(meeting.id).first();
-  if (minute) throw new HttpError(400, "議事録のあるMTGは削除できません");
-  // 定例の回は消すと作り直されるので、中止扱いにする
-  if (meeting.kind === "regular") {
-    await env.DB.prepare("UPDATE meetings SET cancelled = 1 WHERE id = ?").bind(meeting.id).run();
-  } else {
-    await env.DB.prepare("DELETE FROM meetings WHERE id = ?").bind(meeting.id).run();
+  const body = await readJson(request).catch(() => ({}));
+  const minute = await env.DB.prepare("SELECT id FROM minutes WHERE meeting_id = ?").bind(meeting.id).first();
+  if (minute && !body.with_minutes) throw new HttpError(400, "議事録のあるMTGです。議事録ごと削除してよいか確認してください");
+  const stmts = [];
+  if (minute) {
+    stmts.push(env.DB.prepare("DELETE FROM tasks WHERE source_minute_id = ?").bind(minute.id));
+    stmts.push(env.DB.prepare("DELETE FROM minutes WHERE id = ?").bind(minute.id));
   }
-  const project = await loadProject(env, meeting.project_id);
-  await notifyProject(env, project, `${shortDateTime(meeting.starts_at)} のMTGは${meeting.kind === "regular" ? "中止" : "取りやめ"}になりました`, "", user.id, { dm: true });
+  stmts.push(env.DB.prepare("UPDATE checklist_items SET meeting_id = NULL WHERE meeting_id = ?").bind(meeting.id));
+  stmts.push(env.DB.prepare("UPDATE schedule_polls SET meeting_id = NULL WHERE meeting_id = ?").bind(meeting.id));
+  stmts.push(meeting.kind === "regular"
+    ? env.DB.prepare("UPDATE meetings SET cancelled = 1, started_at = NULL WHERE id = ?").bind(meeting.id)
+    : env.DB.prepare("DELETE FROM meetings WHERE id = ?").bind(meeting.id));
+  await env.DB.batch(stmts);
+  // これからのMTGを取りやめたときだけ知らせる（始めてしまったMTG・過ぎたMTGを消したときは知らせない）
+  if (!meeting.started_at && meeting.starts_at > nowJst()) {
+    const project = await loadProject(env, meeting.project_id);
+    await notifyProject(env, project, `${shortDateTime(meeting.starts_at)} のMTGは${meeting.kind === "regular" ? "中止" : "取りやめ"}になりました`, "", user.id, { dm: true });
+  }
   return { ok: true };
 }
 
-const TASK_COLUMNS = `t.id, t.title, t.status, t.due_date, t.assignee_id, t.notified_assignee, t.version, u.name AS assignee_name`;
+const TASK_COLUMNS = `t.id, t.title, t.status, t.due_date, t.assignee_id, t.notified_assignee, t.version, ${ASSIGNEE_COLUMNS},
+  COALESCE((SELECT GROUP_CONCAT(ta.user_id) FROM task_assignees ta WHERE ta.task_id = t.id AND ta.notified = 1), '') AS notified_ids`;
 
 // PJのNotionページ（議事録を作る先）を登録する
 async function setProjectNotion({ request, env, user, params }) {
@@ -240,10 +253,11 @@ async function saveMinutes({ request, env, user, params, ctx }) {
       key: typeof t.key === "string" ? t.key.slice(0, 40) : "",
       id: t.id ? int(t.id, { label: "タスク" }) : null,
       title: clean(t.title, 120),
-      assignee_id: typeof t.assignee_id === "string" && t.assignee_id ? t.assignee_id : null,
+      assignee_ids: readAssignees(t),
       due_date: optDate(t.due_date, "期限"),
     })).filter((t) => t.title);
-    await assertUsers(env, todos.map((t) => t.assignee_id));
+    await assertUsers(env, todos.flatMap((t) => t.assignee_ids));
+    for (const t of todos) t.assignee_id = t.assignee_ids[0] || null;
     const { results: current } = await env.DB.prepare("SELECT id, assignee_id FROM tasks WHERE source_minute_id = ?").bind(minuteId).all();
     const keep = new Set(todos.filter((t) => t.id).map((t) => t.id));
     const currentIds = new Set(current.map((r) => r.id));
@@ -258,6 +272,7 @@ async function saveMinutes({ request, env, user, params, ctx }) {
         ).bind(t.title, t.assignee_id, t.due_date, now, t.id));
       }
     }
+    for (const t of todos) if (t.id && currentIds.has(t.id)) stmts.push(...setAssigneeStatements(env, t.id, t.assignee_ids));
     if (stmts.length) await env.DB.batch(stmts);
     for (const t of todos) {
       if (t.id && currentIds.has(t.id)) continue;
@@ -267,15 +282,15 @@ async function saveMinutes({ request, env, user, params, ctx }) {
       ).bind(project.id, project.current_stage, t.title, t.assignee_id, t.due_date, minuteId, user.id, now, now).first();
       if (t.key) ids[t.key] = created.id;
       t.id = created.id;
+      await env.DB.batch(setAssigneeStatements(env, created.id, t.assignee_ids));
     }
   }
   // 「次回までにやること」の担当のお知らせ：自動保存のたびには送らず、「保存する」「MTGを終える」のとき（notify_todos）にまとめて送る
   if (body.notify_todos) {
     const { results: pending } = await env.DB.prepare(
-      `SELECT id, title, assignee_id, due_date FROM tasks WHERE source_minute_id = ? AND assignee_id IS NOT NULL
-       AND (notified_assignee IS NULL OR notified_assignee != assignee_id)`
+      "SELECT DISTINCT ta.task_id FROM task_assignees ta JOIN tasks t ON t.id = ta.task_id WHERE t.source_minute_id = ? AND ta.notified = 0"
     ).bind(minuteId).all();
-    for (const t of pending) await notifyAssignee(env, project, t, user.id);
+    for (const t of pending) await notifyNewAssignees(env, project, t.task_id);
   }
 
   // 毎回決めるPJ：議事録と一緒に送られた次回の日程を登録する（すでに次回があれば、その日時・場所を直す）

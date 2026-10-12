@@ -2,7 +2,7 @@
 import { HttpError, readJson, required, optDate, int, oneOf, assertUpdated } from "../util.js";
 import { getType } from "../project-types.js";
 import { loadProject, requireEditor, assertUsers } from "./common.js";
-import { notifyAssignee } from "../notify.js";
+import { readAssignees, hasAssignees, setAssigneeStatements, notifyNewAssignees } from "../task-assignees.js";
 
 export const routes = [
   ["POST", "/api/projects/:id/tasks", createTask],
@@ -21,16 +21,17 @@ async function createTask({ request, env, user, params }) {
   const project = await loadProject(env, params.id);
   await requireEditor(env, user, project.id);
   const body = await readJson(request);
-  const assignee = typeof body.assignee_id === "string" && body.assignee_id ? body.assignee_id : null;
-  await assertUsers(env, [assignee]);
+  const assignees = readAssignees(body);
+  await assertUsers(env, assignees);
   const now = Date.now();
-  const task = { title: required(body.title, 120, "タスク名"), assignee_id: assignee, due_date: optDate(body.due_date, "期限") };
+  const task = { title: required(body.title, 120, "タスク名"), assignee_id: assignees[0] || null, due_date: optDate(body.due_date, "期限") };
   const row = await env.DB.prepare(
     `INSERT INTO tasks (project_id, stage_no, title, assignee_id, due_date, status, created_by, created_at, updated_at)
      VALUES (?, ?, ?, ?, ?, 'todo', ?, ?, ?) RETURNING id`
   ).bind(project.id, body.stage_no === undefined ? project.current_stage : stageNo(body.stage_no, project),
     task.title, task.assignee_id, task.due_date, user.id, now, now).first();
-  await notifyAssignee(env, project, { ...task, id: row.id }, user.id);
+  await env.DB.batch(setAssigneeStatements(env, row.id, assignees));
+  await notifyNewAssignees(env, project, row.id);
   return { id: row.id };
 }
 
@@ -38,7 +39,8 @@ async function loadTask(env, user, id, { statusOnly = false } = {}) {
   const task = await env.DB.prepare("SELECT * FROM tasks WHERE id = ?").bind(id).first();
   if (!task) throw new HttpError(404, "タスクが見つかりません");
   // 担当者は、PJメンバーでなくても自分のタスクの状態（完了など）だけは変えられる
-  if (!(statusOnly && task.assignee_id === user.id)) await requireEditor(env, user, task.project_id);
+  const mine = statusOnly && await env.DB.prepare("SELECT 1 FROM task_assignees WHERE task_id = ? AND user_id = ?").bind(task.id, user.id).first();
+  if (!mine) await requireEditor(env, user, task.project_id);
   return task;
 }
 
@@ -52,9 +54,10 @@ async function updateTask({ request, env, user, params }) {
   if ("status" in body) next.status = oneOf(body.status, STATUSES, "状態");
   if ("due_date" in body) next.due_date = optDate(body.due_date, "期限");
   if ("stage_no" in body) next.stage_no = stageNo(body.stage_no, project);
-  if ("assignee_id" in body) {
-    next.assignee_id = typeof body.assignee_id === "string" && body.assignee_id ? body.assignee_id : null;
-    await assertUsers(env, [next.assignee_id]);
+  const assignees = hasAssignees(body) ? readAssignees(body) : null;
+  if (assignees) {
+    await assertUsers(env, assignees);
+    next.assignee_id = assignees[0] || null;
   }
   // 版の指定がなければ（チェックだけの操作など）最新に対して更新する
   const version = body.version === undefined ? task.version : int(body.version, { label: "版" });
@@ -63,7 +66,10 @@ async function updateTask({ request, env, user, params }) {
      WHERE id = ? AND version = ?`
   ).bind(next.title, next.status, next.due_date, next.stage_no, next.assignee_id, Date.now(), task.id, version).run();
   assertUpdated(res, "このタスク");
-  if (next.assignee_id !== task.assignee_id) await notifyAssignee(env, project, next, user.id);
+  if (assignees) {
+    await env.DB.batch(setAssigneeStatements(env, task.id, assignees));
+    await notifyNewAssignees(env, project, task.id);
+  }
   return { ok: true };
 }
 

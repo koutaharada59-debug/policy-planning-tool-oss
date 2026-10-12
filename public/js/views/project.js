@@ -1,8 +1,7 @@
 // PJ詳細：工程ナビ（チェックリスト・期限）／タスク／MTG
 import {
   api, esc, state, avatar, dueBadge, fmtDate, fmtDateTime, busy, toast, formData, memberOptions, TASK_STATUS,
-  gcalEventUrl, gcalAllDayUrl, gcalLink, gcalChoice, weeklyRrule, hashQuery, WEEK, membersFirst, jstDateTime, stageStepper, bindFold, keepView, celebrate, takeProgressHint, doneTasksToggle, bindDoneTasksToggle, confirmDialog, skipButton, bindSkipButtons,
-} from "../lib.js";
+  gcalEventUrl, gcalAllDayUrl, gcalLink, gcalChoice, weeklyRrule, hashQuery, WEEK, membersFirst, jstDateTime, stageStepper, bindFold, keepView, celebrate, takeProgressHint, doneTasksToggle, bindDoneTasksToggle, confirmDialog, skipButton, bindSkipButtons, assigneePicker, idsOf, pickerIds } from "../lib.js";
 import { renderTreeTab, renderMeasuresTab, renderSourcesView } from "./research.js";
 import { renderPresentationTab } from "./presentation.js";
 import { renderProjectRecords } from "./search.js";
@@ -280,7 +279,7 @@ function renderTasks(body, data, ro, reload) {
       ${ro ? "" : `<details class="add-box" ${taskAddOpen ? "open" : ""}><summary class="button small">＋ タスクを追加</summary>
       <form class="card form task-form" id="task-form">
         <input name="title" maxlength="120" placeholder="タスクを追加（例：先行事例を3件集める）" required>
-        <select name="assignee_id" aria-label="担当">${memberOptions(membersFirst(data.members), state.me.id, { empty: "担当なし" })}</select>
+        ${assigneePicker(membersFirst(data.members), [state.me.id], { empty: "担当なし", members: data.members.map((m) => m.id) })}
         <input name="due_date" type="date" aria-label="期限">
         <select name="stage_no" aria-label="工程">${stageOptions(p.current_stage)}</select>
         <button class="primary">追加</button>
@@ -298,7 +297,7 @@ function renderTasks(body, data, ro, reload) {
           </div>
           <div class="meta">
             ${t.stage_no !== null ? `<span class="tag">工程${t.stage_no}</span>` : ""}
-            ${t.assignee_name ? `<span>${avatar({ name: t.assignee_name, avatar: t.assignee_avatar })} ${esc(t.assignee_name)}</span>` : `<span class="muted">担当なし</span>`}
+            ${t.assignee_name ? `<span>${idsOf(t).length > 1 ? "👥" : avatar({ name: t.assignee_name, avatar: t.assignee_avatar })} ${esc(t.assignee_name)}</span>` : `<span class="muted">担当なし</span>`}
             ${dueBadge(t.due_date, t.status === "done")}
             ${t.due_date ? gcalLink(gcalAllDayUrl({ title: `【期限】${t.title}（${p.name}）`, date: t.due_date }), "") : ""}
             ${ro ? "" : `<button class="link-btn" data-edit="${t.id}">編集</button><button class="link-btn danger" data-del="${t.id}">削除</button>`}
@@ -308,13 +307,16 @@ function renderTasks(body, data, ro, reload) {
     bindDoneTasksToggle(body, draw);
     body.querySelector(".add-box")?.addEventListener("toggle", (e) => { taskAddOpen = e.target.open; });
     // 自分以外を担当にするときは、その人にお知らせが届くので確認する
-    const confirmAssignee = (assigneeId, title) => (!assigneeId || assigneeId === state.me.id ? Promise.resolve(true)
-      : confirmDialog(`「${title}」の担当を${data.members.find((m) => m.id === assigneeId)?.name || state.users.find((u) => u.id === assigneeId)?.name || ""}さんにしますか？\n担当の人にお知らせが届きます。`, { ok: "担当にして知らせる" }));
+    const nameOfId = (id) => data.members.find((m) => m.id === id)?.name || state.users.find((u) => u.id === id)?.name || "";
+    const confirmAssignee = (ids, title) => {
+      const others = ids.filter((id) => id !== state.me.id);
+      return others.length ? confirmDialog(`「${title}」の担当を${ids.map(nameOfId).join("・")}さんにしますか？\n担当の人にお知らせが届きます。`, { ok: "担当にして知らせる" }) : Promise.resolve(true);
+    };
     body.querySelector("#task-form")?.addEventListener("submit", async (e) => {
       e.preventDefault();
-      const f = formData(e.target);
+      const f = { ...formData(e.target), assignee_ids: pickerIds(e.target) };
       const button = e.submitter;
-      if (!await confirmAssignee(f.assignee_id, f.title)) return;
+      if (!await confirmAssignee(f.assignee_ids, f.title)) return;
       busy(button, () => api(`/api/projects/${p.id}/tasks`, { method: "POST", body: f }))
         .then(reload).catch(() => {});
     });
@@ -333,7 +335,7 @@ function renderTasks(body, data, ro, reload) {
       li.innerHTML = `
         <form class="task-form edit">
           <input name="title" maxlength="120" required value="${esc(t.title)}">
-          <select name="assignee_id">${memberOptions(membersFirst(data.members), t.assignee_id, { empty: "担当なし" })}</select>
+          ${assigneePicker(membersFirst(data.members), idsOf(t), { empty: "担当なし", members: data.members.map((m) => m.id) })}
           <input name="due_date" type="date" value="${esc(t.due_date || "")}">
           <select name="stage_no">${stageOptions(t.stage_no)}</select>
           <button class="primary small">保存</button><button type="button" class="small" data-cancel>やめる</button>
@@ -341,9 +343,10 @@ function renderTasks(body, data, ro, reload) {
       li.querySelector("[data-cancel]").addEventListener("click", draw);
       li.querySelector("form").addEventListener("submit", async (e) => {
         e.preventDefault();
-        const f = formData(e.target);
+        const f = { ...formData(e.target), assignee_ids: pickerIds(e.target) };
         const button = e.submitter;
-        if (f.assignee_id !== (t.assignee_id || "") && !await confirmAssignee(f.assignee_id, f.title)) return;
+        const added = f.assignee_ids.filter((id) => !idsOf(t).includes(id));
+        if (added.length && !await confirmAssignee(added, f.title)) return;
         busy(button, () => api(`/api/tasks/${t.id}`, { method: "PATCH", body: { ...f, version: t.version } }))
           .then(reload).catch(() => {});
       });
@@ -368,7 +371,7 @@ function meetingPanel(data, ro) {
         ${m.cancelled ? "" : `<a class="link-btn" href="#/meetings/${m.id}">${m.minute_id ? "議事録を見る" : "議題・議事録"}</a>`}
         ${m.cancelled ? "" : gcalChoice(gcalEventUrl({ title: `${p.name} MTG`, start: m.starts_at, durationMin: m.duration_min, location: m.place }),
           m.kind === "regular" && rrule ? gcalEventUrl({ title: `${p.name} 定例MTG`, start: m.starts_at, durationMin: p.meeting_duration, location: p.meeting_place, recur: rrule }) : "", "")}
-        ${ro || m.minute_id ? "" : m.cancelled
+        ${ro || (m.minute_id && m.kind === "regular") ? "" : m.cancelled
           ? `<button class="link-btn" data-restore="${m.id}">中止を取り消す</button>`
           : `<button class="link-btn danger" data-cancel="${m.id}">${m.kind === "regular" ? "この回を中止" : "削除"}</button>`}
       </div>
@@ -417,8 +420,9 @@ function bindMeetingPanel(body, data, reload) {
       .then(() => { toast("MTGを追加しました"); reload(); }).catch(() => {});
   });
   body.querySelectorAll("[data-cancel]").forEach((b) => b.addEventListener("click", async () => {
-    if (!await confirmDialog(`${b.textContent.includes("中止") ? "この回を中止にしますか？" : "このMTGを削除しますか？"}\nPJメンバーにお知らせが届きます。`)) return;
-    busy(b, () => api(`/api/meetings/${b.dataset.cancel}`, { method: "DELETE", body: {} })).then(reload).catch(() => {});
+    const mt = data.meetings.find((x) => x.id === Number(b.dataset.cancel));
+    if (!await confirmDialog(`${b.textContent.includes("中止") ? "この回を中止にしますか？" : "このMTGを削除しますか？"}${mt?.minute_id ? "\n議事録と、そこで作ったタスクも消えます。" : ""}\nPJメンバーにお知らせが届きます。`)) return;
+    busy(b, () => api(`/api/meetings/${b.dataset.cancel}`, { method: "DELETE", body: { with_minutes: true } })).then(reload).catch(() => {});
   }));
   body.querySelectorAll("[data-restore]").forEach((b) => b.addEventListener("click", async () => {
     if (!await confirmDialog("この回の中止を取り消しますか？\nPJメンバーにお知らせが届きます。", { ok: "取り消して知らせる" })) return;

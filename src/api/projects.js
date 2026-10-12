@@ -9,6 +9,7 @@ import {
   ensureRegularMeetings,
 } from "./common.js";
 import { notify, notifyProject } from "../notify.js";
+import { ASSIGNEE_COLUMNS } from "../task-assignees.js";
 
 export const routes = [
   ["GET", "/api/projects", listProjects],
@@ -191,7 +192,7 @@ async function getProject({ env, user, params }) {
        WHERE c.project_id = ? ORDER BY c.stage_no, c.sort, c.id`
     ).bind(project.id).all(),
     env.DB.prepare(
-      `SELECT t.*, u.name AS assignee_name, u.avatar AS assignee_avatar FROM tasks t LEFT JOIN users u ON u.id = t.assignee_id
+      `SELECT t.*, ${ASSIGNEE_COLUMNS}, u.avatar AS assignee_avatar FROM tasks t LEFT JOIN users u ON u.id = t.assignee_id
        WHERE t.project_id = ? ORDER BY t.status = 'done', t.due_date IS NULL, t.due_date, t.id`
     ).bind(project.id).all(),
     env.DB.prepare(
