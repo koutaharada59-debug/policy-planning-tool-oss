@@ -11,10 +11,11 @@ const ranked = (m) => m === "rcv" || m === "stv";
 
 // ホームに出すボタン（受付中のアンケート）と、管理者の「アンケートを追加」
 export async function homeSurveys(box) {
-  const { surveys } = await api("/api/surveys");
+  const [{ surveys }, { polls }] = await Promise.all([api("/api/surveys"), api("/api/schedule-polls/mine").catch(() => ({ polls: [] }))]);
   const open = surveys.filter((s) => !s.closed_at);
   box.innerHTML = `
-    ${open.length ? `<div class="survey-buttons">${open.map((s) => `
+    ${open.length || polls.length ? `<div class="survey-buttons">${polls.map((x) => `
+      <a class="survey-btn" href="#/schedule-polls/${x.id}"><span class="survey-icon">🗓</span><strong>${esc(x.project_name)}の日程調整</strong><span class="small">回答する ›</span></a>`).join("")}${open.map((s) => `
       <a class="survey-btn ${s.answered ? "is-done" : ""}" href="${s.kind === "pj" ? `#/seeds/${s.round_id}` : `#/surveys/${s.id}`}">
         <span class="survey-icon">${s.kind === "pj" ? "🗳️" : "📊"}</span><strong>${esc(s.title)}</strong>
         <span class="small">${s.answered ? "✓ 回答済み" : "回答する ›"}</span></a>`).join("")}</div>` : ""}

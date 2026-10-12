@@ -7,6 +7,7 @@ import { renderTreeTab, renderMeasuresTab, renderSourcesView } from "./research.
 import { renderPresentationTab } from "./presentation.js";
 import { renderProjectRecords } from "./search.js";
 import { roundsTable } from "./seeds.js";
+import { schedulePollLinks } from "./schedule-poll.js";
 
 export async function renderProject(el, id) {
   const data = await api(`/api/projects/${id}`);
@@ -384,6 +385,7 @@ function meetingPanel(data, ro) {
       <p class="muted small">${p.meeting_mode === "regular"
           ? `定例：${p.meeting_interval == 2 ? "隔週" : "毎週"} ${weekdays.map((d) => WEEK[d]).join("・")}曜 ${esc(p.meeting_time)}〜`
           : "毎回、MTGの最後に次回を決める"}</p>
+      ${p.meeting_mode === "adhoc" ? `<div class="sp-links" id="sp-links"></div>` : ""}
       ${ro ? "" : `
       <form class="inline-form" id="meeting-form">
         <strong class="small">MTGを追加</strong>
@@ -404,6 +406,8 @@ function meetingPanel(data, ro) {
 
 function bindMeetingPanel(body, data, reload) {
   const p = data.project;
+  const spBox = body.querySelector("#sp-links");
+  if (spBox) schedulePollLinks(spBox, p.id, data.canEdit).catch(() => {});
   body.querySelector("#meeting-form")?.addEventListener("submit", async (e) => {
     e.preventDefault();
     const f = formData(e.target);

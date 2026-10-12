@@ -1361,3 +1361,21 @@ table.accounts input,table.accounts select{width:100%;min-width:180px;margin:0}
 
 .brand-mark{overflow:hidden;padding:0}
 .brand-mark img{display:block;width:100%;height:100%}
+
+/* ---------- 日程調整アンケート ---------- */
+.sp-links{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0}
+.sp-links .survey-btn{flex:1;min-width:240px;font-size:15px;padding:10px 14px}
+.sp-slots{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:8px}
+.sp-slot{display:flex;flex-wrap:wrap;align-items:center;gap:10px 14px;padding:12px 14px;border:1px solid var(--line);border-radius:12px;background:#fff}
+.sp-slot.is-best{border-color:var(--green);background:#f3fbf7}
+.sp-when{flex:1;min-width:200px;display:flex;flex-wrap:wrap;align-items:center;gap:4px 10px}
+.sp-when strong{font-size:16px}
+.sp-best{background:#fff3c4;color:#7a5a00}
+.sp-who{display:flex;flex-wrap:wrap;gap:4px;width:100%}
+.sp-person{display:inline-flex;align-items:center;gap:2px;font-size:12px}
+.sp-pick{display:flex;gap:6px}
+.sp-btn{width:48px;height:44px;border-radius:10px;border:1px solid var(--line);background:#fff;font-size:20px;font-weight:800;color:#9aa5a0;cursor:pointer;padding:0;justify-content:center}
+.sp-btn.sp-yes.is-on{background:#3fc58f;border-color:#3fc58f;color:#fff}
+.sp-btn.sp-maybe.is-on{background:#f6c445;border-color:#f6c445;color:#5a4300}
+.sp-btn.sp-no.is-on{background:#e9edeb;border-color:#c9d1ce;color:#5b6563}
+.sp-decide{white-space:nowrap}

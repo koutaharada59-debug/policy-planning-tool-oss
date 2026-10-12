@@ -2,6 +2,7 @@
 import { api, esc, avatar, toast, state, hasUnsaved, forgetUnsaved, confirmDialog, fmtDateTime, jstDateTime, prefetch, burst, plusOne, celebrate } from "./lib.js";
 import { renderHome } from "./views/home.js";
 import { renderSurvey, renderSurveyNew, renderSurveyList } from "./views/surveys.js";
+import { renderSchedulePoll, renderSchedulePollNew } from "./views/schedule-poll.js";
 import { renderMinutesSearch } from "./views/search.js";
 import { renderTimeline } from "./views/timeline.js";
 import { renderCheck } from "./views/check.js";
@@ -42,6 +43,8 @@ const ROUTES = [
   [/^\/seeds$/, "projects", () => renderRounds],
   [/^\/admin$/, "home", () => renderAdmin],
   [/^\/surveys$/, "home", () => renderSurveyList],
+  [/^\/schedule-polls\/(\d+)$/, "projects", (m) => (el) => renderSchedulePoll(el, Number(m[1]))],
+  [/^\/projects\/(\d+)\/schedule-poll$/, "projects", (m) => (el) => renderSchedulePollNew(el, Number(m[1]))],
   [/^\/surveys\/new$/, "home", () => renderSurveyNew],
   [/^\/surveys\/(\d+)$/, "home", (m) => (el) => renderSurvey(el, Number(m[1]))],
   [/^\/teirei$/, "home", () => renderTeireiHome],

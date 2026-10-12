@@ -2,6 +2,7 @@
 // 詳細なフィードバックはGoogleドキュメントに残す運用なので、入力欄は短くしている
 import { api, esc, state, fmtDateTime, fmtDate, busy, toast, memberOptions, dueBadge, addDays, embedUrl, membersFirst, copyForNotion, copyButton, bindCopyButtons, hashQuery, timerHtml, bindTimer, clearTimer, syncTimerStart, confirmDialog, celebrateProgress, setProgressHint, skipButton, bindSkipButtons } from "../lib.js";
 import { enhanceRich } from "../rich.js";
+import { schedulePollLinks } from "./schedule-poll.js";
 
 export async function renderMeeting(el, id) {
   const data = await api(`/api/meetings/${id}`);
@@ -87,6 +88,9 @@ export async function renderMeeting(el, id) {
   enhanceRich(form);
   // 初回のMTG：決めること（PM・MTGの進め方・次回・最初のアクション）
   if (data.isFirst && canEdit && !viewOnly) bindFirstMeeting(el, data, p);
+  // 次回の日程が決められないとき：日程調整アンケート
+  const spBox = el.querySelector("#sp-links");
+  if (spBox) schedulePollLinks(spBox, p.id, canEdit).catch(() => {});
   if (!viewOnly) bindTimer(el, `meeting-${m.id}`, { auto: true });
   const todoBox = el.querySelector("#todos");
   const defaultDue = () => (data.nextMeeting ? data.nextMeeting.starts_at.slice(0, 10) : addDays(m.starts_at.slice(0, 10), 7));
@@ -414,6 +418,7 @@ function nextMeetingSection({ nextMeeting, meeting: m }, ro) {
         <input name="next_starts_at" type="datetime-local" min="${esc(m.starts_at)}" value="${esc(nextMeeting?.starts_at || "")}" aria-label="次回の日時" ${ro}>
         <input name="next_place" maxlength="200" placeholder="場所・URL（任意）" value="${esc(nextMeeting?.place || m.place || "")}" ${ro}>
       </div>
+      ${nextMeeting ? "" : `<div class="sp-links" id="sp-links"></div>`}
     </section>`;
 }
 
