@@ -57,7 +57,10 @@ test("PJを作ってMTGをし、記録に残る", async ({ page }) => {
   await expect(page.locator("#minutes-form")).toBeVisible();
 
   // 議事録を書く（自動保存）
-  await page.fill("[name=agenda]", `・${word}について話す`);
+  // 議事録の欄は、Notionのように書ける欄（クリックして打つ）
+  await page.waitForTimeout(500);
+  await page.locator('.rich-editor[data-field="agenda"]').click();
+  await page.keyboard.type(`${word}について話す`);
   await expect(page.locator("#live-status")).toContainText("自動で保存しました", { timeout: 10_000 });
 
   // MTGを終える → PJ画面に戻る

@@ -201,8 +201,8 @@ async function saveMinutes({ request, env, user, params }) {
     if (holder) throw new HttpError(409, `${holder.name || "ほかの人"}さんが入力中です。書き終わるまで待ってください`);
   }
   const cols = [];
-  if ("agenda" in body) cols.push(["agenda", clean(body.agenda, 300)]);
-  if ("summary" in body) cols.push(["summary", clean(body.summary, 400)]);
+  if ("agenda" in body) cols.push(["agenda", clean(body.agenda, 5000)]);
+  if ("summary" in body) cols.push(["summary", clean(body.summary, 10000)]);
 
   // 議事録がなければ作り、あれば送られた項目だけを書き換える
   const names = cols.map(([c]) => c);

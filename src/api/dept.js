@@ -34,13 +34,17 @@ async function openMeeting(env) {
 
 // 状態：進行中（今日の定例）／準備中（前もって作った先の定例）
 const withState = (m, today) => ({ ...m, is_open: !m.ended_at && m.held_on === today, is_ready: !m.ended_at && m.held_on > today });
+// 第◯回（Notionの議事録の回数と同じ数え方）
+const firstNumber = (env) => Number(env.TEIREI_FIRST_NUMBER) || 1;
+const NUMBER_SQL = "(SELECT COUNT(*) FROM dept_meetings x WHERE x.held_on < d.held_on)";
 
 async function listDeptMeetings({ env }) {
   const [{ results }, drafts] = await Promise.all([
     env.DB.prepare(
-      `SELECT d.id, d.held_on, d.starts_at, d.event, d.ended_at, (SELECT COUNT(*) FROM dept_reports r WHERE r.dept_meeting_id = d.id) AS reports
+      `SELECT d.id, d.held_on, d.starts_at, d.event, d.ended_at, (SELECT COUNT(*) FROM dept_reports r WHERE r.dept_meeting_id = d.id) AS reports,
+              ${NUMBER_SQL} + ? AS number
        FROM dept_meetings d ORDER BY d.held_on DESC LIMIT 50`
-    ).all(),
+    ).bind(firstNumber(env)).all(),
     env.DB.prepare("SELECT COUNT(*) AS n FROM dept_reports WHERE dept_meeting_id IS NULL").first(),
   ]);
   // 進行中＝今日の定例で、まだ「定例を終わる」を押していないもの（押し忘れた過去の定例は終わった扱い）
@@ -92,8 +96,8 @@ function collectStatements(env, meetingId, heldOn, now) {
 
 async function getDeptMeeting({ env, user, params }) {
   const meeting = await env.DB.prepare(
-    "SELECT d.*, u.name AS updated_by_name FROM dept_meetings d LEFT JOIN users u ON u.id = d.updated_by WHERE d.id = ?"
-  ).bind(params.id).first();
+    `SELECT d.*, u.name AS updated_by_name, ${NUMBER_SQL} + ? AS number FROM dept_meetings d LEFT JOIN users u ON u.id = d.updated_by WHERE d.id = ?`
+  ).bind(firstNumber(env), params.id).first();
   if (!meeting) throw new HttpError(404, "定例が見つかりません");
   const { results: reports } = await env.DB.prepare(
     `SELECT r.*, p.name AS project_name, p.type, p.current_stage, u.name AS updated_by_name

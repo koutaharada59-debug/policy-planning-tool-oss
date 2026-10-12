@@ -1,6 +1,7 @@
 // 議事録：前回の宿題（自動引き継ぎ）／話し合うこと／概要／キーワード／次回までにやること
 // 詳細なフィードバックはGoogleドキュメントに残す運用なので、入力欄は短くしている
 import { api, esc, state, fmtDateTime, fmtDate, busy, toast, memberOptions, dueBadge, addDays, embedUrl, membersFirst, copyForNotion, copyButton, bindCopyButtons, hashQuery, timerHtml, bindTimer, clearTimer, syncTimerStart, confirmDialog, celebrateProgress, setProgressHint, skipButton, bindSkipButtons } from "../lib.js";
+import { enhanceRich } from "../rich.js";
 
 export async function renderMeeting(el, id) {
   const data = await api(`/api/meetings/${id}`);
@@ -44,7 +45,7 @@ export async function renderMeeting(el, id) {
 
       <section class="card" data-live="agenda">
         <div class="section-head"><h2>今回話し合うこと <span class="live-badge" data-badge="agenda"></span></h2>${copyButton("agenda")}</div>
-        <label><textarea name="agenda" rows="3" maxlength="300" aria-label="今回話し合うこと" ${canEdit ? "" : "disabled"} placeholder="・先行事例の共有&#10;・課題の絞り込み">${esc(minute?.agenda)}</textarea>
+        <label><textarea name="agenda" data-rich rows="3" maxlength="5000" aria-label="今回話し合うこと" ${canEdit ? "" : "disabled"} placeholder="・先行事例の共有&#10;・課題の絞り込み">${esc(minute?.agenda)}</textarea>
           <small class="counter" data-for="agenda"></small></label>
       </section>
 
@@ -52,7 +53,7 @@ export async function renderMeeting(el, id) {
 
       <section class="card" data-live="summary">
         <div class="section-head"><h2>話し合いの概要 <span class="live-badge" data-badge="summary"></span></h2>${copyButton("summary")}</div>
-        <label><textarea name="summary" rows="3" maxlength="400" aria-label="話し合いの概要" ${ro} placeholder="決まったこと・方向性だけを数行で">${esc(minute?.summary)}</textarea>
+        <label><textarea name="summary" data-rich rows="3" maxlength="10000" aria-label="話し合いの概要" ${ro} placeholder="決まったこと・方向性だけを数行で">${esc(minute?.summary)}</textarea>
           <small class="counter" data-for="summary"></small></label>
       </section>
 
@@ -83,6 +84,7 @@ export async function renderMeeting(el, id) {
     </form>`;
 
   const form = el.querySelector("#minutes-form");
+  enhanceRich(form);
   // 初回のMTG：決めること（PM・MTGの進め方・次回・最初のアクション）
   if (data.isFirst && canEdit && !viewOnly) bindFirstMeeting(el, data, p);
   if (!viewOnly) bindTimer(el, `meeting-${m.id}`, { auto: true });

@@ -21,8 +21,22 @@ const bullet = (text) => ({ object: "block", type: "bulleted_list_item", bullete
 const todo = (text, checked = false) => ({ object: "block", type: "to_do", to_do: { rich_text: rich(text), checked } });
 const para = (text) => ({ object: "block", type: "paragraph", paragraph: { rich_text: rich(text) } });
 
-// 文章を行ごとの箇条書きにする（先頭の「・」「-」は取る）
-const lines = (text) => String(text || "").split("\n").map((l) => l.replace(/^\s*[-・]\s*/, "").trim()).filter(Boolean);
+// 書式つきの文章（Markdown）を、行ごとにNotionのブロックにする
+const lines = (text) => String(text || "").split("\n").filter((l) => l.trim());
+const block = (type, text, extra = {}) => ({ object: "block", type, [type]: { rich_text: rich(text), ...extra } });
+function mdBlock(line) {
+  let m;
+  if ((m = line.match(/^###\s+(.*)$/))) return block("heading_3", m[1]);
+  if ((m = line.match(/^##\s+(.*)$/))) return block("heading_2", m[1]);
+  if ((m = line.match(/^#\s+(.*)$/))) return block("heading_1", m[1]);
+  if ((m = line.match(/^\s*\[( |x|X)\]\s?(.*)$/))) return block("to_do", m[2], { checked: m[1].toLowerCase() === "x" });
+  if ((m = line.match(/^\s*[-*・]\s?(.*)$/))) return block("bulleted_list_item", m[1]);
+  if ((m = line.match(/^\s*\d+[.)]\s+(.*)$/))) return block("numbered_list_item", m[1]);
+  if ((m = line.match(/^>\s?(.*)$/))) return block("quote", m[1]);
+  if (/^-{3,}$/.test(line.trim())) return { object: "block", type: "divider", divider: {} };
+  if (/^https?:\/\/\S+$/.test(line.trim())) return { object: "block", type: "bookmark", bookmark: { url: line.trim() } };
+  return block("bulleted_list_item", line.trim());
+}
 
 // 議事録の中身 → Notionのブロック（見出し・箇条書き・チェックボックス）
 export function minutesBlocks({ homework = [], agenda = "", summary = "", todos = [], appUrl = "" }) {
@@ -32,9 +46,9 @@ export function minutesBlocks({ homework = [], agenda = "", summary = "", todos 
     for (const t of homework) blocks.push(todo(`${t.title}（${t.assignee_name || "担当未定"}）`, t.status === "done"));
   }
   blocks.push(heading("今回話し合うこと"));
-  blocks.push(...(lines(agenda).length ? lines(agenda).map(bullet) : [para("（なし）")]));
+  blocks.push(...(lines(agenda).length ? lines(agenda).map(mdBlock) : [para("（なし）")]));
   blocks.push(heading("概要"));
-  blocks.push(...(lines(summary).length ? lines(summary).map(bullet) : [para("（なし）")]));
+  blocks.push(...(lines(summary).length ? lines(summary).map(mdBlock) : [para("（なし）")]));
   blocks.push(heading("次回までにやること"));
   blocks.push(...(todos.length ? todos.map((t) => todo(`${t.title}（${t.assignee_name || "担当未定"}${t.due_date ? `・${t.due_date.slice(5).replace("-", "/")}まで` : ""}）`, t.status === "done")) : [para("（なし）")]));
   if (appUrl) blocks.push(para(`政策立案ツールの議事録：${appUrl}`));

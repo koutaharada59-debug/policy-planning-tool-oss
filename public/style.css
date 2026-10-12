@@ -1236,3 +1236,47 @@ html[data-vt="left"]::view-transition-new(main){animation:vt-in-left .26s cubic-
 .g-pres small{font-size:10px;font-weight:800;color:#e26a2c}
 .schedule-numbers{margin-top:8px}
 .schedule-numbers > summary{cursor:pointer;font-weight:700;padding:6px 0}
+
+/* ---------- Notionのように書ける欄 ---------- */
+.rich-editor{min-height:96px;padding:10px 14px;border:1px solid var(--line);border-radius:12px;background:#fff;font-size:15px;line-height:1.75;outline:none;cursor:text;overflow-wrap:anywhere}
+.rich-editor:focus{border-color:var(--green);box-shadow:0 0 0 3px #3fc58f26}
+.rich-editor.is-readonly{background:#fafcfb;cursor:default}
+.rich-editor > .rb:only-child .rb-text:empty::before,.rich-editor > .rb:only-child .rb-text > br:only-child::before{content:attr(data-placeholder)}
+.rich-editor:has(> .rb:only-child .rb-text > br:only-child)::before{content:attr(data-placeholder);position:absolute;color:#9aa5a0;pointer-events:none}
+.rich-editor{position:relative}
+.rb{position:relative;min-height:1.75em;padding:1px 0}
+.rb-h1{font-size:26px;font-weight:800;line-height:1.4;margin:14px 0 4px}
+.rb-h2{font-size:21px;font-weight:800;line-height:1.45;margin:10px 0 2px}
+.rb-h3{font-size:17px;font-weight:800;line-height:1.5;margin:8px 0 2px}
+.rb-ul{padding-left:22px}
+.rb-ul::before{content:"•";position:absolute;left:6px;top:1px;font-weight:900;color:#3a8f6f}
+.rb-ol{padding-left:26px}
+.rb-ol::before{content:attr(data-n) ".";position:absolute;left:2px;top:1px;font-weight:700;color:#3a8f6f;font-variant-numeric:tabular-nums}
+.rb-todo{display:flex;gap:8px;align-items:flex-start}
+.rb-check{flex:none;padding-top:3px}
+.rb-check input{width:18px;height:18px;margin:0;accent-color:var(--green);cursor:pointer}
+.rb-todo[data-checked] .rb-text{text-decoration:line-through;color:var(--muted)}
+.rb-quote{border-left:3px solid #c9d6cf;padding-left:14px;color:#555}
+.rb-hr hr{border:0;border-top:1px solid var(--line);margin:12px 0}
+.rb code{background:#f1f3f2;color:#c0392b;border-radius:4px;padding:1px 5px;font-size:.9em}
+.rb a{color:#2f7d62;text-decoration:underline}
+.rb-text{display:block;flex:1;min-width:0}
+.rb-embed{margin:6px 0}
+.rb-card{display:flex;gap:10px;align-items:center;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:#fafcfb;color:inherit;text-decoration:none!important}
+.rb-card:hover{background:#f3fbf7}
+.rb-card-icon{font-size:20px}
+.rb-card strong{display:block;font-size:14px}
+.rb-card small{display:block;font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:560px}
+.rb-frame{display:block;width:100%;height:360px;margin-top:6px;border:1px solid var(--line);border-radius:10px;background:#fff}
+.rich-view{font-size:15px;line-height:1.75}
+.rich-view .rb-check input{cursor:default}
+/* 「/」のメニュー */
+.rb-slash{position:absolute;z-index:120;width:250px;max-height:320px;overflow:auto;padding:6px;background:#fff;border:1px solid var(--line);border-radius:12px;box-shadow:0 10px 28px #0002;display:flex;flex-direction:column}
+.rb-slash button{display:flex;gap:10px;align-items:center;min-height:38px;padding:6px 10px;border:0;border-radius:8px;background:none;font-size:14px;font-weight:600;color:inherit;text-align:left;cursor:pointer;justify-content:flex-start}
+.rb-slash button.is-active,.rb-slash button:hover{background:#eef7f2}
+.rb-slash-icon{display:inline-grid;place-items:center;width:28px;height:28px;border:1px solid var(--line);border-radius:6px;font-size:13px;font-weight:800;color:#3a8f6f;background:#fff}
+/* 文字を選んだときのバー */
+.rb-bar{position:absolute;z-index:120;display:flex;align-items:center;gap:2px;padding:4px;background:#222;border-radius:10px;box-shadow:0 8px 20px #0003}
+.rb-bar button{min-height:32px;min-width:34px;padding:4px 8px;border:0;border-radius:7px;background:none;color:#fff;font-size:13px;font-weight:700;cursor:pointer}
+.rb-bar button:hover{background:#ffffff26}
+.rb-bar-sep{width:1px;height:20px;background:#ffffff40;margin:0 4px}

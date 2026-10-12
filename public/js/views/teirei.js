@@ -1,5 +1,6 @@
 // 部門の定例：入口（定例の議事録／進捗を書く／管理者は定例を始める）と、それぞれの画面
 import { api, esc, state, fmtDate, fmtDateTime, jstDateTime, addDays, hashQuery, confirmDialog, busy, toast, formData, copyForNotion, copyButton, bindCopyButtons, pjPicker, pickItem, timerHtml, bindTimer, guardForm, markSaved, mergeText } from "../lib.js";
+import { enhanceRich, richHtml } from "../rich.js";
 
 const EVENTS = { "": "なし", news: "ニュース勉強会", exchange: "意見交換会" };
 const FIELDS = [
@@ -10,7 +11,7 @@ const FIELDS = [
 
 const stageName = (p) => state.types[p.type]?.stages.find((s) => s.no === p.current_stage)?.name || "";
 const stageLabel = (p) => `工程${p.current_stage}・${esc(stageName(p))}`;
-const paragraphs = (r) => FIELDS.filter(([k]) => r[k]).map(([k, label]) => `<h4>${label}</h4><p class="pre">${esc(r[k])}</p>`).join("")
+const paragraphs = (r) => FIELDS.filter(([k]) => r[k]).map(([k, label]) => `<h4>${label}</h4><div class="rich-view">${richHtml(r[k])}</div>`).join("")
   || `<p class="muted small">（空欄）</p>`;
 // Notionに貼ると見出し・箇条書きになる形（行頭の「・」「-」は箇条書きにする）
 const mdText = (text) => text.trim().split("\n").map((l) => (/^\s*[-・]/.test(l) ? `- ${l.replace(/^\s*[-・]\s*/, "")}` : l));
@@ -19,7 +20,7 @@ const reportMd = (r, level = "####") => FIELDS.filter(([k]) => r[k]?.trim()).fla
 // ---------- 定例の入口：定例の議事録／進捗を書く／（部門長・副部門長）事務連絡を書く・定例 ----------
 const WEEK_JA = ["日", "月", "火", "水", "木", "金", "土"];
 const slotLabel = (startsAt) => `${fmtDate(startsAt.slice(0, 10))} ${startsAt.slice(11, 16)}`;
-const meetingLabel = (m) => `${fmtDate(m.held_on)}${m.starts_at ? ` ${m.starts_at.slice(11, 16)}` : ""}の定例`;
+const meetingLabel = (m) => `${m.number ? `第${m.number}回 ` : ""}${fmtDate(m.held_on)}${m.starts_at ? ` ${m.starts_at.slice(11, 16)}` : ""}の定例`;
 const stateTag = (m) => !m ? "" : m.is_open ? `<span class="due is-soon">進行中</span>` : m.is_ready ? `<span class="tag">準備中</span>` : `<span class="tag">終了</span>`;
 
 export async function renderTeireiHome(el) {
@@ -50,6 +51,7 @@ export async function renderTeireiHome(el) {
       </a>` : ""}
     </div>
     <div id="panel"></div>`;
+  enhanceRich(el);
 
   const panel = el.querySelector("#panel");
   let opened = "";
@@ -126,6 +128,7 @@ export async function renderTeireiMinutes(el) {
         <div class="meta">${m.is_open ? `<span class="due is-soon">進行中</span>` : ""}
           <span class="muted small">進捗共有 ${m.reports}件</span>${m.event ? `<span class="tag">${EVENTS[m.event]}</span>` : ""}</div></li>`).join("")}</ul>`
       : `<div class="empty"><p>まだ定例はありません。</p></div>`}`;
+  enhanceRich(el);
 }
 
 // ---------- 定例の議事録：事務連絡 → 各PJの進捗共有 → メモ → イベント → 定例を終わる ----------
@@ -142,8 +145,8 @@ export async function renderTeirei(el, id) {
     <form class="minutes" id="teirei-form">
       <section class="card">
         <div class="section-head"><h2>📢 事務連絡</h2>${copyButton("notice")}</div>
-        ${canEdit ? `<textarea name="notice" rows="5" maxlength="5000" placeholder="部門長・副部門長からの連絡事項">${esc(m.notice)}</textarea>`
-          : m.notice ? `<p class="pre">${esc(m.notice)}</p>` : `<p class="muted">事務連絡はありません。</p>`}
+        ${canEdit ? `<textarea name="notice" data-rich rows="5" maxlength="5000" placeholder="部門長・副部門長からの連絡事項（「/」でメニュー）">${esc(m.notice)}</textarea>`
+          : m.notice ? `<div class="rich-view">${richHtml(m.notice)}</div>` : `<p class="muted">事務連絡はありません。</p>`}
       </section>
 
       <section class="card">
@@ -167,8 +170,8 @@ export async function renderTeirei(el, id) {
 
       <section class="card">
         <div class="section-head"><h2>📝 メモ <small class="muted">定例で話したこと・決まったこと</small></h2>${copyButton("memo")}</div>
-        ${canEdit ? `<textarea name="memo" rows="6" maxlength="10000" placeholder="・〇〇PJは来週ヒアリング&#10;・次回の定例は〇日">${esc(m.memo)}</textarea>`
-          : m.memo ? `<p class="pre">${esc(m.memo)}</p>` : `<p class="muted">メモはありません。</p>`}
+        ${canEdit ? `<textarea name="memo" data-rich rows="6" maxlength="10000" placeholder="〇〇PJは来週ヒアリング・次回の定例は〇日（「/」でメニュー）">${esc(m.memo)}</textarea>`
+          : m.memo ? `<div class="rich-view">${richHtml(m.memo)}</div>` : `<p class="muted">メモはありません。</p>`}
       </section>
 
       <section class="card">
@@ -183,6 +186,7 @@ export async function renderTeirei(el, id) {
             : m.is_today ? `<button type="button" data-reopen>↩ 定例を再開する</button>` : ""}` : ""}
       </div>
     </form>`;
+  enhanceRich(el);
 
   const form = el.querySelector("#teirei-form");
   guardForm(form);
@@ -252,6 +256,7 @@ export async function renderReportList(el) {
       <p>${todayMeetingId ? "今日の定例" : "次の定例"}に向けて書きます</p></div>
     ${pjPicker(projects, (p) => pickItem({ href: `#/report/${p.id}`, name: p.name,
       note: p.written_at ? `<span class="tag">記入済み</span>` : "" }))}`;
+  enhanceRich(el);
 }
 
 // ---------- 定例の議事録を書く：進捗共有の記入 ----------
@@ -263,13 +268,14 @@ export async function renderReport(el, projectId) {
     <div class="page-heading left"><h1>📝 ${esc(p.name)}</h1>
       <p>${meeting ? `${fmtDate(meeting.held_on)}の定例` : "次の定例"}で共有する進捗です。いまの工程：${stageLabel(p)}・<a href="#/projects/${p.id}">PJ画面へ</a></p></div>
     <form class="card form" id="report">
-      ${FIELDS.map(([k, label]) => `<div class="field"><div class="section-head"><strong>${label}</strong>${copyButton(k)}</div><textarea name="${k}" rows="4" maxlength="3000" aria-label="${label}">${esc(report[k])}</textarea></div>`).join("")}
+      ${FIELDS.map(([k, label]) => `<div class="field"><div class="section-head"><strong>${label}</strong>${copyButton(k)}</div><textarea name="${k}" data-rich rows="4" maxlength="3000" aria-label="${label}">${esc(report[k])}</textarea></div>`).join("")}
       <div class="form-actions">
         ${report.updated_at ? `<span class="muted small">最終更新：${esc(report.updated_by_name || "")}・${fmtDateTime(jstDateTime(report.updated_at))}</span>` : ""}
         <button type="button" id="copy-md">📋 Notion用にコピー</button>
         <button class="primary">保存する</button></div>
     </form>
     ${previous ? `<details class="card"><summary>前回（${fmtDate(previous.held_on)}）の定例で共有した内容</summary>${paragraphs(previous)}</details>` : ""}`;
+  enhanceRich(el);
   const form = el.querySelector("#report");
   guardForm(form);
   bindCopyButtons(form, (k) => [`#### ${FIELDS.find(([key]) => key === k)[1]}`, ...mdText(form[k].value || "（なし）")].join("\n"));
@@ -316,13 +322,14 @@ export async function renderTeireiNotice(el) {
     <nav class="breadcrumb"><a href="#/teirei">定例</a> / 事務連絡を書く</nav>
     <div class="page-heading left"><h1>📢 ${d.day ? `${fmtDate(d.day)}の定例の` : ""}事務連絡</h1><p>${where}</p></div>
     <form class="card form" id="notice-form">
-      <textarea name="notice" rows="8" maxlength="5000" aria-label="事務連絡" placeholder="部門長・副部門長からの連絡事項">${esc(d.notice)}</textarea>
+      <textarea name="notice" data-rich rows="8" maxlength="5000" aria-label="事務連絡" placeholder="部門長・副部門長からの連絡事項">${esc(d.notice)}</textarea>
       <div class="form-actions">
         ${d.updated_at ? `<span class="muted small">最終更新：${esc(d.updated_by_name)}・${fmtDateTime(jstDateTime(d.updated_at))}</span>` : ""}
         ${d.target === "meeting" ? `<a class="button" href="#/teirei/${d.meeting.id}">この定例を開く</a>` : ""}
         <button class="primary">保存する</button>
       </div>
     </form>`;
+  enhanceRich(el);
   const noticeForm = el.querySelector("#notice-form");
   guardForm(noticeForm);
   noticeForm.addEventListener("submit", (e) => {
@@ -354,6 +361,7 @@ export async function renderTeireiSchedule(el) {
         <div class="meta"><button class="link-btn danger" data-del="${x.id}">削除</button></div></li>`).join("")}</ul>`
       : `<p class="muted">まだ予定はありません。</p>`}
     ${upcoming.length ? `<p class="small" style="margin-top:12px"><strong>次の定例：</strong>${upcoming.map((x) => slotLabel(x.starts_at)).join("、")}</p>` : ""}`;
+  enhanceRich(el);
   el.querySelector("#schedule-form").addEventListener("submit", (e) => {
     e.preventDefault();
     busy(e.submitter, () => api("/api/dept-schedules", { method: "POST", body: formData(e.target) }))

@@ -42,6 +42,8 @@ ADMIN_IDS = ""
 HEARING_FORUM_ID = ""
 # （任意）スレッドに付けるフォーラムのタグID。フォーラムで「タグ必須」にしている場合だけ入れる
 HEARING_FORUM_TAG_ID = ""
+# 定例の回数：ツールで最初に開いた定例を何回目とするか（Notionの「政策立案部門定例第◯回」に合わせる）
+TEIREI_FIRST_NUMBER = "57"
 
 # シークレット（`npx wrangler secret put <NAME>` で設定。コードやログには出さない）:
 #   DISCORD_CLIENT_ID / DISCORD_CLIENT_SECRET / SESSION_SECRET
