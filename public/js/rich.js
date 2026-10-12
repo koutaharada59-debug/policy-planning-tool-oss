@@ -16,11 +16,13 @@ const TYPES = {
   ol: { label: "番号付きリスト", md: "1. " },
   todo: { label: "チェックボックス", md: "[ ] " },
   quote: { label: "引用", md: "> " },
+  toggle: { label: "トグルリスト", md: "▶ " },
+  callout: { label: "コールアウト", md: "💡 " },
   hr: { label: "区切り線", md: "---" },
   embed: { label: "リンク・埋め込み", md: "" },
 };
 const SLASH = [["h1", "大", "見出し（大）"], ["h2", "中", "見出し（中）"], ["h3", "小", "見出し（小）"], ["ul", "•", "箇条書き"], ["ol", "1.", "番号付きリスト"],
-  ["todo", "☑", "チェックボックス"], ["quote", "❝", "引用"], ["hr", "—", "区切り線"], ["embed", "🔗", "リンク・埋め込み（URL）"], ["p", "¶", "本文"]];
+  ["todo", "☑", "チェックボックス"], ["toggle", "▶", "トグルリスト"], ["quote", "❝", "引用"], ["callout", "💡", "コールアウト（目立つ囲み）"], ["hr", "—", "区切り線"], ["embed", "🔗", "リンク・埋め込み（URL）"], ["p", "¶", "本文"]];
 
 // ---------- Markdown → 表示用HTML ----------
 const URL_RE = /https?:\/\/[^\s<>"'）)]+/g;
@@ -35,9 +37,18 @@ function inlineHtml(text) {
   s = s.replace(/(^|[^"'>=])(https?:\/\/[^\s<>"']+)/g, '$1<a href="$2" target="_blank" rel="noopener">$2</a>');
   return s;
 }
-function parseLine(line) {
+function parseLine(raw) {
+  // 字下げ（行の頭の空白2つで1段。トグルの中身など）
+  const indent = Math.min(3, Math.floor(raw.match(/^ */)[0].length / 2));
+  const b = parseBody(raw.slice(indent * 2));
+  b[3] = indent;
+  return b;
+}
+function parseBody(line) {
   const m = (re) => line.match(re);
   let r;
+  if ((r = m(/^▶\s?(.*)$/))) return ["toggle", r[1]];
+  if ((r = m(/^💡\s?(.*)$/u))) return ["callout", r[1]];
   if ((r = m(/^###\s+(.*)$/))) return ["h3", r[1]];
   if ((r = m(/^##\s+(.*)$/))) return ["h2", r[1]];
   if ((r = m(/^#\s+(.*)$/))) return ["h1", r[1]];
@@ -56,23 +67,51 @@ function embedHtml(url) {
   const frame = yt ? `https://www.youtube.com/embed/${yt[1]}` : embedUrl(url);
   return `<a class="rb-card" href="${esc(url)}" target="_blank" rel="noopener" contenteditable="false"><span class="rb-card-icon">🔗</span><span><strong>${esc(host || url)}</strong><small>${esc(url)}</small></span></a>${frame ? `<iframe class="rb-frame" src="${esc(frame)}" loading="lazy" allowfullscreen></iframe>` : ""}`;
 }
-function blockHtml([type, text, checked], editable) {
-  const attrs = `class="rb rb-${type}" data-type="${type}"`;
+function blockHtml([type, text, checked, indent = 0], editable) {
+  const attrs = `class="rb rb-${type}" data-type="${type}"${indent ? ` data-indent="${indent}"` : ""}${type === "toggle" && editable ? ' data-open="1"' : ""}`;
   if (type === "hr") return `<div ${attrs} contenteditable="false"><hr></div>`;
   if (type === "embed") return `<div ${attrs} data-url="${esc(text)}" contenteditable="false">${embedHtml(text)}</div>`;
+  if (type === "callout") return `<div ${attrs}><span class="rb-icon" contenteditable="false">💡</span><span class="rb-text">${inlineHtml(text) || "<br>"}</span></div>`;
+  if (type === "toggle") return `<div ${attrs}><span class="rb-tog" contenteditable="false" role="button" aria-label="開く・閉じる"></span><span class="rb-text">${inlineHtml(text) || "<br>"}</span></div>`;
   const box = type === "todo" ? `<span class="rb-check" contenteditable="false"><input type="checkbox" ${checked ? "checked" : ""} ${editable ? "" : "disabled"} aria-label="完了"></span>` : "";
   return `<div ${attrs}${type === "todo" && checked ? ' data-checked="1"' : ""}>${box}<span class="rb-text">${inlineHtml(text) || "<br>"}</span></div>`;
 }
 // 読むだけの表示（議事録を見る・検索など）にも使う
-export function richHtml(md) {
+export function richHtml(md, { editable = false } = {}) {
   const lines = String(md || "").split("\n");
   let n = 0;
+  let hideBelow = null;
   return lines.map((l) => {
     const b = parseLine(l);
     n = b[0] === "ol" ? n + 1 : 0;
-    return blockHtml(b, false).replace('class="rb rb-ol"', `class="rb rb-ol" data-n="${n}"`);
+    let html = blockHtml(b, editable).replace('class="rb rb-ol"', `class="rb rb-ol" data-n="${n}"`);
+    // 閉じたトグルの中身は隠す（編集中はトグルを開いておく）
+    const ind = b[3] || 0;
+    if (hideBelow !== null && ind > hideBelow) html = html.replace('class="rb ', 'class="rb rb-hidden ');
+    else { hideBelow = null; if (b[0] === "toggle" && !editable) hideBelow = ind; }
+    return html;
   }).join("");
 }
+
+// トグルの開け閉め：閉じたトグルより深い字下げの行を隠す
+export function applyFold(container) {
+  let hideBelow = null;
+  for (const b of container.children) {
+    const ind = Number(b.dataset.indent || 0);
+    if (hideBelow !== null && ind > hideBelow) { b.classList.add("rb-hidden"); continue; }
+    hideBelow = null;
+    b.classList.remove("rb-hidden");
+    if (b.dataset.type === "toggle" && !b.dataset.open) hideBelow = ind;
+  }
+}
+document.addEventListener("mousedown", (e) => {
+  const tog = e.target.closest?.(".rb-tog");
+  if (!tog) return;
+  e.preventDefault();
+  const b = tog.parentElement;
+  if (b.dataset.open) delete b.dataset.open; else b.dataset.open = "1";
+  applyFold(b.parentElement);
+});
 
 // ---------- 編集用HTML → Markdown ----------
 function inlineMd(node) {
@@ -97,11 +136,12 @@ function toMarkdown(editor) {
   const lines = [];
   for (const b of editor.children) {
     const type = b.dataset?.type || "p";
-    if (type === "hr") { lines.push("---"); continue; }
-    if (type === "embed") { lines.push(b.dataset.url || ""); continue; }
+    const pad = "  ".repeat(Number(b.dataset.indent || 0));
+    if (type === "hr") { lines.push(pad + "---"); continue; }
+    if (type === "embed") { lines.push(pad + (b.dataset.url || "")); continue; }
     const text = inlineMd(b.querySelector(".rb-text") || b).replace(/\n/g, " ");
     const prefix = type === "todo" ? (b.dataset.checked ? "[x] " : "[ ] ") : TYPES[type]?.md || "";
-    lines.push(prefix + text);
+    lines.push(pad + prefix + text);
   }
   // 末尾の空行は持たない
   while (lines.length && !lines[lines.length - 1].trim()) lines.pop();
@@ -118,7 +158,6 @@ function attach(ta) {
   const editable = !ta.disabled;
   const ed = document.createElement("div");
   ed.className = "rich-editor";
-  ed.dataset.placeholder = (ta.getAttribute("placeholder") || "").replace(/\n/g, "  ");
   ed.setAttribute("role", "textbox");
   ed.setAttribute("aria-multiline", "true");
   ed.setAttribute("aria-label", ta.getAttribute("aria-label") || "本文");
@@ -127,7 +166,7 @@ function attach(ta) {
   ta.tabIndex = -1;
 
   const render = (md) => {
-    ed.innerHTML = richHtml(md) || blockHtml(["p", ""], true);
+    ed.innerHTML = richHtml(md, { editable: true }) || blockHtml(["p", ""], true);
     if (!ed.lastElementChild || ["hr", "embed"].includes(ed.lastElementChild.dataset.type)) ed.insertAdjacentHTML("beforeend", blockHtml(["p", ""], true));
     renumber();
   };
@@ -158,15 +197,17 @@ function attach(ta) {
   const caretBlock = () => { const s = getSelection(); return s.rangeCount ? blockOf(s.anchorNode) : null; };
   const textEl = (b) => b.querySelector(".rb-text") || b;
   const placeCaret = (el, atEnd = true) => { const r = document.createRange(); r.selectNodeContents(el); r.collapse(!atEnd); const s = getSelection(); s.removeAllRanges(); s.addRange(r); };
-  const newBlock = (type, after, text = "") => {
-    after.insertAdjacentHTML("afterend", blockHtml([type, text], true));
+  const indentOf = (b) => Number(b?.dataset.indent || 0);
+  const newBlock = (type, after, text = "", indent = indentOf(after)) => {
+    after.insertAdjacentHTML("afterend", blockHtml([type, text, false, indent], true));
     return after.nextElementSibling;
   };
+  const setIndent = (b, n) => { n = Math.max(0, Math.min(3, n)); if (n) b.dataset.indent = n; else delete b.dataset.indent; applyFold(ed); sync(); };
   const setType = (b, type) => {
     if (!b) return;
     const text = inlineMd(textEl(b));
     const tmp = document.createElement("div");
-    tmp.innerHTML = blockHtml([type, text, false], true);
+    tmp.innerHTML = blockHtml([type, text, false, indentOf(b)], true);
     const nb = tmp.firstElementChild;
     b.replaceWith(nb);
     if (type === "hr") { const p = newBlock("p", nb); placeCaret(textEl(p)); }
@@ -180,7 +221,7 @@ function attach(ta) {
     const b = caretBlock();
     if (b && (b.dataset.type === "p" || !b.dataset.type)) {
       const t = textEl(b).textContent;
-      const rules = [[/^#\s$/, "h1"], [/^##\s$/, "h2"], [/^###\s$/, "h3"], [/^[-*・]\s$/, "ul"], [/^1[.)]\s$/, "ol"], [/^\[\s?\]\s$/, "todo"], [/^>\s$/, "quote"], [/^---$/, "hr"]];
+      const rules = [[/^#\s$/, "h1"], [/^##\s$/, "h2"], [/^###\s$/, "h3"], [/^[-*・]\s$/, "ul"], [/^1[.)]\s$/, "ol"], [/^\[\s?\]\s$/, "todo"], [/^[>▶]\s$/, "toggle"], [/^["“]\s$/, "quote"], [/^---$/, "hr"]];
       const hit = rules.find(([re]) => re.test(t.replace(/ /g, " ")));
       if (hit) { textEl(b).textContent = ""; setType(b, hit[1]); return; }
       if (t === "/") openSlash(b);
@@ -205,16 +246,26 @@ function attach(ta) {
       const s = getSelection();
       const r = s.getRangeAt(0);
       // 空の箇条書き・チェックで Enter → ふつうの段落に戻す（Notionと同じ）
-      if (["ul", "ol", "todo", "quote"].includes(type) && !textEl(b).textContent.trim()) { setType(b, "p"); return; }
+      if (["ul", "ol", "todo", "quote", "toggle"].includes(type) && !textEl(b).textContent.trim()) { setType(b, "p"); return; }
+      if (type === "p" && indentOf(b) && !textEl(b).textContent.trim()) { setIndent(b, indentOf(b) - 1); return; }
       // カーソルより後ろの文字を、次の行に持っていく
       const tail = r.cloneRange(); tail.selectNodeContents(textEl(b)); tail.setStart(r.endContainer, r.endOffset);
       const frag = tail.extractContents();
       const holder = document.createElement("span"); holder.append(frag);
       const nextType = ["ul", "ol", "todo"].includes(type) ? type : "p";
-      const nb = newBlock(nextType, b, inlineMd(holder));
+      if (type === "toggle") b.dataset.open = "1";
+      const nb = newBlock(nextType, b, inlineMd(holder), type === "toggle" ? Math.min(3, indentOf(b) + 1) : indentOf(b));
+      applyFold(ed);
       if (!textEl(b).textContent) textEl(b).innerHTML = "<br>";
       placeCaret(textEl(nb), false);
       sync();
+      return;
+    }
+    if (e.key === "Tab") {
+      e.preventDefault();
+      const prev = b.previousElementSibling;
+      if (e.shiftKey) setIndent(b, indentOf(b) - 1);
+      else if (prev) setIndent(b, Math.min(indentOf(prev) + 1, indentOf(b) + 1));
       return;
     }
     if (e.key === "Backspace") {
@@ -222,6 +273,7 @@ function attach(ta) {
       if (!s.isCollapsed) return;
       const r = s.getRangeAt(0); const pre = r.cloneRange(); pre.selectNodeContents(textEl(b)); pre.setEnd(r.startContainer, r.startOffset);
       if (pre.toString().length) return;
+      if (indentOf(b) && b.dataset.type === "p") { e.preventDefault(); setIndent(b, indentOf(b) - 1); return; }
       // 行の頭で Backspace：見出し・箇条書きなどは本文に戻す。本文なら前の行とつなげる
       if (b.dataset.type !== "p") { e.preventDefault(); setType(b, "p"); return; }
       const prev = b.previousElementSibling;
@@ -240,6 +292,20 @@ function attach(ta) {
     if ((e.ctrlKey || e.metaKey) && ["b", "i", "k"].includes(e.key.toLowerCase())) {
       e.preventDefault();
       if (e.key.toLowerCase() === "k") askLink(); else { document.execCommand(e.key.toLowerCase() === "b" ? "bold" : "italic"); sync(); }
+    }
+  });
+
+  // リンクはクリックで開く（書いている途中でも）。文字を選んでいるときは開かない
+  ed.addEventListener("click", (e) => {
+    const s = getSelection();
+    if (!s.isCollapsed) return;
+    const a = e.target.closest("a[href]");
+    if (a && ed.contains(a)) { e.preventDefault(); window.open(a.href, "_blank", "noopener"); return; }
+    // まだリンクになっていない（書いたばかりの）URLも、クリックで開く
+    const node = s.anchorNode;
+    if (node?.nodeType !== 3) return;
+    for (const m of node.textContent.matchAll(URL_RE)) {
+      if (s.anchorOffset > m.index && s.anchorOffset < m.index + m[0].length) { window.open(m[0], "_blank", "noopener"); return; }
     }
   });
 

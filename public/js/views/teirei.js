@@ -3,6 +3,8 @@ import { api, esc, state, fmtDate, fmtDateTime, jstDateTime, addDays, hashQuery,
 import { enhanceRich, richHtml } from "../rich.js";
 
 const EVENTS = { "": "なし", news: "ニュース勉強会", exchange: "意見交換会" };
+// 定例の議事録のテンプレート：事務連絡／各PJの進捗共有／ニュース勉強会／意見交換会
+const NOTES = [["news", "📰 ニュース勉強会"], ["exchange", "💬 意見交換会"]];
 const FIELDS = [
   ["done", "前回の定例からやったこと"],
   ["next", "次の定例までにやること"],
@@ -134,7 +136,6 @@ export async function renderTeireiMinutes(el) {
 // ---------- 定例の議事録：事務連絡 → 各PJの進捗共有 → メモ → イベント → 定例を終わる ----------
 export async function renderTeirei(el, id) {
   const { meeting: m, reports, missing, canEdit } = await api(`/api/dept-meetings/${id}`);
-  const ro = canEdit ? "" : "disabled";
   let version = m.version;
   el.innerHTML = `
     <nav class="breadcrumb"><a href="#/teirei">定例</a> / <a href="#/teirei/minutes">定例の議事録</a> / ${fmtDate(m.held_on)}</nav>
@@ -145,39 +146,41 @@ export async function renderTeirei(el, id) {
     <form class="minutes" id="teirei-form">
       <section class="card">
         <div class="section-head"><h2>📢 事務連絡</h2>${copyButton("notice")}</div>
-        ${canEdit ? `<textarea name="notice" data-rich rows="5" maxlength="5000" placeholder="部門長・副部門長からの連絡事項（「/」でメニュー）">${esc(m.notice)}</textarea>`
+        ${canEdit ? `<textarea name="notice" data-rich rows="5" maxlength="5000" aria-label="事務連絡">${esc(m.notice)}</textarea>`
           : m.notice ? `<div class="rich-view">${richHtml(m.notice)}</div>` : `<p class="muted">事務連絡はありません。</p>`}
       </section>
 
       <section class="card">
         <div class="section-head"><h2>📊 各PJの進捗共有</h2>${m.is_open ? `<button type="button" class="small" id="reload">最新にする</button>` : ""}</div>
-        ${reports.length || missing.length ? `<div class="report-grid">
+        ${reports.length || missing.length ? `<div class="report-toggles">
           ${reports.map((r) => `
-            <article class="report">
-              <span class="stage-pill">${stageLabel(r)}</span>
-              <div class="section-head"><h3><a href="#/projects/${r.project_id}">${esc(r.project_name)}</a></h3>${copyButton(`report-${r.project_id}`)}</div>
-              ${paragraphs(r)}
-              <p class="muted small">${esc(r.updated_by_name || "")}・${fmtDateTime(jstDateTime(r.updated_at))}</p>
-            </article>`).join("")}
+            <details class="report-toggle">
+              <summary><span class="rt-name">${esc(r.project_name)}</span><span class="stage-pill">${stageLabel(r)}</span></summary>
+              <div class="rt-body">
+                <div class="section-head"><a class="small" href="#/projects/${r.project_id}">PJを開く</a>${copyButton(`report-${r.project_id}`)}</div>
+                ${paragraphs(r)}
+                <p class="muted small">${esc(r.updated_by_name || "")}・${fmtDateTime(jstDateTime(r.updated_at))}</p>
+              </div>
+            </details>`).join("")}
           ${missing.map((p) => `
-            <article class="report is-missing">
-              <span class="stage-pill">${stageLabel(p)}</span>
-              <h3><a href="#/projects/${p.id}">${esc(p.name)}</a></h3>
-              <p class="muted small">まだ記入されていません。</p>
-            </article>`).join("")}
+            <details class="report-toggle is-missing">
+              <summary><span class="rt-name">${esc(p.name)}</span><span class="stage-pill">${stageLabel(p)}</span><span class="muted small">未記入</span></summary>
+              <div class="rt-body"><p class="muted small">まだ記入されていません。<a href="#/report/${p.id}">進捗を書く</a></p></div>
+            </details>`).join("")}
         </div>` : `<p class="muted">進捗共有はありません。</p>`}
       </section>
 
+      ${NOTES.map(([k, label]) => `
       <section class="card">
-        <div class="section-head"><h2>📝 メモ <small class="muted">定例で話したこと・決まったこと</small></h2>${copyButton("memo")}</div>
-        ${canEdit ? `<textarea name="memo" data-rich rows="6" maxlength="10000" placeholder="〇〇PJは来週ヒアリング・次回の定例は〇日（「/」でメニュー）">${esc(m.memo)}</textarea>`
-          : m.memo ? `<div class="rich-view">${richHtml(m.memo)}</div>` : `<p class="muted">メモはありません。</p>`}
-      </section>
+        <div class="section-head"><h2>${label}</h2>${copyButton(k)}</div>
+        ${canEdit ? `<textarea name="${k}" data-rich rows="3" maxlength="5000" aria-label="${label}">${esc(m[k])}</textarea>`
+          : m[k] ? `<div class="rich-view">${richHtml(m[k])}</div>` : `<p class="muted">なし</p>`}
+      </section>`).join("")}
 
-      <section class="card">
-        <div class="section-head"><h2>🎉 定例のあとのイベント</h2>${copyButton("event")}</div>
-        <select name="event" aria-label="イベント" ${ro}>${Object.entries(EVENTS).map(([k, v]) => `<option value="${k}" ${k === m.event ? "selected" : ""}>${v}</option>`).join("")}</select>
-      </section>
+      ${m.memo ? `<section class="card">
+        <div class="section-head"><h2>📝 メモ</h2>${copyButton("memo")}</div>
+        ${canEdit ? `<textarea name="memo" data-rich rows="4" maxlength="10000" aria-label="メモ">${esc(m.memo)}</textarea>` : `<div class="rich-view">${richHtml(m.memo)}</div>`}
+      </section>` : ""}
 
       <div class="form-actions sticky">
         <button type="button" id="copy-md" title="Notion用にコピー">📋<span class="hide-sm"> Notion用にコピー</span></button>
@@ -200,8 +203,9 @@ export async function renderTeirei(el, id) {
   const val = (k) => (form[k] ? form[k].value : m[k]) || "";
   const section = {
     notice: () => ["### 事務連絡", ...(val("notice").trim() ? mdText(val("notice")) : ["（なし）"]), ""],
-    memo: () => ["### メモ", ...(val("memo").trim() ? mdText(val("memo")) : ["（なし）"]), ""],
-    event: () => ["### 定例のあとのイベント", EVENTS[val("event")] || "なし", ""],
+    memo: () => (val("memo").trim() ? ["### メモ", ...mdText(val("memo")), ""] : []),
+    news: () => ["### ニュース勉強会", ...(val("news").trim() ? mdText(val("news")) : ["（なし）"]), ""],
+    exchange: () => ["### 意見交換会", ...(val("exchange").trim() ? mdText(val("exchange")) : ["（なし）"]), ""],
     report: (r) => [`#### ${r.project_name}（工程${r.current_stage}・${stageName(r)}）`, ...reportMd(r, "#####")],
   };
   bindCopyButtons(form, (key) => (key.startsWith("report-")
@@ -209,36 +213,37 @@ export async function renderTeirei(el, id) {
   el.querySelector("#copy-md").addEventListener("click", () => copyForNotion([
     `## ${fmtDate(m.held_on)}の定例`, "", ...section.notice(),
     "### 各PJの進捗共有", "", ...reports.flatMap(section.report), ...missing.flatMap((p) => [`#### ${p.name}`, "（未記入）", ""]),
-    ...section.memo(), ...section.event(),
+    ...section.news(), ...section.exchange(), ...section.memo(),
   ].join("\n")));
 
   // 最後にサーバーと一致していた内容（ぶつかったときにまとめるため）
-  let base = { notice: m.notice, memo: m.memo, event: m.event };
+  const KEYS = ["notice", "news", "exchange", "memo"].filter((k) => form[k]);
+  const values = () => Object.fromEntries(KEYS.map((k) => [k, form[k].value]));
+  let base = Object.fromEntries(KEYS.map((k) => [k, m[k]]));
   const send = (end) => api(`/api/dept-meetings/${id}`, {
-    method: "PATCH", body: { notice: form.notice.value, memo: form.memo.value, event: form.event.value, end, version },
+    method: "PATCH", body: { ...values(), end, version },
   }).catch(async (err) => {
     if (!/他の人が更新/.test(err.message)) throw err;
     // ほかの部門長・副部門長も同時に書いていた：相手の変更を取り込んで、もう一度保存する
     const { meeting: latest } = await api(`/api/dept-meetings/${id}`);
     let both = false;
-    for (const k of ["notice", "memo"]) {
+    for (const k of KEYS) {
       const r = mergeText(base[k], form[k].value, latest[k]);
       form[k].value = r.text;
       both ||= r.both;
     }
-    if (form.event.value === base.event) form.event.value = latest.event;
-    base = { notice: latest.notice, memo: latest.memo, event: latest.event };
+    base = Object.fromEntries(KEYS.map((k) => [k, latest[k]]));
     version = latest.version;
     if (both) toast("ほかの人も同じ欄を書いていたので、両方の内容を残しました。確認してください");
     return api(`/api/dept-meetings/${id}`, {
-      method: "PATCH", body: { notice: form.notice.value, memo: form.memo.value, event: form.event.value, end, version },
+      method: "PATCH", body: { ...values(), end, version },
     });
   });
   form.addEventListener("submit", (e) => {
     e.preventDefault();
     const end = "end" in e.submitter.dataset;
     busy(e.submitter, () => send(end)).then((res) => {
-      base = { notice: form.notice.value, memo: form.memo.value, event: form.event.value };
+      base = values();
       version = res.version;
       markSaved(form);
       toast(end ? "定例を終わりました。議事録を保存しました" : "議事録を保存しました");
@@ -318,7 +323,9 @@ export async function renderTeireiNotice(el) {
     <nav class="breadcrumb"><a href="#/teirei">定例</a> / 事務連絡を書く</nav>
     <div class="page-heading left"><h1>📢 ${d.day ? `${fmtDate(d.day)}の定例の` : ""}事務連絡</h1><p>${where}</p></div>
     <form class="card form" id="notice-form">
-      <textarea name="notice" data-rich rows="8" maxlength="5000" aria-label="事務連絡" placeholder="部門長・副部門長からの連絡事項">${esc(d.notice)}</textarea>
+      <div class="field"><strong>📢 事務連絡</strong><textarea name="notice" data-rich rows="6" maxlength="5000" aria-label="事務連絡">${esc(d.notice)}</textarea></div>
+      <p class="muted small">📊 各PJの進捗共有は、各PJが「進捗を書く」で書いたものが、PJごとのトグルで自動で入ります。</p>
+      ${NOTES.map(([k, label]) => `<div class="field"><strong>${label}</strong><textarea name="${k}" data-rich rows="3" maxlength="5000" aria-label="${label}">${esc(d[k])}</textarea></div>`).join("")}
       <div class="form-actions">
         ${d.updated_at ? `<span class="muted small">最終更新：${esc(d.updated_by_name)}・${fmtDateTime(jstDateTime(d.updated_at))}</span>` : ""}
         ${d.target === "meeting" ? `<a class="button" href="#/teirei/${d.meeting.id}">この定例を開く</a>` : ""}
@@ -330,8 +337,8 @@ export async function renderTeireiNotice(el) {
   guardForm(noticeForm);
   noticeForm.addEventListener("submit", (e) => {
     e.preventDefault();
-    busy(e.submitter, () => api("/api/dept-notice", { method: "PUT", body: { notice: e.target.notice.value, version, target: d.target, day: d.target === "next" ? null : d.day } }))
-      .then((res) => { version = res.version; markSaved(noticeForm); toast("事務連絡を保存しました"); }).catch(() => {});
+    busy(e.submitter, () => api("/api/dept-notice", { method: "PUT", body: { notice: e.target.notice.value, news: e.target.news.value, exchange: e.target.exchange.value, version, target: d.target, day: d.target === "next" ? null : d.day } }))
+      .then((res) => { version = res.version; markSaved(noticeForm); toast("保存しました"); }).catch(() => {});
   });
 }
 

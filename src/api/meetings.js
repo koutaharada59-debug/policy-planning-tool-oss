@@ -5,7 +5,7 @@ import { addDays } from "../project-types.js";
 import { regularOccurrences, parseWeekdays } from "../schedule.js";
 import { buildIcs, icsResponse, weeklyRule } from "../ics.js";
 import { loadProject, requireEditor, assertUsers, canEdit } from "./common.js";
-import { notionConfigured, notionPageId, minutesBlocks, createNotionPage } from "../notion.js";
+import { notionConfigured, notionPageId, minutesBlocks, createNotionPage, replaceNotionPage } from "../notion.js";
 
 export const routes = [
   ["POST", "/api/projects/:id/meetings", createMeeting],
@@ -99,6 +99,14 @@ async function createNotionMinutes({ env, user, params, url }) {
   if (meeting.notion_url) return { url: meeting.notion_url, existed: true };
   if (!notionConfigured(env)) throw new HttpError(400, "Notion連携がまだ設定されていません（管理者がNotionのトークンを入れると使えます）");
   if (!project.notion_url) throw new HttpError(400, "このPJのNotionページが登録されていません");
+  const { title, blocks } = await notionMinutes(env, meeting, project, url);
+  const pageUrl = await createNotionPage(env, project.notion_url, title, blocks);
+  await env.DB.prepare("UPDATE meetings SET notion_url = ? WHERE id = ?").bind(pageUrl, meeting.id).run();
+  return { url: pageUrl };
+}
+
+// Notionに書く議事録（題名と中身）
+async function notionMinutes(env, meeting, project) {
   const minute = await env.DB.prepare("SELECT * FROM minutes WHERE meeting_id = ?").bind(meeting.id).first();
   const prev = await env.DB.prepare(
     `SELECT n.id FROM minutes n JOIN meetings m ON m.id = n.meeting_id WHERE n.project_id = ? AND m.starts_at < ? ORDER BY m.starts_at DESC LIMIT 1`
@@ -110,10 +118,19 @@ async function createNotionMinutes({ env, user, params, url }) {
   const d = meeting.starts_at;
   const title = `${d.slice(0, 4)}/${d.slice(5, 7)}/${d.slice(8, 10)} MTG議事録`;
   const appUrl = env.APP_URL ? `${env.APP_URL}/#/meetings/${meeting.id}?mode=view` : "";
-  const pageUrl = await createNotionPage(env, project.notion_url,
-    title, minutesBlocks({ homework, agenda: minute?.agenda, summary: minute?.summary, todos, appUrl }));
-  await env.DB.prepare("UPDATE meetings SET notion_url = ? WHERE id = ?").bind(pageUrl, meeting.id).run();
-  return { url: pageUrl };
+  return { title, blocks: minutesBlocks({ homework, agenda: minute?.agenda, summary: minute?.summary, todos, appUrl }) };
+}
+
+// 議事録を保存したら、Notionの「議事録」にも自動で入れる（1回目は新しいページを作る。2回目からは同じページを書き直す）
+// Notionの返事を待たずに保存は終わる。失敗しても保存はそのまま（ログだけ残す）
+async function syncNotion(env, meetingId) {
+  const meeting = await loadMeeting(env, meetingId);
+  const project = await loadProject(env, meeting.project_id);
+  if (!notionConfigured(env) || !project.notion_url) return;
+  const { title, blocks } = await notionMinutes(env, meeting, project);
+  if (meeting.notion_url) return replaceNotionPage(env, meeting.notion_url, title, blocks);
+  const pageUrl = await createNotionPage(env, project.notion_url, title, blocks);
+  await env.DB.prepare("UPDATE meetings SET notion_url = ? WHERE id = ? AND notion_url IS NULL").bind(pageUrl, meeting.id).run();
 }
 
 async function getMeeting({ env, user, params }) {
@@ -189,7 +206,7 @@ async function claimField(env, meetingId, field, user, now) {
 }
 
 // 議事録を保存する。送られてきた項目だけを書き換える（自動保存は1項目ずつ送る）
-async function saveMinutes({ request, env, user, params }) {
+async function saveMinutes({ request, env, user, params, ctx }) {
   const meeting = await loadMeeting(env, params.id);
   await requireEditor(env, user, meeting.project_id);
   const project = await loadProject(env, meeting.project_id);
@@ -280,7 +297,10 @@ async function saveMinutes({ request, env, user, params }) {
       await notifyProject(env, project, `次回MTGが決まりました：${shortDateTime(nextStartsAt)}`, "", user.id, { dm: true });
     }
   }
-  return { ok: true, nextMeeting: nextStartsAt, ids };
+  // 保存ボタン（body.notion）のときだけ。1秒ごとの自動保存では送らない
+  const notion = Boolean(body.notion) && notionConfigured(env) && Boolean(project.notion_url);
+  if (notion) ctx?.waitUntil(syncNotion(env, meeting.id).catch((err) => console.error("notion sync failed", err?.status, err?.code || err?.message)));
+  return { ok: true, nextMeeting: nextStartsAt, ids, notion };
 }
 
 // 議事録を開いているあいだ、数秒ごとに呼ぶ。field：いま自分が書いている項目（なければ null）

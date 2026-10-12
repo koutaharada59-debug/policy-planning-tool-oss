@@ -300,7 +300,7 @@ export async function renderMeeting(el, id) {
       method: "PUT",
       // 毎回決めるPJ：次回の日程（任意）。入っていれば一緒に登録する。「議事録を見る」から保存するときは触れない
       // notify_todos：まだ知らせていない「次回までにやること」の担当に、ここでまとめて知らせる
-      body: { next_meeting: !viewOnly && form.next_starts_at?.value ? { starts_at: form.next_starts_at.value, place: form.next_place.value } : undefined, notify_todos: !viewOnly },
+      body: { next_meeting: !viewOnly && form.next_starts_at?.value ? { starts_at: form.next_starts_at.value, place: form.next_place.value } : undefined, notify_todos: !viewOnly, notion: true },
     });
   };
   // 保存すると届くお知らせ（確認画面に出す）
@@ -323,6 +323,7 @@ export async function renderMeeting(el, id) {
     busy(button, async () => {
       const res = await save();
       toast(viewOnly ? "話すことを保存しました" : res.nextMeeting ? `議事録と次回の日程（${fmtDateTime(res.nextMeeting)}）を保存しました` : "議事録を保存しました");
+      if (res.notion) setTimeout(() => toast(m.notion_url ? "Notionの議事録も書き直しました" : "Notionの「議事録」にもページを作りました"), 900);
       renderMeeting(el, id);
     }).catch(() => {});
   });

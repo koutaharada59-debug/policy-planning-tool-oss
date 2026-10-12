@@ -1280,3 +1280,31 @@ html[data-vt="left"]::view-transition-new(main){animation:vt-in-left .26s cubic-
 .rb-bar button{min-height:32px;min-width:34px;padding:4px 8px;border:0;border-radius:7px;background:none;color:#fff;font-size:13px;font-weight:700;cursor:pointer}
 .rb-bar button:hover{background:#ffffff26}
 .rb-bar-sep{width:1px;height:20px;background:#ffffff40;margin:0 4px}
+
+/* トグルリスト・字下げ */
+.rb[data-indent="1"]{margin-left:26px}
+.rb[data-indent="2"]{margin-left:52px}
+.rb[data-indent="3"]{margin-left:78px}
+.rb-hidden{display:none}
+.rb-toggle{display:flex;gap:6px;align-items:flex-start}
+.rb-tog{flex:none;display:inline-grid;place-items:center;width:22px;height:22px;margin-top:2px;border-radius:5px;cursor:pointer;color:#3a8f6f;user-select:none}
+.rb-tog::before{content:"▶";font-size:11px;transition:transform .15s}
+.rb-toggle[data-open] .rb-tog::before{transform:rotate(90deg)}
+.rb-tog:hover{background:#eef7f2}
+
+/* コールアウト・リンク */
+.rb-callout{display:flex;gap:8px;align-items:flex-start;margin:6px 0;padding:10px 12px;border-radius:8px;background:#f4f6f5}
+.rb-icon{flex:none;user-select:none}
+.rich-editor a[href]{cursor:pointer}
+
+/* 定例の議事録：PJごとの進捗共有（トグル） */
+.report-toggles{display:flex;flex-direction:column;gap:6px}
+.report-toggle{border:1px solid var(--line);border-radius:10px;background:#fff}
+.report-toggle summary{display:flex;align-items:center;gap:10px;padding:10px 12px;cursor:pointer;list-style:none;font-weight:700}
+.report-toggle summary::-webkit-details-marker{display:none}
+.report-toggle summary::before{content:"▶";font-size:11px;color:#3a8f6f;transition:transform .15s}
+.report-toggle[open] summary::before{transform:rotate(90deg)}
+.report-toggle summary:hover{background:#f3fbf7;border-radius:10px}
+.report-toggle .rt-name{flex:1;min-width:0}
+.report-toggle .rt-body{padding:0 14px 12px 32px}
+.report-toggle.is-missing summary{color:var(--muted)}

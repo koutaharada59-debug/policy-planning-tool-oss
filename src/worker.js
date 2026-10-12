@@ -28,7 +28,7 @@ export default {
     const url = new URL(request.url);
     try {
       if (url.pathname.startsWith("/auth/")) return await handleAuth(request, env, url);
-      if (url.pathname.startsWith("/api/")) return await handleApi(request, env, url);
+      if (url.pathname.startsWith("/api/")) return await handleApi(request, env, url, ctx);
       return env.ASSETS.fetch(request);
     } catch (err) {
       if (err instanceof HttpError) return json({ error: err.message }, err.status);
@@ -45,7 +45,7 @@ export default {
   },
 };
 
-async function handleApi(request, env, url) {
+async function handleApi(request, env, url, ctx) {
   // ログイン前の画面で使う情報
   if (url.pathname === "/api/session") {
     const user = await currentUser(request, env);
@@ -69,7 +69,7 @@ async function handleApi(request, env, url) {
     const m = url.pathname.match(re);
     if (!m) continue;
     const params = Object.fromEntries(Object.entries(m.groups || {}).map(([k, v]) => [k, Number(v)]));
-    const result = await handler({ request, env, url, user, params });
+    const result = await handler({ request, env, url, user, params, ctx });
     return result instanceof Response ? result : json(result);
   }
   return json({ error: "Not found" }, 404);

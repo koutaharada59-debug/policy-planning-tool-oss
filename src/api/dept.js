@@ -20,6 +20,8 @@ export const routes = [
 ];
 
 const EVENTS = ["news", "exchange"]; // ニュース勉強会・意見交換会
+// 定例の前に書いておける欄（事務連絡・ニュース勉強会・意見交換会）
+const NOTE_FIELDS = ["notice", "news", "exchange"];
 
 // 定例の「日付」：夜の定例（22時〜翌1時など）が日付をまたいでも同じ日の定例として続くよう、朝6時で切り替える
 const TEIREI_DAY_STARTS_AT = 6;
@@ -72,13 +74,11 @@ async function startDeptMeeting({ request, env, user }) {
 // 次の定例に向けて書かれていた進捗共有と事務連絡を、この定例にまとめる（定例を始める・再開するとき）
 function collectStatements(env, meetingId, heldOn, now) {
   // 書き置きの事務連絡を、この定例の事務連絡に移して空にする（定例側にすでに書いてあれば後ろに足す）
-  const moveNotice = (from) => env.DB.prepare(
-    `UPDATE dept_meetings SET notice = CASE WHEN notice = '' THEN (${from})
-       ELSE notice || char(10) || (${from}) END, version = version + 1
-     WHERE id = ?1 AND COALESCE((${from}), '') != ''`
-  );
-  const dayNotice = "SELECT notice FROM dept_notice_days WHERE held_on = ?2";
-  const draftNotice = "SELECT notice FROM dept_notice_draft WHERE id = 1";
+  const moveNotice = (src, where) => NOTE_FIELDS.map((f) => {
+    const from = `SELECT ${f} FROM ${src} WHERE ${where}`;
+    return `${f} = CASE WHEN COALESCE((${from}), '') = '' THEN ${f} WHEN ${f} = '' THEN (${from}) ELSE ${f} || char(10) || (${from}) END`;
+  }).join(", ");
+  const move = (src, where) => env.DB.prepare(`UPDATE dept_meetings SET ${moveNotice(src, where)}, version = version + 1 WHERE id = ?1`);
   return [
     // 再開したとき：定例を終えたあとに書き直したPJは、新しいほうを残す
     env.DB.prepare(
@@ -87,10 +87,10 @@ function collectStatements(env, meetingId, heldOn, now) {
     ).bind(meetingId),
     env.DB.prepare("UPDATE dept_reports SET dept_meeting_id = ? WHERE dept_meeting_id IS NULL").bind(meetingId),
     // その日の定例に向けて書いた事務連絡 → 日付を決めずに書いた事務連絡、の順に移す
-    moveNotice(dayNotice).bind(meetingId, heldOn),
+    move("dept_notice_days", "held_on = ?2").bind(meetingId, heldOn),
     env.DB.prepare("DELETE FROM dept_notice_days WHERE held_on = ?").bind(heldOn),
-    moveNotice(draftNotice).bind(meetingId),
-    env.DB.prepare("UPDATE dept_notice_draft SET notice = '', version = version + 1, updated_at = ? WHERE id = 1 AND notice != ''").bind(now),
+    move("dept_notice_draft", "id = 1").bind(meetingId),
+    env.DB.prepare("UPDATE dept_notice_draft SET notice = '', news = '', exchange = '', version = version + 1, updated_at = ? WHERE id = 1 AND (notice != '' OR news != '' OR exchange != '')").bind(now),
   ];
 }
 
@@ -125,6 +125,8 @@ async function updateDeptMeeting({ request, env, user, params }) {
   if (!cur) throw new HttpError(404, "定例が見つかりません");
   const notice = "notice" in body ? clean(body.notice, 5000) : cur.notice;
   const memo = "memo" in body ? clean(body.memo, 10000) : cur.memo;
+  const news = "news" in body ? clean(body.news, 5000) : cur.news;
+  const exchange = "exchange" in body ? clean(body.exchange, 5000) : cur.exchange;
   const event = "event" in body ? (body.event ? oneOf(body.event, EVENTS, "イベント") : "") : cur.event;
   const now = Date.now();
   // 再開できるのは、今日の定例だけ（終えたあとに書かれた進捗共有・事務連絡もまとめ直す）
@@ -132,9 +134,9 @@ async function updateDeptMeeting({ request, env, user, params }) {
   const endedAt = body.reopen ? null : body.end ? cur.ended_at || now : cur.ended_at;
   const version = int(body.version, { min: 1, label: "版" });
   const res = await env.DB.prepare(
-    `UPDATE dept_meetings SET notice = ?, memo = ?, event = ?, ended_at = ?, updated_by = ?, updated_at = ?, version = version + 1
+    `UPDATE dept_meetings SET notice = ?, memo = ?, news = ?, exchange = ?, event = ?, ended_at = ?, updated_by = ?, updated_at = ?, version = version + 1
      WHERE id = ? AND version = ?`
-  ).bind(notice, memo, event, endedAt, user.id, now, cur.id, version).run();
+  ).bind(notice, memo, news, exchange, event, endedAt, user.id, now, cur.id, version).run();
   assertUpdated(res, "定例の議事録");
   if (body.reopen && cur.ended_at) await env.DB.batch(collectStatements(env, cur.id, cur.held_on, now));
   return { ok: true, version: version + 1 };
@@ -211,14 +213,14 @@ async function getNotice({ env, user, url }) {
   const day = url.searchParams.get("day") ? reqDate(url.searchParams.get("day"), "定例の日") : null;
   const t = await noticeTarget(env, day);
   const by = (table, where) => env.DB.prepare(
-    `SELECT d.notice, d.version, d.updated_at, u.name AS updated_by_name FROM ${table} d LEFT JOIN users u ON u.id = d.updated_by WHERE ${where}`
+    `SELECT d.notice, d.news, d.exchange, d.version, d.updated_at, u.name AS updated_by_name FROM ${table} d LEFT JOIN users u ON u.id = d.updated_by WHERE ${where}`
   );
   const row = t.target === "meeting" ? await by("dept_meetings", "d.id = ?").bind(t.meeting.id).first()
     : t.target === "day" ? await by("dept_notice_days", "d.held_on = ?").bind(day).first()
     : await by("dept_notice_draft", "d.id = 1").first();
   return {
     target: t.target, day: day || t.meeting?.held_on || null, meeting: t.meeting || null,
-    notice: row?.notice || "", version: row?.version ?? 0, updated_at: row?.updated_at || 0, updated_by_name: row?.updated_by_name || "",
+    notice: row?.notice || "", news: row?.news || "", exchange: row?.exchange || "", version: row?.version ?? 0, updated_at: row?.updated_at || 0, updated_by_name: row?.updated_by_name || "",
   };
 }
 
@@ -227,22 +229,24 @@ async function saveNotice({ request, env, user }) {
   const body = await readJson(request);
   const day = body.day ? reqDate(body.day, "定例の日") : null;
   const notice = clean(body.notice, 5000);
+  const news = clean(body.news, 5000);
+  const exchange = clean(body.exchange, 5000);
   const version = int(body.version, { min: 0, label: "版" });
   const now = Date.now();
   const t = await noticeTarget(env, day);
   // 開いたときと保存するときで行き先が変わった（そのあいだに定例が始まった・終わった）なら、読み込み直してもらう
   if (body.target !== t.target) throw new HttpError(409, "定例の状態が変わりました。画面を再読み込みしてください");
   const res = t.target === "meeting"
-    ? await env.DB.prepare("UPDATE dept_meetings SET notice = ?, updated_by = ?, updated_at = ?, version = version + 1 WHERE id = ? AND version = ?")
-      .bind(notice, user.id, now, t.meeting.id, version).run()
+    ? await env.DB.prepare("UPDATE dept_meetings SET notice = ?, news = ?, exchange = ?, updated_by = ?, updated_at = ?, version = version + 1 WHERE id = ? AND version = ?")
+      .bind(notice, news, exchange, user.id, now, t.meeting.id, version).run()
     : t.target === "day"
       ? version === 0
-        ? await env.DB.prepare("INSERT OR IGNORE INTO dept_notice_days (held_on, notice, updated_by, updated_at) VALUES (?, ?, ?, ?)")
-          .bind(day, notice, user.id, now).run()
-        : await env.DB.prepare("UPDATE dept_notice_days SET notice = ?, updated_by = ?, updated_at = ?, version = version + 1 WHERE held_on = ? AND version = ?")
-          .bind(notice, user.id, now, day, version).run()
-      : await env.DB.prepare("UPDATE dept_notice_draft SET notice = ?, updated_by = ?, updated_at = ?, version = version + 1 WHERE id = 1 AND version = ?")
-        .bind(notice, user.id, now, version).run();
+        ? await env.DB.prepare("INSERT OR IGNORE INTO dept_notice_days (held_on, notice, news, exchange, updated_by, updated_at) VALUES (?, ?, ?, ?, ?, ?)")
+          .bind(day, notice, news, exchange, user.id, now).run()
+        : await env.DB.prepare("UPDATE dept_notice_days SET notice = ?, news = ?, exchange = ?, updated_by = ?, updated_at = ?, version = version + 1 WHERE held_on = ? AND version = ?")
+          .bind(notice, news, exchange, user.id, now, day, version).run()
+      : await env.DB.prepare("UPDATE dept_notice_draft SET notice = ?, news = ?, exchange = ?, updated_by = ?, updated_at = ?, version = version + 1 WHERE id = 1 AND version = ?")
+        .bind(notice, news, exchange, user.id, now, version).run();
   assertUpdated(res, "事務連絡");
   return { ok: true, version: version + 1 };
 }
@@ -266,7 +270,7 @@ async function upcomingSlots(env, limit) {
     `SELECT id, held_on, ended_at FROM dept_meetings WHERE held_on IN (${list.map(() => "?").join(",")})`
   ).bind(...list.map((x) => x.slice(0, 10))).all();
   const { results: notes } = await env.DB.prepare(
-    `SELECT held_on FROM dept_notice_days WHERE notice != '' AND held_on IN (${list.map(() => "?").join(",")})`
+    `SELECT held_on FROM dept_notice_days WHERE (notice != '' OR news != '' OR exchange != '') AND held_on IN (${list.map(() => "?").join(",")})`
   ).bind(...list.map((x) => x.slice(0, 10))).all();
   return list.map((starts_at) => {
     const m = meetings.find((x) => x.held_on === starts_at.slice(0, 10));
