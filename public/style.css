@@ -1065,8 +1065,13 @@ label.chip-check[hidden]{display:none}
 ::view-transition-old(root),::view-transition-new(root){animation:none}
 ::view-transition-group(main){animation:none}
 ::view-transition-old(main),::view-transition-new(main){height:100%;object-fit:none;object-position:50% 0}
+/* 奥の画面へ進む（PJを開く・MTGを開くなど）：ぬるっと、下から少し上がって出る */
 ::view-transition-old(main){animation:vt-out .14s ease-in both}
-::view-transition-new(main){animation:vt-in .22s ease-out both}
+::view-transition-new(main){animation:vt-in .24s cubic-bezier(.2,.8,.2,1) both}
+/* 下のメニューで横に移る・戻る：パッと（短いクロスフェードだけ、動きなし） */
+html[data-vt="lateral"]::view-transition-old(main),html[data-vt="back"]::view-transition-old(main){animation:vt-out .08s linear both}
+html[data-vt="lateral"]::view-transition-new(main),html[data-vt="back"]::view-transition-new(main){animation:vt-fade .12s linear both}
+@keyframes vt-fade{from{opacity:0}}
 html[data-vt="right"]::view-transition-old(main){animation:vt-out-left .2s ease-in both}
 html[data-vt="right"]::view-transition-new(main){animation:vt-in-right .26s cubic-bezier(.2,.8,.2,1) both}
 html[data-vt="left"]::view-transition-old(main){animation:vt-out-right .2s ease-in both}
@@ -1088,7 +1093,7 @@ html[data-vt="left"]::view-transition-new(main){animation:vt-in-left .26s cubic-
 .page-heading .view-switch .view-switch-arrow{position:absolute;top:50%;margin-top:-20px}
 .page-heading .view-switch .view-switch-arrow.is-right{left:100%;margin-left:6px}
 .page-heading .view-switch .view-switch-arrow.is-left{right:100%;margin-right:6px}
-#tab-body{animation:vt-in .2s ease-out}
+#tab-body.tab-in{animation:vt-fade .12s linear}
 /* 読み込み中の画面：跳ねる点 ＋ 光が流れる枠 */
 .loading-screen{display:flex;flex-direction:column;align-items:center;gap:10px;padding:48px 0 24px;color:var(--muted);font-weight:700;animation:vt-in .2s ease-out}
 .loading-screen p{margin:0;font-size:13px}
@@ -1147,7 +1152,7 @@ html[data-vt="left"]::view-transition-new(main){animation:vt-in-left .26s cubic-
   .toast{transition:transform .28s cubic-bezier(.2,.8,.2,1),opacity .2s ease}
 
   /* 折りたたみ：開いたときに中身がふわっと出る */
-  details[open] > :not(summary){animation:fold-in .2s ease-out}
+  details.just-opened[open] > :not(summary){animation:fold-in .2s ease-out}
   @keyframes fold-in{from{opacity:0;transform:translateY(-4px)}}
 
   /* 🔔の数字：届いたときに揺れる */

@@ -64,6 +64,18 @@ const ERRORS = {
 
 let baseTitle = document.title;
 let routeSeq = 0;
+// 次の画面の切り替え方（lateral：下のメニューで横に移る／back：戻る）。何もなければ「奥へ進む」
+let pendingVt = null;
+document.addEventListener("click", (e) => {
+  if (e.target.closest?.("#nav a, .account-me, .site-header .brand")) pendingVt = "lateral";
+}, true);
+// 折りたたみ：自分で開いたときだけ、中身をぬるっと出す（印は少しで外す）
+document.addEventListener("click", (e) => {
+  const d = e.target.closest?.("summary")?.parentElement;
+  if (!d || d.tagName !== "DETAILS" || d.open) return;
+  d.classList.add("just-opened");
+  setTimeout(() => d.classList.remove("just-opened"), 400);
+});
 // 読み込み中の画面：点が跳ねるアニメーションと、中身の形のうっすらした枠（光が流れる）
 const loadingScreen = () => `<div class="loading loading-screen" role="status" aria-live="polite">
   <div class="loading-dots" aria-hidden="true"><i></i><i></i><i></i></div>
@@ -279,6 +291,8 @@ export async function route() {
   forgetUnsaved();
   shownHash = location.hash || "#/";
   refreshBell();
+  // 1つ前に見ていた画面へ戻ったときは「戻る」の切り替え（パッと）
+  if (visited.length >= 2 && visited[visited.length - 2] === (location.hash || "#/")) pendingVt = "back";
   trackHistory();
   document.getElementById("back-bar").hidden = path === "/";
   for (const [re, nav, view] of ROUTES) {
@@ -298,6 +312,8 @@ export async function route() {
     let loadingTimer = null;
     let viewDone = null;
     const slide = el.dataset.slide;
+    const nextVt = pendingVt;
+    pendingVt = null;
     delete el.dataset.slide;
     const render = () => (viewDone = Promise.resolve().then(() => view(m)(el)));
     // 前の画面の中身（これがまだ残っているときだけ「読み込み中…」に替える。次の画面を描き始めていたら替えない）
@@ -323,7 +339,8 @@ export async function route() {
     const showLoading = () => { el.innerHTML = loadingScreen(); onFirstContent(playEnter); };
     try {
       if (!sameScreen && smoothSwitch()) {
-        document.documentElement.dataset.vt = slide || "fade";
+        // 動き方：PJ ⇄ PJ決め は横すべり、下のメニュー・戻るはパッと、それ以外（奥へ進む）はぬるっと
+        document.documentElement.dataset.vt = slide || nextVt || "forward";
         let called = false;
         const t = document.startViewTransition(async () => {
           if (called) return;

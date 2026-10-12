@@ -121,6 +121,7 @@ export async function renderProject(el, id) {
       delete pre[k]; // 一度使ったら、次に開くときは描き直す（新しい内容にする）
     }
     if (mine !== switching) return; // その間に別のタブを押していたら、そちらを優先する
+    next.classList.add("tab-in");
     el.querySelector("#tab-body").replaceWith(next);
     bindFold(next);
   });
