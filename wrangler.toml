@@ -3,6 +3,10 @@ main = "src/worker.js"
 compatibility_date = "2026-09-01"
 
 # エラーの調査用に、Workerのログを Cloudflare のダッシュボードに残す
+# デプロイの版（画面の自動更新に使う）
+[version_metadata]
+binding = "CF_VERSION"
+
 [observability]
 enabled = true
 

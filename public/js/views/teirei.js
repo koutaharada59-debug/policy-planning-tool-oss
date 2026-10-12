@@ -268,19 +268,15 @@ export async function renderReport(el, projectId) {
     <div class="page-heading left"><h1>📝 ${esc(p.name)}</h1>
       <p>${meeting ? `${fmtDate(meeting.held_on)}の定例` : "次の定例"}で共有する進捗です。いまの工程：${stageLabel(p)}・<a href="#/projects/${p.id}">PJ画面へ</a></p></div>
     <form class="card form" id="report">
-      ${FIELDS.map(([k, label]) => `<div class="field"><div class="section-head"><strong>${label}</strong>${copyButton(k)}</div><textarea name="${k}" data-rich rows="4" maxlength="3000" aria-label="${label}">${esc(report[k])}</textarea></div>`).join("")}
+      ${FIELDS.map(([k, label]) => `<div class="field"><div class="section-head"><strong>${label}</strong></div><textarea name="${k}" data-rich rows="4" maxlength="3000" aria-label="${label}">${esc(report[k])}</textarea></div>`).join("")}
       <div class="form-actions">
         ${report.updated_at ? `<span class="muted small">最終更新：${esc(report.updated_by_name || "")}・${fmtDateTime(jstDateTime(report.updated_at))}</span>` : ""}
-        <button type="button" id="copy-md">📋 Notion用にコピー</button>
         <button class="primary">保存する</button></div>
     </form>
     ${previous ? `<details class="card"><summary>前回（${fmtDate(previous.held_on)}）の定例で共有した内容</summary>${paragraphs(previous)}</details>` : ""}`;
   enhanceRich(el);
   const form = el.querySelector("#report");
   guardForm(form);
-  bindCopyButtons(form, (k) => [`#### ${FIELDS.find(([key]) => key === k)[1]}`, ...mdText(form[k].value || "（なし）")].join("\n"));
-  el.querySelector("#copy-md").addEventListener("click", () =>
-    copyForNotion([`### ${p.name} 進捗共有（工程${p.current_stage}・${stageName(p)}）`, "", ...reportMd(formData(form))].join("\n")));
   let base = { done: report.done, next: report.next, issues: report.issues };
   const send = () => api(`/api/projects/${projectId}/dept-report`, { method: "PUT", body: { ...formData(form), version } })
     .catch(async (err) => {

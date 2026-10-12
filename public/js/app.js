@@ -64,6 +64,18 @@ const ERRORS = {
 
 let baseTitle = document.title;
 let routeSeq = 0;
+// 開いたときの版。新しい版が出ていたら、画面を移るときに読み込み直す
+let loadedVersion = "";
+let newVersion = false;
+let lastVersionCheck = 0;
+async function checkVersion() {
+  if (newVersion || !loadedVersion || Date.now() - lastVersionCheck < 60000) return;
+  lastVersionCheck = Date.now();
+  const s = await fetch("/api/session", { credentials: "same-origin" }).then((r) => r.json()).catch(() => null);
+  if (s?.version && s.version !== loadedVersion) newVersion = true;
+}
+document.addEventListener("visibilitychange", () => { if (!document.hidden) checkVersion(); });
+setInterval(() => { if (!document.hidden) checkVersion(); }, 5 * 60000);
 // 次の画面の切り替え方（lateral：下のメニューで横に移る／back：戻る）。何もなければ「奥へ進む」
 let pendingVt = null;
 document.addEventListener("click", (e) => {
@@ -87,6 +99,7 @@ const smoothSwitch = () => Boolean(document.startViewTransition) && !matchMedia(
 
 async function boot() {
   const session = await api("/api/session");
+  loadedVersion = session.version || "";
   // テスト版などは、本番と見分けられるよう画面上部に帯を出す
   if (session.siteLabel) {
     const bar = document.createElement("div");
@@ -291,6 +304,9 @@ export async function route() {
   forgetUnsaved();
   shownHash = location.hash || "#/";
   refreshBell();
+  // 新しい版が出ていたら、この画面からページごと読み込み直す（書きかけがないときだけ）
+  if (newVersion && !hasUnsaved()) { location.reload(); return; }
+  checkVersion();
   // 1つ前に見ていた画面へ戻ったときは「戻る」の切り替え（パッと）
   if (visited.length >= 2 && visited[visited.length - 2] === (location.hash || "#/")) pendingVt = "back";
   trackHistory();

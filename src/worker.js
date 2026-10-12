@@ -50,7 +50,8 @@ async function handleApi(request, env, url) {
   if (url.pathname === "/api/session") {
     const user = await currentUser(request, env);
     // siteLabel：テスト版などで、画面上部に帯を出す
-    return json({ user, devLogin: env.DEV_LOGIN === "true" && isLocal(url), siteLabel: env.SITE_LABEL || "" });
+    // version：デプロイごとに変わる。画面は、これが変わったら次の画面移動で読み込み直す（古いプログラムのまま使い続けないように）
+    return json({ user, devLogin: env.DEV_LOGIN === "true" && isLocal(url), siteLabel: env.SITE_LABEL || "", version: env.CF_VERSION?.id || "" });
   }
 
   if (request.method !== "GET") assertSameOrigin(request, url);
