@@ -11,6 +11,7 @@ export const routes = [
   ["POST", "/api/projects/:id/meetings", createMeeting],
   ["GET", "/api/projects/:id/regular.ics", regularIcs],
   ["GET", "/api/meetings/:id", getMeeting],
+  ["GET", "/api/ics/series", seriesIcs],
   ["POST", "/api/meetings/:id/notion", createNotionMinutes],
   ["POST", "/api/projects/:id/notion", setProjectNotion],
   ["PATCH", "/api/meetings/:id", updateMeeting],
@@ -338,6 +339,26 @@ async function liveMinutes({ request, env, user, params }) {
 }
 
 // 定例MTGを繰り返し予定として1件で入れるためのICS
+// くり返しの予定を1つ書いたカレンダーファイル（スマホで開くと、くり返しのまま取り込める）
+async function seriesIcs({ url }) {
+  const q = url.searchParams;
+  const start = q.get("start") || "";
+  const rrule = q.get("rrule") || "";
+  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(start)) throw new HttpError(400, "日時が正しくありません");
+  if (!/^FREQ=WEEKLY;INTERVAL=[1-4];WKST=SU;BYDAY=(SU|MO|TU|WE|TH|FR|SA)(,(SU|MO|TU|WE|TH|FR|SA))*(;UNTIL=\d{8}T\d{6}Z)?$/.test(rrule)) {
+    throw new HttpError(400, "くり返しの指定が正しくありません");
+  }
+  const body = buildIcs([{
+    uid: `series-${start.replace(/\D/g, "")}-${rrule.replace(/\W/g, "")}@policy-planning`,
+    start,
+    durationMin: int(q.get("dur"), { min: 5, max: 600, fallback: 60, label: "長さ" }),
+    title: clean(q.get("title"), 120) || "定例",
+    location: clean(q.get("loc"), 200),
+    rrule,
+  }]);
+  return icsResponse(body, "teirei.ics");
+}
+
 async function regularIcs({ env, params }) {
   const project = await loadProject(env, params.id);
   const weekdays = parseWeekdays(project.meeting_weekdays);

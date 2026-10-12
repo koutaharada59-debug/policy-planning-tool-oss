@@ -151,13 +151,34 @@ export function weeklyRrule(weekdays, interval = 1) {
 // 定例の回をカレンダーに入れるとき：「この回だけ」か「毎回（繰り返し）」かを選べるようにする。series がなければふつうのリンク
 export function gcalChoice(single, series, label = "Googleカレンダーに追加") {
   if (!series) return gcalLink(single, label);
+  const ics = seriesIcsUrl(series);
+  // スマホのGoogleカレンダー（アプリ）は、リンクの「くり返し」を無視して1回分だけ入れてしまう。スマホではカレンダーファイルを先に出す
+  const phone = window.matchMedia("(pointer: coarse)").matches;
+  const google = `<a href="${esc(series)}" target="_blank" rel="noopener">定例をまとめて追加（Googleカレンダー${phone ? "・PC向け" : ""}）</a>`;
+  const file = ics ? `<a href="${esc(ics)}" download>定例をまとめて追加（カレンダーファイル${phone ? "" : "・スマホ向け"}）</a>` : "";
   return `<details class="gcal-choice">
     <summary class="gcal">${calendarIcon}${label}</summary>
     <div class="gcal-menu">
       <a href="${esc(single)}" target="_blank" rel="noopener">この回だけ追加</a>
-      <a href="${esc(series)}" target="_blank" rel="noopener">定例をまとめて追加（毎回くり返し）</a>
+      ${phone ? file + google : google + file}
     </div>
   </details>`;
+}
+
+// Googleカレンダーの「くり返し」のリンクから、同じ内容のカレンダーファイル（.ics）のURLを作る
+function seriesIcsUrl(googleUrl) {
+  try {
+    const q = new URL(googleUrl).searchParams;
+    const [a, b] = (q.get("dates") || "").split("/");
+    const toDt = (s) => `${s.slice(0, 4)}-${s.slice(4, 6)}-${s.slice(6, 8)}T${s.slice(9, 11)}:${s.slice(11, 13)}`;
+    const start = toDt(a), end = toDt(b);
+    const dur = Math.round((new Date(`${end}:00Z`) - new Date(`${start}:00Z`)) / 60000);
+    const p = new URLSearchParams({ title: q.get("text") || "", start, dur: String(dur || 60), rrule: (q.get("recur") || "").replace(/^RRULE:/, "") });
+    if (q.get("location")) p.set("loc", q.get("location"));
+    return `/api/ics/series?${p}`;
+  } catch {
+    return "";
+  }
 }
 // メニューの外を押したとき・選んだときは閉じる
 document.addEventListener("click", (e) => {
