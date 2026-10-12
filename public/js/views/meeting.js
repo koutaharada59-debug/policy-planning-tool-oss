@@ -70,8 +70,15 @@ export async function renderMeeting(el, id) {
 
       <div class="form-actions sticky">
         <button type="button" id="copy-md" title="Notion用にコピー">📋<span class="hide-sm"> Notion用にコピー</span></button>
+        ${canEdit || m.notion_url ? `<button type="button" id="notion-make" class="notion-btn">📝 ${m.notion_url ? "Notionの議事録を開く" : "Notionに議事録を作る"}</button>` : ""}
         ${canEdit ? `<button class="${viewOnly ? "primary" : ""}" type="submit">${viewOnly ? "話すことを保存" : "保存する"}</button>` : ""}
         ${canEdit && !viewOnly ? `<button class="primary" type="button" id="end-meeting">✅ MTGを終える</button>` : ""}
+      </div>
+      <div class="card notion-setup" id="notion-setup" hidden>
+        <strong>このPJのNotionページを登録</strong>
+        <p class="muted small">Notionで、このPJのページ（見出し「議事録」があるページ）を開き、右上の「リンクをコピー」で取ったURLを貼ってください。1回登録すれば、次からはボタン1つで作れます。</p>
+        <div class="row-left"><input id="notion-url" type="url" placeholder="https://app.notion.com/p/…" aria-label="NotionのページのURL">
+          <button type="button" class="primary small" id="notion-url-save">登録して作る</button></div>
       </div>
     </form>`;
 
@@ -319,6 +326,43 @@ export async function renderMeeting(el, id) {
   });
 
   // MTGを終える：議事録を保存して、タイマーを止め、始めた画面へ戻る（あとから「前回の続き（再開）」で開き直せる）
+  // Notionに議事録を作る：PJのNotionページ（見出し「議事録」の下）に、この議事録を書いたページを作って開く
+  const notionBtn = el.querySelector("#notion-make");
+  const openNotion = (url, win) => { if (win) win.location.href = url; else window.open(url, "_blank", "noopener"); };
+  const makeNotion = async (button) => {
+    if (m.notion_url) return openNotion(m.notion_url);
+    if (!data.notion) {
+      // 連携がまだのときは、コピーしてPJのNotionページを開く（貼り付けるだけ）
+      el.querySelector("#copy-md").click();
+      if (p.notion_url) openNotion(p.notion_url);
+      setTimeout(() => toast("Notion用にコピーしました。Notionの「議事録」の下に新しいページを作って、貼り付けてください"), 700);
+      return;
+    }
+    if (!p.notion_url) {
+      el.querySelector("#notion-setup").hidden = false;
+      el.querySelector("#notion-url").focus();
+      return;
+    }
+    if (!await confirmDialog(`このMTGの議事録を、NotionのPJページ（見出し「議事録」の下）に新しいページとして作りますか？\n今回話し合うこと・概要・次回までにやることが、そのまま入ります。`, { ok: "Notionに作る" })) return;
+    const win = window.open("about:blank", "_blank"); // あとで開くと止められることがあるので、先に開いておく
+    try {
+      await flushAll();
+      const res = await busy(button, () => api(`/api/meetings/${m.id}/notion`, { method: "POST", body: {} }));
+      m.notion_url = res.url;
+      button.innerHTML = "📝 Notionの議事録を開く";
+      toast(res.existed ? "Notionの議事録を開きます" : "Notionに議事録を作りました");
+      openNotion(res.url, win);
+    } catch (err) {
+      win?.close();
+    }
+  };
+  notionBtn?.addEventListener("click", (e) => makeNotion(e.currentTarget));
+  el.querySelector("#notion-url-save")?.addEventListener("click", (e) => {
+    const url = el.querySelector("#notion-url").value.trim();
+    busy(e.currentTarget, () => api(`/api/projects/${p.id}/notion`, { method: "POST", body: { url } }))
+      .then(() => { p.notion_url = url; el.querySelector("#notion-setup").hidden = true; makeNotion(notionBtn); }).catch(() => {});
+  });
+
   el.querySelector("#end-meeting")?.addEventListener("click", async (e) => {
     const b = e.currentTarget;
     if (!await confirmDialog(`MTGを終えますか？\n議事録を保存して、タイマーを止めます。${noticeText(pendingNotices())}`, { ok: "MTGを終える" })) return;

@@ -5,11 +5,14 @@ import { addDays } from "../project-types.js";
 import { regularOccurrences, parseWeekdays } from "../schedule.js";
 import { buildIcs, icsResponse, weeklyRule } from "../ics.js";
 import { loadProject, requireEditor, assertUsers, canEdit } from "./common.js";
+import { notionConfigured, notionPageId, minutesBlocks, createNotionPage } from "../notion.js";
 
 export const routes = [
   ["POST", "/api/projects/:id/meetings", createMeeting],
   ["GET", "/api/projects/:id/regular.ics", regularIcs],
   ["GET", "/api/meetings/:id", getMeeting],
+  ["POST", "/api/meetings/:id/notion", createNotionMinutes],
+  ["POST", "/api/projects/:id/notion", setProjectNotion],
   ["PATCH", "/api/meetings/:id", updateMeeting],
   ["DELETE", "/api/meetings/:id", deleteMeeting],
   ["PUT", "/api/meetings/:id/minutes", saveMinutes],
@@ -74,6 +77,44 @@ async function deleteMeeting({ env, user, params }) {
 
 const TASK_COLUMNS = `t.id, t.title, t.status, t.due_date, t.assignee_id, t.notified_assignee, t.version, u.name AS assignee_name`;
 
+// PJのNotionページ（議事録を作る先）を登録する
+async function setProjectNotion({ request, env, user, params }) {
+  const project = await loadProject(env, params.id);
+  await requireEditor(env, user, project.id);
+  const { url } = await readJson(request);
+  const clean = String(url || "").trim();
+  if (clean && (!/^https:\/\/([a-z0-9-]+\.)*notion\.(so|site|com)\//.test(clean) || !notionPageId(clean))) {
+    throw new HttpError(400, "NotionのページのURLを貼ってください（https://www.notion.so/… や https://app.notion.com/p/…）");
+  }
+  await env.DB.prepare("UPDATE projects SET notion_url = ? WHERE id = ?").bind(clean, project.id).run();
+  return { ok: true };
+}
+
+// このMTGの議事録を、PJのNotionページ（見出し「議事録」の下）に新しいページとして作る。作ってあれば、そのページを返す
+async function createNotionMinutes({ env, user, params, url }) {
+  const meeting = await loadMeeting(env, params.id);
+  const project = await loadProject(env, meeting.project_id);
+  await requireEditor(env, user, project.id);
+  if (meeting.notion_url) return { url: meeting.notion_url, existed: true };
+  if (!notionConfigured(env)) throw new HttpError(400, "Notion連携がまだ設定されていません（管理者がNotionのトークンを入れると使えます）");
+  if (!project.notion_url) throw new HttpError(400, "このPJのNotionページが登録されていません");
+  const minute = await env.DB.prepare("SELECT * FROM minutes WHERE meeting_id = ?").bind(meeting.id).first();
+  const prev = await env.DB.prepare(
+    `SELECT n.id FROM minutes n JOIN meetings m ON m.id = n.meeting_id WHERE n.project_id = ? AND m.starts_at < ? ORDER BY m.starts_at DESC LIMIT 1`
+  ).bind(project.id, meeting.starts_at).first();
+  const tasksOf = (minuteId) => env.DB.prepare(
+    `SELECT ${TASK_COLUMNS} FROM tasks t LEFT JOIN users u ON u.id = t.assignee_id WHERE t.source_minute_id = ? ORDER BY t.id`
+  ).bind(minuteId).all().then((r) => r.results);
+  const [homework, todos] = await Promise.all([prev ? tasksOf(prev.id) : [], minute ? tasksOf(minute.id) : []]);
+  const d = meeting.starts_at;
+  const title = `${d.slice(0, 4)}/${d.slice(5, 7)}/${d.slice(8, 10)} MTG議事録`;
+  const appUrl = env.APP_URL ? `${env.APP_URL}/#/meetings/${meeting.id}?mode=view` : "";
+  const pageUrl = await createNotionPage(env, project.notion_url,
+    title, minutesBlocks({ homework, agenda: minute?.agenda, summary: minute?.summary, todos, appUrl }));
+  await env.DB.prepare("UPDATE meetings SET notion_url = ? WHERE id = ?").bind(pageUrl, meeting.id).run();
+  return { url: pageUrl };
+}
+
 async function getMeeting({ env, user, params }) {
   const meeting = await loadMeeting(env, params.id);
   const project = await loadProject(env, meeting.project_id);
@@ -112,7 +153,8 @@ async function getMeeting({ env, user, params }) {
   return {
     meeting, minute, members, canEdit,
     isFirst: !earlier,
-    project: { id: project.id, name: project.name, type: project.type, memo_doc_url: project.memo_doc_url, meeting_mode: project.meeting_mode, current_stage: project.current_stage, pm_id: project.pm_id, meeting_weekdays: project.meeting_weekdays, meeting_time: project.meeting_time, meeting_interval: project.meeting_interval },
+    notion: notionConfigured(env),
+    project: { id: project.id, name: project.name, type: project.type, memo_doc_url: project.memo_doc_url, meeting_mode: project.meeting_mode, current_stage: project.current_stage, pm_id: project.pm_id, notion_url: project.notion_url, meeting_weekdays: project.meeting_weekdays, meeting_time: project.meeting_time, meeting_interval: project.meeting_interval },
     previous: prev ? { starts_at: prev.starts_at, homework } : null,
     todos,
     nextMeeting,

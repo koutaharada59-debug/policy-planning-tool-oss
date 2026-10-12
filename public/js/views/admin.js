@@ -109,6 +109,7 @@ export async function renderAdmin(el) {
           ${ok(data.settings.deptRole, "政策立案部門のロール（外部ヒアリングを見られる人の判定）")}
           ${ok(data.settings.bot, "Bot（DM通知）")}
           ${ok(data.settings.forum, "渉外フォーラム（ヒアリングのスレッド作成）")}
+          ${ok(data.settings.notion, "Notion連携（MTGの議事録をNotionに作る）")}
         </ul>
         ${data.archived.length ? `<h3 class="small">アーカイブしたPJ</h3><ul class="settings-list">${data.archived.map((p) =>
           `<li><a href="#/projects/${p.id}">${esc(p.name)}</a>（PJの「編集」→ 状態で戻せます）</li>`).join("")}</ul>` : ""}

@@ -1204,3 +1204,9 @@ html[data-vt="left"]::view-transition-new(main){animation:vt-in-left .26s cubic-
 .fm-step.is-done .fm-no{background:var(--green);color:#fff}
 .fm-step.is-done .fm-done{background:var(--green);animation:check-pop .3s cubic-bezier(.3,1.6,.5,1)}
 .fm-body > button{align-self:flex-start}
+
+/* Notionに議事録を作る */
+.notion-btn{background:#fff;border-color:#37352f;color:#37352f}
+.notion-setup{margin-top:12px;display:flex;flex-direction:column;gap:8px}
+.notion-setup .row-left{gap:8px;flex-wrap:wrap}
+.notion-setup input{flex:1;min-width:240px}

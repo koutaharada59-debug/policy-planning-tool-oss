@@ -74,6 +74,7 @@ async function getAdmin({ env, user }) {
     settings: {
       bot: botConfigured(env),
       forum: Boolean(env.HEARING_FORUM_ID),
+      notion: Boolean(env.NOTION_TOKEN),
       deptRole: Boolean(env.DEPT_ROLE_ID),
       guild: env.DISCORD_GUILD_ID,
     },
