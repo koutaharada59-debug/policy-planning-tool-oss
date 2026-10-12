@@ -1350,3 +1350,11 @@ table.accounts input,table.accounts select{width:100%;min-width:180px;margin:0}
 .bar span{display:block;height:100%;background:var(--green);border-radius:7px;transition:width .4s}
 .bar-n{text-align:right;font-variant-numeric:tabular-nums}
 .rounds{font-size:14px;padding-left:20px}
+/* アンケートの種類を選ぶ（スマホでも横長のボタン） */
+.survey-kinds{grid-template-columns:1fr}
+.kind-btn{display:flex;align-items:center;gap:14px;width:100%;padding:14px 16px;border:1px solid var(--line);border-radius:14px;background:#fff;color:inherit;text-align:left;cursor:pointer;white-space:normal;justify-content:flex-start}
+.kind-btn:hover{border-color:var(--green);background:#f3fbf7}
+.kind-icon{flex:none;display:grid;place-items:center;width:48px;height:48px;border-radius:50%;background:var(--mint-gradient);border:1px solid var(--line);font-size:22px}
+.kind-text{display:flex;flex-direction:column;gap:2px;min-width:0}
+.kind-text strong{font-size:16px}
+.kind-text small{font-size:12px;line-height:1.6}

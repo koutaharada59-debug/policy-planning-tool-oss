@@ -123,7 +123,7 @@ async function notionMinutes(env, meeting, project) {
 
 // 議事録を保存したら、Notionの「議事録」にも自動で入れる（1回目は新しいページを作る。2回目からは同じページを書き直す）
 // Notionの返事を待たずに保存は終わる。失敗しても保存はそのまま（ログだけ残す）
-async function syncNotion(env, meetingId) {
+export async function syncNotion(env, meetingId) {
   const meeting = await loadMeeting(env, meetingId);
   const project = await loadProject(env, meeting.project_id);
   if (!notionConfigured(env) || !project.notion_url) return;

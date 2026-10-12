@@ -3,7 +3,7 @@ import { HttpError, readJson, clean, int, oneOf, assertUpdated, todayJst, reqDat
 import { addDays } from "../project-types.js";
 import { regularOccurrences } from "../schedule.js";
 import { loadProject, requireAdmin, requireEditor } from "./common.js";
-import { notionConfigured, createTeireiPage, findTeireiPage, replaceNotionPage, teireiBlocks } from "../notion.js";
+import { notionConfigured, createTeireiPage, findTeireiPage, replaceNotionPage, replaceToolSection, teireiBlocks } from "../notion.js";
 
 export const routes = [
   ["GET", "/api/dept-meetings", listDeptMeetings],
@@ -120,11 +120,17 @@ async function getDeptMeeting({ env, user, params }) {
 
 // 議事録の保存（事務連絡・メモ・イベント）。end: true なら「定例を終わる」
 // 定例の議事録を、Notionの部門の「議事録」データベースにも入れる（保存・定例を終わるたび）
-// 1回目：同じ題名のページがなければ作る（あれば、手で作った回なのでつなぐだけで書き換えない）。2回目から：作ったページを書き直す
-// NOTION_TEIREI_FROM より前の回（第57回まで）は、Notionに手で作ってあるので何もしない
-async function syncTeireiNotion(env, id) {
+// 1回目：同じ題名のページがなければ作る。2回目から：作ったページを書き直す
+// 同じ題名のページが手で作ってあれば（第57回など）、二重に作らずそのページを使う。手で書いた中身は残し、最後に足す「ツールの議事録」の部分だけを書き直す
+// NOTION_TEIREI_FROM より前の回は何もしない
+export async function syncTeireiNotion(env, id) {
   const meeting = await env.DB.prepare(`SELECT d.*, ${NUMBER_SQL} + ? AS number FROM dept_meetings d WHERE d.id = ?`).bind(firstNumber(env), id).first();
-  if (!meeting || meeting.number < (Number(env.NOTION_TEIREI_FROM) || Infinity)) return;
+  if (!meeting) return;
+  // 決めた回より前の定例は入れない（まとめて入れるときに、もう数えないよう印を付ける）
+  if (meeting.number < (Number(env.NOTION_TEIREI_FROM) || Infinity)) {
+    await env.DB.prepare("UPDATE dept_meetings SET notion_url = 'skip' WHERE id = ? AND notion_url IS NULL").bind(meeting.id).run();
+    return;
+  }
   const title = `${String(meeting.number).padStart(3, "0")}_政策立案部門定例第${meeting.number}回`;
   const { results: reports } = await env.DB.prepare(
     `SELECT r.*, p.name AS project_name FROM dept_reports r JOIN projects p ON p.id = r.project_id WHERE r.dept_meeting_id = ? ORDER BY p.created_at`
@@ -133,15 +139,20 @@ async function syncTeireiNotion(env, id) {
     `SELECT name FROM projects p WHERE status = 'active' AND NOT EXISTS (SELECT 1 FROM dept_reports r WHERE r.project_id = p.id AND r.dept_meeting_id = ?) ORDER BY created_at`
   ).bind(meeting.id).all();
   const children = teireiBlocks({ ...meeting, reports, missing, appUrl: env.APP_URL ? `${env.APP_URL}/#/teirei/${meeting.id}` : "" });
+  if (meeting.notion_url === "skip") return;
   if (meeting.notion_url) {
-    if (meeting.notion_url.startsWith("manual:")) return;
+    if (meeting.notion_url.startsWith("merge:")) return replaceToolSection(env, meeting.notion_url.slice(6), children);
     return replaceNotionPage(env, meeting.notion_url, title, children);
   }
   const existing = await findTeireiPage(env, title);
-  const url = existing ? `manual:${existing}` : await createTeireiPage(env, { title, date: meeting.held_on, children });
+  if (existing) {
+    await env.DB.prepare("UPDATE dept_meetings SET notion_url = ? WHERE id = ? AND notion_url IS NULL").bind(`merge:${existing}`, meeting.id).run();
+    return replaceToolSection(env, existing, children);
+  }
+  const url = await createTeireiPage(env, { title, date: meeting.held_on, children });
   await env.DB.prepare("UPDATE dept_meetings SET notion_url = ? WHERE id = ? AND notion_url IS NULL").bind(url, meeting.id).run();
 }
-const teireiNotionOn = (env) => notionConfigured(env) && Boolean(env.NOTION_TEIREI_DB);
+export const teireiNotionOn = (env) => notionConfigured(env) && Boolean(env.NOTION_TEIREI_DB);
 
 async function updateDeptMeeting({ request, env, user, params, ctx }) {
   requireAdmin(user, "定例の議事録を変えられるのは、管理者です");

@@ -208,6 +208,28 @@ export function teireiBlocks({ notice, reports, missing, news, exchange, memo, a
   return blocks.slice(0, 100);
 }
 
+// 手で作ってあったページに入れるとき：手で書いた中身は残し、ページの最後の「ツールの議事録」の見出しから下だけを書き直す
+const MARK = "🔄 政策立案ツールの議事録（ここから下は、ツールで保存するたびに書き直されます）";
+export async function replaceToolSection(env, pageUrl, children) {
+  const id = notionPageId(pageUrl);
+  if (!id) return;
+  let cursor;
+  const all = [];
+  do {
+    const r = await call(env, `/blocks/${id}/children?page_size=100${cursor ? `&start_cursor=${cursor}` : ""}`, "GET");
+    all.push(...r.results);
+    cursor = r.has_more ? r.next_cursor : null;
+  } while (cursor);
+  const at = all.findIndex((b) => b.type === "heading_2" && b.heading_2.rich_text.map((t) => t.plain_text).join("") === MARK);
+  if (at >= 0) {
+    // 前回足した区切り線（見出しのすぐ上）と、見出しから下を消す
+    const from = at > 0 && all[at - 1].type === "divider" ? at - 1 : at;
+    for (const b of all.slice(from)) await call(env, `/blocks/${b.id}`, "DELETE");
+  }
+  const head = [{ object: "block", type: "divider", divider: {} }, { object: "block", type: "heading_2", heading_2: { rich_text: rich(MARK) } }];
+  await call(env, `/blocks/${id}/children`, "PATCH", { children: [...head, ...children].slice(0, 100) });
+}
+
 // parentUrl のページの最後（見出し「議事録」の下）に、新しいページを作る。作ったページのURLを返す
 export async function createNotionPage(env, parentUrl, title, children) {
   const parent = notionPageId(parentUrl);

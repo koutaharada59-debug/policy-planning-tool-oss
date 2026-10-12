@@ -31,8 +31,8 @@ function addSurveyDialog() {
     <div class="dialog" role="dialog" aria-modal="true" aria-label="アンケートを追加">
       <p><strong>どのアンケートを追加しますか？</strong></p>
       <div class="survey-kinds">
-        <button type="button" class="choice" data-kind="pj"><span class="choice-icon">🗳️</span><strong>PJ決めアンケート</strong><span class="small muted">政策の種に投票して、PJを決める</span></button>
-        <button type="button" class="choice" data-kind="other"><span class="choice-icon">📊</span><strong>その他のアンケート</strong><span class="small muted">多数決・希望を聞く・RCV・STV から選ぶ</span></button>
+        <button type="button" class="kind-btn" data-kind="pj"><span class="kind-icon">🗳️</span><span class="kind-text"><strong>PJ決めアンケート</strong><small class="muted">政策の種に投票して、PJを決める</small></span></button>
+        <button type="button" class="kind-btn" data-kind="other"><span class="kind-icon">📊</span><span class="kind-text"><strong>その他のアンケート</strong><small class="muted">多数決・希望を聞く・RCV・STV から選ぶ</small></span></button>
       </div>
       <div class="form-actions"><button type="button" data-no>キャンセル</button></div>
     </div>`;

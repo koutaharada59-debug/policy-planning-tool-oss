@@ -109,8 +109,9 @@ export async function renderAdmin(el) {
           ${ok(data.settings.deptRole, "政策立案部門のロール（外部ヒアリングを見られる人の判定）")}
           ${ok(data.settings.bot, "Bot（DM通知）")}
           ${ok(data.settings.forum, "渉外フォーラム（ヒアリングのスレッド作成）")}
-          ${ok(data.settings.notion, "Notion連携（MTGの議事録をNotionに作る）")}
+          ${ok(data.settings.notion, "Notion連携（MTG・定例の議事録をNotionに入れる）")}
         </ul>
+        <div id="notion-backfill"></div>
         ${data.archived.length ? `<h3 class="small">アーカイブしたPJ</h3><ul class="settings-list">${data.archived.map((p) =>
           `<li><a href="#/projects/${p.id}">${esc(p.name)}</a>（PJの「編集」→ 状態で戻せます）</li>`).join("")}</ul>` : ""}
       </section>
@@ -122,6 +123,7 @@ export async function renderAdmin(el) {
       <div id="accounts-body"><p class="muted">読み込み中…</p></div>
     </details>`);
   el.querySelector("#accounts").addEventListener("toggle", (e) => { if (e.target.open && !e.target.dataset.loaded) loadAccounts(el.querySelector("#accounts-body"), person); e.target.dataset.loaded = "1"; });
+  bindNotionBackfill(el.querySelector("#notion-backfill"));
   bindStaffing(el, data, () => renderAdmin(el));
   const ROLE_LABEL = { heads: "部門長", reps: "代表" };
   const ROLE_NOTE = {
@@ -167,6 +169,38 @@ ${ROLE_NOTE[kind]}`, { ok: `${ROLE_LABEL[kind]}にする` }).then((ok) => {
         location.reload(); // 権限が変わったので読み込み直す
       }).catch(() => {});
   }));
+}
+
+// これまでの議事録をNotionへ：Notionをつなぐ前に書いた議事録（まだNotionに入っていないもの）を、まとめて入れる
+async function bindNotionBackfill(box) {
+  const c = await api("/api/admin/notion-backfill").catch(() => null);
+  if (!c) return;
+  const left = c.meetings + c.teirei;
+  if (!c.notion) {
+    box.innerHTML = left ? `<p class="muted small">Notionをつなぐと、これまでの議事録（MTG ${c.meetings}件・定例 ${c.teirei}件）をまとめて入れられます。</p>` : "";
+    return;
+  }
+  if (!left) { box.innerHTML = `<p class="muted small">✅ これまでの議事録は、すべてNotionに入っています。</p>`; return; }
+  box.innerHTML = `<p class="small">Notionにまだ入っていない議事録：MTG ${c.meetings}件・定例 ${c.teirei}件</p>
+    <button type="button" class="primary small" id="backfill-run">これまでの議事録をNotionに入れる</button>`;
+  box.querySelector("#backfill-run").addEventListener("click", async (e) => {
+    if (!await confirmDialog(`まだNotionに入っていない議事録（MTG ${c.meetings}件・定例 ${c.teirei}件）を、Notionに入れますか？\nMTGはPJのNotionページの下に、定例は部門の「議事録」に入ります。すでにNotionにあるものは二重に作りません。`, { ok: "Notionに入れる" })) return;
+    const button = e.currentTarget;
+    button.disabled = true;
+    let total = 0;
+    try {
+      for (let i = 0; i < 50; i++) {
+        const r = await api("/api/admin/notion-backfill", { method: "POST", body: {} });
+        total += r.done;
+        button.textContent = `入れています…（${total}件）`;
+        if (r.failed.length) { toast(`入れられなかったもの：${r.failed.join("、")}`, "error"); break; }
+        if (!r.meetings && !r.teirei) break;
+      }
+      toast(`${total}件をNotionに入れました`);
+    } finally {
+      bindNotionBackfill(box);
+    }
+  });
 }
 
 // メンバーのアカウント：Discordのアカウントごとに、Googleアカウント（打ち込み）とNotionアカウント（Notionのメンバーから選ぶ）
