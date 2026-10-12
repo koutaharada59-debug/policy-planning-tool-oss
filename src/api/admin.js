@@ -2,6 +2,7 @@
 import { HttpError, readJson, idList, headIds } from "../util.js";
 import { notify } from "../notify.js";
 import { botConfigured } from "../discord.js";
+import { notionConfigured, listNotionUsers } from "../notion.js";
 import { requireAdmin as requireAdminFor, loadSchedule, stageDateStatements } from "./common.js";
 import { getType, effectiveSchedule } from "../project-types.js";
 
@@ -15,6 +16,8 @@ export const routes = [
   ["POST", "/api/admin/heads/remove", (c) => removeRole(c, "heads")],
   ["POST", "/api/admin/staffing", moveMember],
   ["GET", "/api/admin/schedule", getSchedule],
+  ["GET", "/api/admin/accounts", getAccounts],
+  ["PUT", "/api/admin/accounts", saveAccount],
   ["PUT", "/api/admin/schedule", saveSchedule],
 ];
 
@@ -134,6 +137,34 @@ async function removeRole({ request, env, user }, table) {
 }
 
 // 人事異動：from のPJから外して to のPJに入れる（from だけ＝外す、to だけ＝追加）。本人にお知らせを出す
+// メンバーのアカウントの対応（Discord ↔ Google・Notion）。Notionの人は、Notionのワークスペースのメンバーから選ぶ
+async function getAccounts({ env, user }) {
+  requireAdmin(user);
+  const { results } = await env.DB.prepare(
+    "SELECT id, name, avatar, google_email, notion_user_id, notion_name FROM users WHERE updated_at > 0 OR is_dept = 1 ORDER BY name"
+  ).all();
+  let notionUsers = [];
+  let notionError = "";
+  if (notionConfigured(env)) {
+    notionUsers = await listNotionUsers(env).catch((err) => { notionError = `Notionのメンバーを読めませんでした（${err.status || "通信"}）`; return []; });
+  }
+  return { users: results, notionUsers, notion: notionConfigured(env), notionError };
+}
+
+async function saveAccount({ request, env, user }) {
+  requireAdmin(user);
+  const body = await readJson(request);
+  const uid = typeof body.user_id === "string" ? body.user_id : "";
+  if (!await env.DB.prepare("SELECT 1 FROM users WHERE id = ?").bind(uid).first()) throw new HttpError(404, "メンバーが見つかりません");
+  const email = String(body.google_email || "").trim().toLowerCase().slice(0, 120);
+  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new HttpError(400, "Googleアカウントのメールアドレスを入れてください");
+  const notionId = String(body.notion_user_id || "").trim();
+  if (notionId && !/^[0-9a-f-]{32,36}$/i.test(notionId)) throw new HttpError(400, "Notionのアカウントを選び直してください");
+  await env.DB.prepare("UPDATE users SET google_email = ?, notion_user_id = ?, notion_name = ? WHERE id = ?")
+    .bind(email, notionId, notionId ? String(body.notion_name || "").slice(0, 80) : "", uid).run();
+  return { ok: true };
+}
+
 async function moveMember({ request, env, user }) {
   requireAdmin(user);
   const body = await readJson(request);

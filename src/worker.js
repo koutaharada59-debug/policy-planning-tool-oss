@@ -13,11 +13,12 @@ import { routes as presentationRoutes } from "./api/presentation.js";
 import { routes as deptRoutes } from "./api/dept.js";
 import { routes as searchRoutes } from "./api/search.js";
 import { routes as timelineRoutes } from "./api/timeline.js";
+import { routes as surveyRoutes } from "./api/surveys.js";
 import { runDailyReminders } from "./cron.js";
 import { reportError } from "./monitor.js";
 
 // [メソッド, パス（:id は数字）, ハンドラ]。ハンドラは (ctx) => Response | data
-const ROUTES = [...overviewRoutes, ...projectRoutes, ...taskRoutes, ...meetingRoutes, ...seedRoutes, ...hearingRoutes, ...adminRoutes, ...researchRoutes, ...presentationRoutes, ...deptRoutes, ...searchRoutes, ...timelineRoutes].map(([method, path, handler]) => [
+const ROUTES = [...overviewRoutes, ...projectRoutes, ...taskRoutes, ...meetingRoutes, ...seedRoutes, ...hearingRoutes, ...adminRoutes, ...researchRoutes, ...presentationRoutes, ...deptRoutes, ...searchRoutes, ...timelineRoutes, ...surveyRoutes].map(([method, path, handler]) => [
   method,
   new RegExp(`^${path.replace(/:(\w+)/g, "(?<$1>\\d+)")}$`),
   handler,

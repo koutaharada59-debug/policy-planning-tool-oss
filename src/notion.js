@@ -121,7 +121,91 @@ export async function replaceNotionPage(env, pageUrl, title, children) {
     cursor = r.has_more ? r.next_cursor : null;
   } while (cursor);
   for (const b of old) await call(env, `/blocks/${b}`, "DELETE");
-  await call(env, `/blocks/${id}/children`, "PATCH", { children });
+  await call(env, `/blocks/${id}/children`, "PATCH", { children: children.slice(0, 100) });
+}
+
+// ---------- メンバー（Notionのワークスペースに入っている人） ----------
+export async function listNotionUsers(env) {
+  const out = [];
+  let cursor;
+  do {
+    const r = await call(env, `/users?page_size=100${cursor ? `&start_cursor=${cursor}` : ""}`, "GET");
+    for (const u of r.results) if (u.type === "person") out.push({ id: u.id, name: u.name || "", avatar: u.avatar_url || "" });
+    cursor = r.has_more ? r.next_cursor : null;
+  } while (cursor && out.length < 1000);
+  return out.sort((a, b) => a.name.localeCompare(b.name, "ja"));
+}
+
+// ---------- PJのページ：今あるPJページと同じデータベースに「PJ名」のページを作り、参加者を入れ、見出し「議事録」を置く ----------
+// データベースは、前のPJのNotionページ（sampleUrl）の親から調べる（NOTION_PJ_DB があればそれを使う）
+export async function createProjectPage(env, { name, notionUserIds, sampleUrl }) {
+  let dbId = env.NOTION_PJ_DB || "";
+  if (!dbId && sampleUrl) {
+    const sample = await call(env, `/pages/${notionPageId(sampleUrl)}`, "GET");
+    dbId = sample.parent?.type === "database_id" ? sample.parent.database_id : "";
+  }
+  if (!dbId) return null;
+  const db = await call(env, `/databases/${dbId}`, "GET");
+  const props = {};
+  const entries = Object.entries(db.properties || {});
+  const title = entries.find(([, p]) => p.type === "title")?.[0];
+  if (title) props[title] = { title: rich(name) };
+  // 参加者の欄：人を入れる欄（名前に「参加」「メンバー」があればそれ、なければ最初の欄）
+  const people = entries.filter(([, p]) => p.type === "people");
+  const who = (people.find(([n]) => /参加|メンバー|member/i.test(n)) || people[0])?.[0];
+  if (who && notionUserIds.length) props[who] = { people: notionUserIds.map((id) => ({ object: "user", id })) };
+  const page = await call(env, "/pages", "POST", {
+    parent: { database_id: dbId }, properties: props,
+    children: [{ object: "block", type: "heading_2", heading_2: { rich_text: rich("議事録") } }],
+  });
+  return page.url;
+}
+
+// ---------- 定例の議事録 → 部門の「議事録」データベース ----------
+// データベースの欄（タイトル・日付・種類・部門へのリンク）は名前が変わってもいいように、欄の種類で探す
+export async function createTeireiPage(env, { title, date, children }) {
+  const db = await call(env, `/databases/${env.NOTION_TEIREI_DB}`, "GET");
+  const props = {};
+  for (const [name, p] of Object.entries(db.properties || {})) {
+    if (p.type === "title") props[name] = { title: rich(title) };
+    else if (p.type === "date" && !props.__date) { props[name] = { date: { start: date } }; props.__date = true; }
+    else if (p.type === "select" && p.select.options.some((o) => o.name === "定例会議")) props[name] = { select: { name: "定例会議" } };
+    else if (p.type === "relation" && env.NOTION_DEPT_PAGE) props[name] = { relation: [{ id: env.NOTION_DEPT_PAGE }] };
+  }
+  delete props.__date;
+  const page = await call(env, "/pages", "POST", { parent: { database_id: env.NOTION_TEIREI_DB }, properties: props, children });
+  return page.url;
+}
+
+// 同じ題名のページがもうあるか（手で作った回を二重に作らない）
+export async function findTeireiPage(env, title) {
+  const db = await call(env, `/databases/${env.NOTION_TEIREI_DB}`, "GET");
+  const titleProp = Object.entries(db.properties || {}).find(([, p]) => p.type === "title")?.[0];
+  if (!titleProp) return null;
+  const r = await call(env, `/databases/${env.NOTION_TEIREI_DB}/query`, "POST", { filter: { property: titleProp, title: { equals: title } }, page_size: 1 });
+  return r.results?.[0]?.url || null;
+}
+
+// 定例の議事録の中身：事務連絡／各PJの進捗共有（PJごとのトグル）／ニュース勉強会／意見交換会
+export function teireiBlocks({ notice, reports, missing, news, exchange, memo, appUrl }) {
+  const section = (label, text) => [heading(label), ...(lines(text).length ? nest(text) : [para("（なし）")])];
+  const blocks = [...section("📢 事務連絡", notice), heading("📊 各PJの進捗共有")];
+  for (const r of reports) {
+    // トグルの中は1段だけ（Notionに一度に作れる深さのため、字下げはなくす）
+    const kids = [];
+    for (const [k, label] of [["done", "前回の定例からやったこと"], ["next", "次の定例までにやること"], ["issues", "困っていること・相談したいこと"]]) {
+      if (!lines(r[k]).length) continue;
+      kids.push(block("paragraph", `**${label}**`));
+      kids.push(...lines(r[k]).map((l) => mdBlock(l.trim())));
+    }
+    blocks.push({ object: "block", type: "toggle", toggle: { rich_text: inline(r.project_name), children: kids.length ? kids.slice(0, 90) : [para("（空欄）")] } });
+  }
+  for (const p of missing) blocks.push({ object: "block", type: "toggle", toggle: { rich_text: inline(`${p.name}（未記入）`), children: [para("まだ記入されていません")] } });
+  if (!reports.length && !missing.length) blocks.push(para("（なし）"));
+  blocks.push(...section("📰 ニュース勉強会", news), ...section("💬 意見交換会", exchange));
+  if (lines(memo).length) blocks.push(...section("📝 メモ", memo));
+  if (appUrl) blocks.push(para(`政策立案ツールの議事録：${appUrl}`));
+  return blocks.slice(0, 100);
 }
 
 // parentUrl のページの最後（見出し「議事録」の下）に、新しいページを作る。作ったページのURLを返す

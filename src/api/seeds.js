@@ -5,6 +5,7 @@ import { insertProject } from "./projects.js";
 import { requireAdmin as requireAdminFor, assertUsers } from "./common.js";
 import { syncSurveyRound, surveyLinked } from "../survey-sync.js";
 import { notify } from "../notify.js";
+import { notionConfigured, createProjectPage } from "../notion.js";
 
 export const routes = [
   ["GET", "/api/rounds", listRounds],
@@ -349,7 +350,7 @@ async function deleteNote({ env, user, params }) {
 }
 
 // 種を正式なPJにする（管理者）。投票は外部のアンケートで行うこともあるので、開票結果がなくても作れる
-async function createProjectFromSeed({ request, env, user, params }) {
+async function createProjectFromSeed({ request, env, user, params, ctx }) {
   requireAdmin(user, "種からPJを作ること");
   const seed = await loadSeed(env, params.id);
   if (seed.project_id) throw new HttpError(400, "この種はすでにPJになっています");
@@ -367,7 +368,21 @@ async function createProjectFromSeed({ request, env, user, params }) {
     await env.DB.prepare("DELETE FROM projects WHERE id = ?").bind(projectId).run();
     throw new HttpError(409, "この種はすでにPJになっています");
   }
+  if (notionConfigured(env)) ctx?.waitUntil(makeNotionProjectPage(env, projectId).catch((err) => console.error("notion project page failed", err?.status, err?.code || err?.message)));
   return { id: projectId };
+}
+
+// NotionにPJのページを作る：題名＝PJ名、参加者＝人事のとおり（Notionアカウントを対応づけた人）、中に見出し「議事録」
+// 作ったページをPJのNotionページとして登録するので、そのあとのMTGの議事録は、この下に自動で入る
+async function makeNotionProjectPage(env, projectId) {
+  const project = await env.DB.prepare("SELECT id, name, notion_url FROM projects WHERE id = ?").bind(projectId).first();
+  if (!project || project.notion_url) return;
+  const { results } = await env.DB.prepare(
+    "SELECT u.notion_user_id FROM project_members pm JOIN users u ON u.id = pm.user_id WHERE pm.project_id = ? AND u.notion_user_id != ''"
+  ).bind(projectId).all();
+  const sample = await env.DB.prepare("SELECT notion_url FROM projects WHERE notion_url != '' AND notion_url IS NOT NULL ORDER BY id DESC LIMIT 1").first();
+  const url = await createProjectPage(env, { name: project.name, notionUserIds: results.map((r) => r.notion_user_id), sampleUrl: sample?.notion_url });
+  if (url) await env.DB.prepare("UPDATE projects SET notion_url = ? WHERE id = ? AND (notion_url IS NULL OR notion_url = '')").bind(url, projectId).run();
 }
 
 // 取り消したPJを戻す：議事録・タスク・MTGなどの記録はそのまま。名前・概要・メンバーは、いま選んだもので上書きする

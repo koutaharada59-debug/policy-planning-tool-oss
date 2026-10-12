@@ -1,5 +1,6 @@
 // ホーム：やりたいことを選ぶ（ミーティング・確認・発表・定例）
 import { api, esc, state, todayStr } from "../lib.js";
+import { homeSurveys } from "./surveys.js";
 
 export async function renderHome(el) {
   el.innerHTML = `
@@ -27,7 +28,10 @@ export async function renderHome(el) {
         <span class="choice-badge" id="badge-teirei" hidden></span>
       </a>
     </div>
+    <div id="home-surveys"></div>
     ${state.me.isAdmin ? `<p class="home-admin"><a class="button small" href="#/admin">🛠️ 管理者メニュー</a></p>` : ""}`;
+  // 管理者が出したアンケート（PJ決めアンケートなど）
+  homeSurveys(el.querySelector("#home-surveys")).catch(() => {});
 
   // 今日のMTGの件数を、選択肢の上に小さく出す（読み込みに失敗しても選択肢は使える）
   try {

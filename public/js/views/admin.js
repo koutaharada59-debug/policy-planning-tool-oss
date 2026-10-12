@@ -116,6 +116,12 @@ export async function renderAdmin(el) {
       </section>
     </div>`;
 
+  el.insertAdjacentHTML("beforeend", `
+    <details class="section" id="accounts">
+      <summary><h2 style="display:inline">🔗 メンバーのアカウント</h2> <small class="muted">Discord ↔ Google・Notion</small></summary>
+      <div id="accounts-body"><p class="muted">読み込み中…</p></div>
+    </details>`);
+  el.querySelector("#accounts").addEventListener("toggle", (e) => { if (e.target.open && !e.target.dataset.loaded) loadAccounts(el.querySelector("#accounts-body"), person); e.target.dataset.loaded = "1"; });
   bindStaffing(el, data, () => renderAdmin(el));
   const ROLE_LABEL = { heads: "部門長", reps: "代表" };
   const ROLE_NOTE = {
@@ -161,6 +167,37 @@ ${ROLE_NOTE[kind]}`, { ok: `${ROLE_LABEL[kind]}にする` }).then((ok) => {
         location.reload(); // 権限が変わったので読み込み直す
       }).catch(() => {});
   }));
+}
+
+// メンバーのアカウント：Discordのアカウントごとに、Googleアカウント（打ち込み）とNotionアカウント（Notionのメンバーから選ぶ）
+// Notionアカウントを対応づけておくと、PJ決めでPJを作ったとき、NotionのPJページの参加者に自動で入る
+async function loadAccounts(box, person) {
+  const d = await api("/api/admin/accounts");
+  const options = (sel) => `<option value="">（選ばない）</option>${d.notionUsers.map((n) => `<option value="${esc(n.id)}" ${n.id === sel ? "selected" : ""}>${esc(n.name)}</option>`).join("")}`;
+  box.innerHTML = `
+    <p class="muted small">Googleアカウントは打ち込み、Notionアカウントは学生チームのNotionのメンバーから選びます。変えるとすぐ保存されます。見られるのは管理者だけです。</p>
+    ${!d.notion ? `<p class="caution small">⚠ Notion連携（NOTION_TOKEN）がまだなので、Notionアカウントは選べません。</p>` : d.notionError ? `<p class="caution small">⚠ ${esc(d.notionError)}</p>` : ""}
+    <div class="table-wrap"><table class="accounts">
+      <thead><tr><th>Discord</th><th>Googleアカウント</th><th>Notionアカウント</th></tr></thead>
+      <tbody>${d.users.map((u) => `<tr data-user="${esc(u.id)}">
+        <td>${person(u)}</td>
+        <td><input type="email" data-k="google_email" value="${esc(u.google_email)}" placeholder="name@gmail.com" aria-label="${esc(u.name)}さんのGoogleアカウント"></td>
+        <td>${d.notionUsers.length
+          ? `<select data-k="notion_user_id" aria-label="${esc(u.name)}さんのNotionアカウント">${options(u.notion_user_id)}</select>`
+          : `<span class="muted small">${esc(u.notion_name) || "—"}</span>`}</td>
+      </tr>`).join("")}</tbody>
+    </table></div>`;
+  const save = (tr) => {
+    const sel = tr.querySelector("select");
+    const body = {
+      user_id: tr.dataset.user,
+      google_email: tr.querySelector("[data-k=google_email]").value,
+      notion_user_id: sel ? sel.value : d.users.find((u) => u.id === tr.dataset.user)?.notion_user_id || "",
+      notion_name: sel ? sel.selectedOptions[0]?.textContent || "" : d.users.find((u) => u.id === tr.dataset.user)?.notion_name || "",
+    };
+    api("/api/admin/accounts", { method: "PUT", body }).then(() => toast("保存しました")).catch(() => {});
+  };
+  box.querySelectorAll("tr[data-user] input, tr[data-user] select").forEach((x) => x.addEventListener("change", () => save(x.closest("tr"))));
 }
 
 // 人事：どのPJに誰が配属されているか（進行中・完了。アーカイブは除く）と、進行中のPJに入っていない人
