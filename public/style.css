@@ -1210,3 +1210,29 @@ html[data-vt="left"]::view-transition-new(main){animation:vt-in-left .26s cubic-
 .notion-setup{margin-top:12px;display:flex;flex-direction:column;gap:8px}
 .notion-setup .row-left{gap:8px;flex-wrap:wrap}
 .notion-setup input{flex:1;min-width:240px}
+
+/* 期日を設定する：見える化（つかんで動かせる工程の棒） */
+.gantt-help{margin-bottom:8px}
+.gantt-wrap{overflow-x:auto;margin:0 -4px 12px;padding:0 4px}
+.gantt{min-width:760px;user-select:none;touch-action:pan-y}
+.gantt.is-dragging{cursor:grabbing}
+.g-row{display:grid;grid-template-columns:190px 1fr;align-items:center;min-height:46px;border-bottom:1px solid var(--soft-line)}
+.g-head{min-height:30px;border-bottom:2px solid var(--line)}
+.g-name{font-size:13px;font-weight:700;padding-right:10px;line-height:1.4}
+.g-track{position:relative;height:100%;min-height:inherit}
+.g-week{position:absolute;top:6px;text-align:center;font-size:11px;font-weight:700;color:var(--muted)}
+.g-line{position:absolute;top:0;bottom:0;width:1px;background:#eef2ef}
+.g-bar{position:absolute;top:9px;height:28px;border-radius:999px;background:linear-gradient(90deg,#63d9c7,#3fc58f);color:#fff;display:flex;align-items:center;justify-content:center;cursor:grab;box-shadow:0 2px 6px #3fc58f40;transition:box-shadow .15s}
+.g-bar:hover{box-shadow:0 3px 12px #3fc58f80}
+.g-bar.is-prep{background:linear-gradient(90deg,#8fdcb9,#ffd7b5)}
+.g-bar.is-prep .g-handle.is-right{display:none}
+.g-bar.is-final{background:linear-gradient(90deg,#ffd7b5,#ffb84d)}
+.g-label{font-size:11px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:0 14px;text-shadow:0 1px 2px #0003}
+.g-handle{position:absolute;top:0;bottom:0;width:14px;cursor:ew-resize;border-radius:999px}
+.g-handle.is-left{left:0}
+.g-handle.is-right{right:0}
+.g-handle::after{content:"";position:absolute;top:8px;bottom:8px;left:5px;width:3px;border-radius:2px;background:#ffffffcc}
+.g-pres{position:absolute;top:4px;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;cursor:ew-resize;color:#e26a2c;font-size:22px;line-height:1}
+.g-pres small{font-size:10px;font-weight:800;color:#e26a2c}
+.schedule-numbers{margin-top:8px}
+.schedule-numbers > summary{cursor:pointer;font-weight:700;padding:6px 0}
