@@ -1,5 +1,5 @@
 // 起動・ログイン状態・ハッシュルーティング
-import { api, esc, avatar, toast, state, hasUnsaved, forgetUnsaved, confirmDialog, fmtDateTime, jstDateTime, prefetch } from "./lib.js";
+import { api, esc, avatar, toast, state, hasUnsaved, forgetUnsaved, confirmDialog, fmtDateTime, jstDateTime, prefetch, burst, plusOne, celebrate } from "./lib.js";
 import { renderHome } from "./views/home.js";
 import { renderMinutesSearch } from "./views/search.js";
 import { renderTimeline } from "./views/timeline.js";
@@ -397,6 +397,23 @@ function bindPrefetch() {
   document.addEventListener("focusin", onIntent);
 }
 bindPrefetch();
+
+// やったことにチェックを入れたら、その場ではじけて「+1」（工程のチェック・タスク・宿題など、どの画面でも）
+document.addEventListener("change", (e) => {
+  const cb = e.target;
+  if (!(cb instanceof HTMLInputElement) || cb.type !== "checkbox" || !cb.checked) return;
+  if (!cb.matches("[data-task], [data-check], [data-hw], [data-stage-check], [data-rh-done], [data-todo-done]")) return;
+  burst(cb);
+  plusOne(cb);
+  const row = cb.closest(".list-item, li, label");
+  if (row) { row.classList.remove("just-done"); void row.offsetWidth; row.classList.add("just-done"); }
+  // 自分のタスク・マイページで、担当中のタスクを全部済ませたら、大きくお祝い
+  if (cb.matches("[data-task]") && /^#\/(my-tasks|me)/.test(location.hash)) {
+    const all = document.querySelectorAll("#app [data-task]");
+    const left = document.querySelectorAll("#app [data-task]:not(:checked)").length;
+    if (all.length >= 1 && left === 0) setTimeout(() => celebrate("担当中のタスクを全部済ませました！", "おつかれさまでした 🎉"), 350);
+  }
+});
 
 // 同じ画面の中のタブ（?tab=…）を切り替えるリンクは、「戻る」の履歴に積まない（戻るで前の画面へ戻れるように）
 document.addEventListener("click", (e) => {

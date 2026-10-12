@@ -177,10 +177,75 @@ export function toast(message, kind = "") {
     el.setAttribute("role", "status");
     document.body.append(el);
   }
-  el.className = `toast show ${kind}`;
+  // 何かをやり遂げたときの知らせは、ポンと弾ませて、絵文字をはじけさせる
+  const win = kind !== "error" && WIN_WORDS.find(([re]) => re.test(message));
+  el.className = "toast";
+  void el.offsetWidth;
+  el.className = `toast show ${kind} ${win ? "is-win" : ""}`;
   el.textContent = message;
+  if (win) {
+    const r = el.getBoundingClientRect();
+    burst({ x: r.left + r.width / 2, y: r.top }, { emoji: win[1], count: 10, spread: 120 });
+  }
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => (el.className = "toast"), 3200);
+}
+
+// 知らせの言葉 → はじける絵文字
+const WIN_WORDS = [
+  [/種を投稿/, ["🌱", "🌿", "✨"]],
+  [/投票/, ["🗳️", "✨", "⭐"]],
+  [/PJを作成|PJになりました|正式なPJ/, ["🚀", "🎉", "✨"]],
+  [/タスクを追加/, ["✅", "✨"]],
+  [/提出|申請を出し|再申請/, ["📮", "✨", "⭐"]],
+  [/追加しました|作成しました|決めました|PMにしました/, ["✨", "⭐", "🎉"]],
+  [/保存しました|書きました/, ["✨", "💫"]],
+];
+
+const reduceMotion = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+// はじける演出：point（{x, y} か 要素）から、粒や絵文字が四方に飛ぶ。画面を描き直しても消えないよう body に置く
+export function burst(point, { emoji = null, count = 14, spread = 90, ring = true } = {}) {
+  if (reduceMotion()) return;
+  const r = point instanceof Element ? point.getBoundingClientRect() : null;
+  const x = r ? r.left + r.width / 2 : point.x, y = r ? r.top + r.height / 2 : point.y;
+  const layer = document.createElement("div");
+  layer.className = "burst-layer";
+  layer.style.left = `${x}px`;
+  layer.style.top = `${y}px`;
+  const colors = ["#3fc58f", "#63d9c7", "#ffd7b5", "#ffb84d", "#8fdcb9"];
+  let html = ring ? `<span class="burst-ring"></span>` : "";
+  for (let i = 0; i < count; i++) {
+    const a = (Math.PI * 2 * i) / count + Math.random() * 0.5;
+    const d = spread * (0.6 + Math.random() * 0.6);
+    const dx = Math.cos(a) * d, dy = Math.sin(a) * d - spread * 0.25;
+    const style = `--dx:${dx.toFixed(0)}px;--dy:${dy.toFixed(0)}px;--rot:${Math.round(Math.random() * 360)}deg;animation-delay:${(Math.random() * 0.06).toFixed(2)}s`;
+    html += emoji
+      ? `<span class="burst-emoji" style="${style}">${emoji[i % emoji.length]}</span>`
+      : `<span class="burst-dot" style="${style};background:${colors[i % colors.length]}"></span>`;
+  }
+  layer.innerHTML = html;
+  document.body.append(layer);
+  setTimeout(() => layer.remove(), 1100);
+}
+
+// 「+1」が浮かぶ（連続で済ませると、コンボの数と炎が出る）
+let combo = { n: 0, at: 0 };
+export function plusOne(point) {
+  if (reduceMotion()) return;
+  const now = Date.now();
+  combo = now - combo.at < 45000 ? { n: combo.n + 1, at: now } : { n: 1, at: now };
+  const r = point instanceof Element ? point.getBoundingClientRect() : { left: point.x, top: point.y, width: 0 };
+  const t = document.createElement("div");
+  t.className = `plus-one ${combo.n >= 3 ? "is-combo" : ""}`;
+  t.textContent = combo.n >= 3 ? `🔥 ${combo.n}連続！` : combo.n === 2 ? "+1 ✨" : "+1";
+  t.style.left = `${r.left + r.width / 2}px`;
+  t.style.top = `${r.top}px`;
+  document.body.append(t);
+  setTimeout(() => t.remove(), 1200);
+  if (combo.n === 3 || combo.n === 5 || combo.n === 10) {
+    burst({ x: r.left + r.width / 2, y: r.top }, { emoji: ["🔥", "⭐", "✨"], count: 14, spread: 140 });
+  }
 }
 
 // 送信中はボタンを止めて、失敗したらトーストで知らせる
@@ -559,6 +624,8 @@ export function celebrate(title, sub = "") {
   box.innerHTML = `${bits}<div class="celebrate-card"><strong>${esc(title)}</strong>${sub ? `<small>${esc(sub)}</small>` : ""}</div>`;
   box.addEventListener("click", () => box.remove());
   document.body.append(box);
+  // 真ん中から、絵文字が大きくはじける
+  burst({ x: window.innerWidth / 2, y: window.innerHeight / 2 }, { emoji: ["🎉", "✨", "⭐", "🌱"], count: 22, spread: Math.min(320, window.innerWidth / 3) });
   setTimeout(() => box.classList.add("is-leaving"), 2200);
   setTimeout(() => box.remove(), 2700);
 }
