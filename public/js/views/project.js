@@ -46,9 +46,9 @@ export async function renderProject(el, id) {
     ${canEdit ? "" : `<p class="notice">閲覧のみです。編集できるのはPJメンバーと管理者です。</p>`}
     ${completionBanner(p, canEdit)}
     ${p.status === "active" ? `<nav class="pj-quick" aria-label="このPJでよく使う操作">
-      ${canEdit ? `<a class="button small primary" href="#/start?project=${p.id}">▶ MTG<span class="hide-sm">を始める</span></a>` : ""}
-      <a class="button small" href="#/present/${p.id}">🎤 発表<span class="hide-sm">する</span></a>
-      ${canEdit ? `<a class="button small" href="#/report/${p.id}">📝 <span class="hide-sm">定例の</span>進捗<span class="hide-sm">を書く</span></a>` : ""}
+      ${canEdit ? `<a class="button small primary" href="#/start?project=${p.id}">▶ <span>MTG<span class="hide-sm">を始める</span></span></a>` : ""}
+      <a class="button small" href="#/present/${p.id}">🎤 <span>発表<span class="hide-sm">する</span></span></a>
+      ${canEdit ? `<a class="button small" href="#/report/${p.id}">📝 <span><span class="hide-sm">定例の</span>進捗<span class="hide-sm">を書く</span></span></a>` : ""}
     </nav>` : ""}
     ${stageStepper(p, data.stages, { progress: hint ? hint.from : stageProgress })}
     <div class="tabs" role="tablist">

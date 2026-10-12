@@ -15,6 +15,7 @@ export const routes = [
   ["POST", "/api/projects", createProject],
   ["GET", "/api/projects/:id", getProject],
   ["POST", "/api/projects/:id/pm", setPm],
+  ["POST", "/api/projects/:id/research-doc", setResearchDoc],
   ["POST", "/api/projects/:id/meeting-plan", setMeetingPlan],
   ["PUT", "/api/projects/:id", updateProject],
   ["POST", "/api/projects/:id/stage", setCurrentStage],
@@ -139,6 +140,16 @@ async function setPm({ request, env, user, params }) {
   }
   await env.DB.prepare("UPDATE projects SET pm_id = ?, updated_at = ? WHERE id = ?").bind(pm, Date.now(), project.id).run();
   return { ok: true };
+}
+
+// リサーチドキュメント（調べたことを書くGoogleドキュメント）だけを登録する。初回MTGの「決めること」から使う
+async function setResearchDoc({ request, env, user, params }) {
+  const project = await loadProject(env, params.id);
+  await requireEditor(env, user, project.id);
+  const { url } = await readJson(request);
+  const clean = optUrl(url);
+  await env.DB.prepare("UPDATE projects SET memo_doc_url = ?, updated_at = ? WHERE id = ?").bind(clean, Date.now(), project.id).run();
+  return { ok: true, url: clean };
 }
 
 // MTGの進め方（定例 or 毎回決める）だけを決める。初回MTGの「決めること」から使う。定例なら、これからの回を作り直す

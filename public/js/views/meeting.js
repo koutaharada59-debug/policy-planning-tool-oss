@@ -474,7 +474,7 @@ function firstMeetingCard(data, memberUsers) {
     <li class="fm-step" data-step="${key}"><span class="fm-no">${n}</span>
       <div class="fm-body"><strong>${title}</strong>${body}</div><span class="fm-done" aria-label="決まった">✓</span></li>`;
   return `<section class="card first-meeting">
-    <div class="section-head"><h2>🤝 初回MTGで決めること <small class="muted">この4つを決めれば、PJがスタートできます</small></h2></div>
+    <div class="section-head"><h2>🤝 初回MTGで決めること <small class="muted">この5つを決めれば、PJがスタートできます</small></h2></div>
     <ol class="fm-steps">
       ${step(1, "pm", "👑 PM（まとめ役）を決める", `
         <div class="row-left"><select id="pm-select" aria-label="PM"><option value="">まだ決めていない</option>
@@ -497,6 +497,11 @@ function firstMeetingCard(data, memberUsers) {
       ${step(4, "action", "🚀 最初のアクションを決める", `
         <p class="small muted">誰が・何を・いつまでに。「次回までにやること」に書くと、担当の人のタスクになります。</p>
         <button type="button" class="small" id="fm-go-todo">最初のアクションを書く ↓</button>`)}
+      ${step(5, "doc", "📄 リサーチドキュメントを追加する", `
+        <p class="small muted">調べたことをメンバーがタブを分けて書く、Googleドキュメントを1つ作ります。作ったら「共有」で「リンクを知っている全員が編集可」にして、リンクを貼ってください。議事録の下にいつでも表示されます。</p>
+        <div class="row-left"><a class="button small" href="https://docs.google.com/document/create" target="_blank" rel="noopener">＋ Googleドキュメントを作る</a></div>
+        <div class="row-left"><input type="url" id="fm-doc-url" placeholder="https://docs.google.com/document/d/…" value="${esc(p.memo_doc_url || "")}" aria-label="リサーチドキュメントのURL">
+          <button type="button" class="primary small" id="fm-doc-save">登録する</button></div>`)}
     </ol>
   </section>`;
 }
@@ -514,7 +519,20 @@ function bindFirstMeeting(el, data, p) {
     card.querySelector("#fm-go-next").hidden = regular;
     mark("next", regular || nextVal);
     mark("action", [...el.querySelectorAll("#todos [data-k=title]")].some((i) => i.value.trim()));
+    mark("doc", p.memo_doc_url);
   };
+  // ⑤ リサーチドキュメント：登録したら、議事録の下の表示も入れ替える
+  card.querySelector("#fm-doc-save").addEventListener("click", (e) => {
+    const url = card.querySelector("#fm-doc-url").value.trim();
+    busy(e.currentTarget, () => api(`/api/projects/${p.id}/research-doc`, { method: "POST", body: { url } }))
+      .then((res) => {
+        p.memo_doc_url = res.url;
+        el.querySelector(".memo-doc")?.insertAdjacentHTML("afterend", memoDocSection(p));
+        el.querySelector(".memo-doc")?.remove();
+        toast(res.url ? "リサーチドキュメントを登録しました" : "リサーチドキュメントの登録を外しました");
+        refresh();
+      }).catch(() => {});
+  });
   // ① PM
   card.querySelector("#pm-save").addEventListener("click", (e) => {
     const sel = card.querySelector("#pm-select");
