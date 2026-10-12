@@ -1190,3 +1190,17 @@ html[data-vt="left"]::view-transition-new(main){animation:vt-in-left .26s cubic-
 .celebrate-card{animation:celebrate-pop .55s cubic-bezier(.3,1.6,.5,1)}
 @keyframes celebrate-pop{0%{transform:scale(.6);opacity:0}100%{transform:scale(1);opacity:1}}
 @media (prefers-reduced-motion: reduce){.celebrate-card{animation:none}}
+
+/* 初回MTGで決めること */
+.first-meeting{border-color:#f0d58a;background:#fffcf2}
+.fm-steps{list-style:none;margin:8px 0 0;padding:0;display:flex;flex-direction:column;gap:10px}
+.fm-step{display:flex;gap:12px;align-items:flex-start;padding:12px 14px;border:1px solid var(--soft-line);border-radius:14px;background:#fff;transition:background-color .3s,border-color .3s}
+.fm-no{flex:none;display:grid;place-items:center;width:30px;height:30px;border-radius:50%;background:#f3e2ad;font-weight:800;color:#6b5100}
+.fm-body{flex:1;min-width:0;display:flex;flex-direction:column;gap:8px}
+.fm-body .row-left{gap:8px;flex-wrap:wrap;align-items:center}
+.fm-body select,.fm-body input[type=time]{width:auto;min-width:120px}
+.fm-done{flex:none;display:grid;place-items:center;width:30px;height:30px;border-radius:50%;background:#e8eeea;color:#fff;font-weight:900;transition:background-color .3s,transform .3s}
+.fm-step.is-done{border-color:#9fd6bd;background:#f6fcf9}
+.fm-step.is-done .fm-no{background:var(--green);color:#fff}
+.fm-step.is-done .fm-done{background:var(--green);animation:check-pop .3s cubic-bezier(.3,1.6,.5,1)}
+.fm-body > button{align-self:flex-start}

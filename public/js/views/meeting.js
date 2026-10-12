@@ -28,18 +28,7 @@ export async function renderMeeting(el, id) {
         <a class="button primary small" href="#/meetings/${m.id}">✏️ このMTGの議事録を書く</a>` : ""}
     </div>
 
-    ${data.isFirst && canEdit && !viewOnly ? `<section class="card pm-pick">
-      <div class="section-head"><h2>👑 PMを決める <small class="muted">初回のMTGだけ</small></h2></div>
-      <p class="muted small">PMは、このPJのまとめ役（マネージャー）です。PJのメンバーから1人選びます。</p>
-      <div class="row-left">
-        <select id="pm-select" aria-label="PM">
-          <option value="">まだ決めていない</option>
-          ${memberUsers.map((u) => `<option value="${esc(u.id)}" ${u.id === p.pm_id ? "selected" : ""}>${esc(u.name)}</option>`).join("")}
-        </select>
-        <button type="button" class="primary small" id="pm-save">決める</button>
-        <span class="small" id="pm-now">${p.pm_id ? `いまのPM：<strong>${esc(data.members.find((u) => u.id === p.pm_id)?.name || "")}</strong>` : ""}</span>
-      </div>
-    </section>` : ""}
+    ${data.isFirst && canEdit && !viewOnly ? firstMeetingCard(data, memberUsers) : ""}
 
     <form class="minutes" id="minutes-form">
       <section class="card">
@@ -87,17 +76,8 @@ export async function renderMeeting(el, id) {
     </form>`;
 
   const form = el.querySelector("#minutes-form");
-  // 初回のMTG：PMを決める
-  el.querySelector("#pm-save")?.addEventListener("click", (e) => {
-    const sel = el.querySelector("#pm-select");
-    const name = sel.selectedOptions[0]?.textContent || "";
-    busy(e.currentTarget, () => api(`/api/projects/${p.id}/pm`, { method: "POST", body: { user_id: sel.value || null } }))
-      .then(() => {
-        p.pm_id = sel.value || null;
-        el.querySelector("#pm-now").innerHTML = sel.value ? `いまのPM：<strong>${esc(name)}</strong>` : "";
-        toast(sel.value ? `${name}さんをPMにしました` : "PMを未定に戻しました");
-      }).catch(() => {});
-  });
+  // 初回のMTG：決めること（PM・MTGの進め方・次回・最初のアクション）
+  if (data.isFirst && canEdit && !viewOnly) bindFirstMeeting(el, data, p);
   if (!viewOnly) bindTimer(el, `meeting-${m.id}`, { auto: true });
   const todoBox = el.querySelector("#todos");
   const defaultDue = () => (data.nextMeeting ? data.nextMeeting.starts_at.slice(0, 10) : addDays(m.starts_at.slice(0, 10), 7));
@@ -435,4 +415,90 @@ function memoDocSection(p) {
         : p.memo_doc_url ? `<p class="muted small">このリンクは埋め込み表示できません。「新しいタブで開く」から開いてください。</p>`
         : `<p class="muted small">リサーチドキュメントが未登録です。<a href="#/projects/${p.id}/edit">PJの「編集」</a>から登録すると、ここに表示されます。</p>`}
     </section>`;
+}
+
+// ---------- 初回MTGで決めること ----------
+const WEEKDAYS = ["日", "月", "火", "水", "木", "金", "土"];
+function firstMeetingCard(data, memberUsers) {
+  const p = data.project;
+  const wd = new Set((p.meeting_weekdays || "").split(",").filter(Boolean));
+  const regular = p.meeting_mode === "regular";
+  const step = (n, key, title, body) => `
+    <li class="fm-step" data-step="${key}"><span class="fm-no">${n}</span>
+      <div class="fm-body"><strong>${title}</strong>${body}</div><span class="fm-done" aria-label="決まった">✓</span></li>`;
+  return `<section class="card first-meeting">
+    <div class="section-head"><h2>🤝 初回MTGで決めること <small class="muted">この4つを決めれば、PJがスタートできます</small></h2></div>
+    <ol class="fm-steps">
+      ${step(1, "pm", "👑 PM（まとめ役）を決める", `
+        <div class="row-left"><select id="pm-select" aria-label="PM"><option value="">まだ決めていない</option>
+          ${memberUsers.map((u) => `<option value="${esc(u.id)}" ${u.id === p.pm_id ? "selected" : ""}>${esc(u.name)}</option>`).join("")}</select>
+          <button type="button" class="primary small" id="pm-save">決める</button></div>`)}
+      ${step(2, "plan", "🗓 MTGの進め方を決める", `
+        <div class="row-left fm-modes">
+          <label class="chip-check"><input type="radio" name="fm-mode" value="regular" ${regular ? "checked" : ""}><span>定例にする（毎週同じ曜日・時刻）</span></label>
+          <label class="chip-check"><input type="radio" name="fm-mode" value="adhoc" ${regular ? "" : "checked"}><span>毎回、次の日程を決める</span></label>
+        </div>
+        <div class="fm-regular" ${regular ? "" : "hidden"}>
+          <div class="row-left">${WEEKDAYS.map((w, i) => `<label class="chip-check"><input type="checkbox" name="fm-wd" value="${i}" ${wd.has(String(i)) ? "checked" : ""}><span>${w}</span></label>`).join("")}</div>
+          <div class="row-left"><input type="time" id="fm-time" value="${esc(p.meeting_time || "21:00")}" aria-label="時刻">
+            <select id="fm-interval" aria-label="頻度"><option value="1">毎週</option><option value="2" ${p.meeting_interval === 2 ? "selected" : ""}>隔週</option></select></div>
+        </div>
+        <button type="button" class="primary small" id="fm-plan-save">決める</button>`)}
+      ${step(3, "next", "📅 次回のMTGを決める", `
+        <p class="small muted fm-next-note"></p>
+        <button type="button" class="small" id="fm-go-next">次回の日程を書く ↓</button>`)}
+      ${step(4, "action", "🚀 最初のアクションを決める", `
+        <p class="small muted">誰が・何を・いつまでに。「次回までにやること」に書くと、担当の人のタスクになります。</p>
+        <button type="button" class="small" id="fm-go-todo">最初のアクションを書く ↓</button>`)}
+    </ol>
+  </section>`;
+}
+
+function bindFirstMeeting(el, data, p) {
+  const card = el.querySelector(".first-meeting");
+  const mark = (key, done) => card.querySelector(`[data-step="${key}"]`)?.classList.toggle("is-done", Boolean(done));
+  const refresh = () => {
+    mark("pm", p.pm_id);
+    mark("plan", p.plan_decided || p.meeting_mode === "regular");
+    const regular = p.meeting_mode === "regular";
+    const nextVal = el.querySelector("[name=next_starts_at]")?.value;
+    card.querySelector(".fm-next-note").textContent = regular ? "定例なので、次回は自動でカレンダーに入ります。"
+      : nextVal ? `次回：${nextVal.replace("T", " ")}` : "毎回決める場合は、MTGの最後に次回の日時を書きます。";
+    card.querySelector("#fm-go-next").hidden = regular;
+    mark("next", regular || nextVal);
+    mark("action", [...el.querySelectorAll("#todos [data-k=title]")].some((i) => i.value.trim()));
+  };
+  // ① PM
+  card.querySelector("#pm-save").addEventListener("click", (e) => {
+    const sel = card.querySelector("#pm-select");
+    const name = sel.selectedOptions[0]?.textContent || "";
+    busy(e.currentTarget, () => api(`/api/projects/${p.id}/pm`, { method: "POST", body: { user_id: sel.value || null } }))
+      .then(() => { p.pm_id = sel.value || null; toast(sel.value ? `${name}さんをPMにしました` : "PMを未定に戻しました"); refresh(); }).catch(() => {});
+  });
+  // ② MTGの進め方
+  card.querySelectorAll("[name=fm-mode]").forEach((r) => r.addEventListener("change", () => {
+    card.querySelector(".fm-regular").hidden = card.querySelector("[name=fm-mode]:checked").value !== "regular";
+  }));
+  card.querySelector("#fm-plan-save").addEventListener("click", (e) => {
+    const mode = card.querySelector("[name=fm-mode]:checked").value;
+    const body = { meeting_mode: mode, meeting_weekdays: [...card.querySelectorAll("[name=fm-wd]:checked")].map((c) => c.value),
+      meeting_time: card.querySelector("#fm-time").value, meeting_interval: Number(card.querySelector("#fm-interval").value) };
+    busy(e.currentTarget, () => api(`/api/projects/${p.id}/meeting-plan`, { method: "POST", body }))
+      .then(() => {
+        Object.assign(p, { meeting_mode: mode, plan_decided: true });
+        toast(mode === "regular" ? `定例を決めました（${body.meeting_weekdays.map((i) => WEEKDAYS[i]).join("・")}曜 ${body.meeting_time}）` : "毎回、次の日程を決めることにしました");
+        refresh();
+      }).catch(() => {});
+  });
+  // ③④ 下の欄へ
+  const goTo = (sel, focus) => { const t = el.querySelector(sel); t?.scrollIntoView({ behavior: "smooth", block: "center" }); setTimeout(() => focus?.(), 400); };
+  card.querySelector("#fm-go-next").addEventListener("click", () => goTo(".next-date", () => el.querySelector("[name=next_starts_at]")?.focus()));
+  card.querySelector("#fm-go-todo").addEventListener("click", () => goTo("#todos", () => {
+    const inputs = el.querySelectorAll("#todos [data-k=title]");
+    if (!inputs.length) el.querySelector("#add-todo")?.click();
+    [...el.querySelectorAll("#todos [data-k=title]")].find((i) => !i.value.trim())?.focus() || el.querySelector("#todos [data-k=title]")?.focus();
+  }));
+  el.addEventListener("input", refresh);
+  el.addEventListener("change", refresh);
+  refresh();
 }

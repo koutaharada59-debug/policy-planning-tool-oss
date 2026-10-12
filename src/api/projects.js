@@ -15,6 +15,7 @@ export const routes = [
   ["POST", "/api/projects", createProject],
   ["GET", "/api/projects/:id", getProject],
   ["POST", "/api/projects/:id/pm", setPm],
+  ["POST", "/api/projects/:id/meeting-plan", setMeetingPlan],
   ["PUT", "/api/projects/:id", updateProject],
   ["POST", "/api/projects/:id/stage", setCurrentStage],
   ["POST", "/api/projects/:id/completion", completion],
@@ -137,6 +138,29 @@ async function setPm({ request, env, user, params }) {
     throw new HttpError(400, "PMはPJのメンバーから選んでください");
   }
   await env.DB.prepare("UPDATE projects SET pm_id = ?, updated_at = ? WHERE id = ?").bind(pm, Date.now(), project.id).run();
+  return { ok: true };
+}
+
+// MTGの進め方（定例 or 毎回決める）だけを決める。初回MTGの「決めること」から使う。定例なら、これからの回を作り直す
+async function setMeetingPlan({ request, env, user, params }) {
+  const project = await loadProject(env, params.id);
+  await requireEditor(env, user, project.id);
+  const body = await readJson(request);
+  const mode = oneOf(body.meeting_mode, ["regular", "adhoc"], "MTGの進め方");
+  const weekdays = mode === "regular" ? parseWeekdays(Array.isArray(body.meeting_weekdays) ? body.meeting_weekdays.map(String).join(",") : "").join(",") : "";
+  const time = mode === "regular" ? optTime(body.meeting_time) : "";
+  if (mode === "regular" && (!weekdays || !time)) throw new HttpError(400, "定例にするときは、曜日と時刻を選んでください");
+  const interval = int(body.meeting_interval, { min: 1, max: 4, fallback: 1, label: "頻度" });
+  const updated = { ...project, meeting_mode: mode, meeting_weekdays: weekdays, meeting_time: time, meeting_interval: interval };
+  await env.DB.batch([
+    env.DB.prepare("UPDATE projects SET meeting_mode = ?, meeting_weekdays = ?, meeting_time = ?, meeting_interval = ?, updated_at = ?, version = version + 1 WHERE id = ?")
+      .bind(mode, weekdays, time, interval, Date.now(), project.id),
+    env.DB.prepare(
+      `DELETE FROM meetings WHERE project_id = ? AND kind = 'regular' AND starts_at >= ? AND id NOT IN (SELECT meeting_id FROM minutes)`
+    ).bind(project.id, nowJst()),
+    ...regularMeetingStatements(env, updated),
+  ]);
+  if (mode === "regular") await notifyProject(env, updated, "定例MTGの曜日・時刻が決まりました", "", user.id, { dm: true });
   return { ok: true };
 }
 

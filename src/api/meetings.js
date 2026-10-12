@@ -112,7 +112,7 @@ async function getMeeting({ env, user, params }) {
   return {
     meeting, minute, members, canEdit,
     isFirst: !earlier,
-    project: { id: project.id, name: project.name, type: project.type, memo_doc_url: project.memo_doc_url, meeting_mode: project.meeting_mode, current_stage: project.current_stage, pm_id: project.pm_id },
+    project: { id: project.id, name: project.name, type: project.type, memo_doc_url: project.memo_doc_url, meeting_mode: project.meeting_mode, current_stage: project.current_stage, pm_id: project.pm_id, meeting_weekdays: project.meeting_weekdays, meeting_time: project.meeting_time, meeting_interval: project.meeting_interval },
     previous: prev ? { starts_at: prev.starts_at, homework } : null,
     todos,
     nextMeeting,
