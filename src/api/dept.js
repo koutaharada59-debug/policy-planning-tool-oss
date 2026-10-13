@@ -178,7 +178,7 @@ async function updateDeptMeeting({ request, env, user, params, ctx }) {
   ).bind(notice, memo, news, exchange, layout, event, endedAt, user.id, now, cur.id, version).run();
   assertUpdated(res, "定例の議事録");
   if (body.reopen && cur.ended_at) await env.DB.batch(collectStatements(env, cur.id, cur.held_on, now));
-  if (!body.reopen && teireiNotionOn(env)) ctx?.waitUntil(syncTeireiNotion(env, cur.id).catch((err) => console.error("teirei notion sync failed", err?.status, err?.code || err?.message)));
+  if (!body.reopen && !body.auto && teireiNotionOn(env)) ctx?.waitUntil(syncTeireiNotion(env, cur.id).catch((err) => console.error("teirei notion sync failed", err?.status, err?.code || err?.message)));
   return { ok: true, version: version + 1 };
 }
 

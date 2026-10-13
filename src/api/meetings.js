@@ -18,6 +18,7 @@ export const routes = [
   ["PATCH", "/api/meetings/:id", updateMeeting],
   ["DELETE", "/api/meetings/:id", deleteMeeting],
   ["PUT", "/api/meetings/:id/minutes", saveMinutes],
+  ["PUT", "/api/meetings/:id/draft", saveDraft],
   ["POST", "/api/meetings/:id/live", liveMinutes],
 ];
 
@@ -144,6 +145,23 @@ export async function syncNotion(env, meetingId) {
   if (meeting.notion_url) return replaceNotionPage(env, meeting.notion_url, title, blocks);
   const pageUrl = await createNotionPage(env, project.notion_url, title, blocks);
   await env.DB.prepare("UPDATE meetings SET notion_url = ? WHERE id = ? AND notion_url IS NULL").bind(pageUrl, meeting.id).run();
+}
+
+// 下書き：次回の日程・MTGの進め方の選びかけ（お知らせは送らない。決まるのは「保存する」「決める」のとき）
+async function saveDraft({ request, env, user, params }) {
+  const meeting = await loadMeeting(env, params.id);
+  await requireEditor(env, user, meeting.project_id);
+  const d = (await readJson(request)).draft || {};
+  const dt = (v) => (typeof v === "string" && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(v) ? v : "");
+  const plan = d.plan && typeof d.plan === "object" ? {
+    mode: d.plan.mode === "regular" ? "regular" : "adhoc",
+    weekdays: (Array.isArray(d.plan.weekdays) ? d.plan.weekdays : []).map(String).filter((w) => /^[0-6]$/.test(w)).slice(0, 7),
+    time: typeof d.plan.time === "string" && /^\d{2}:\d{2}$/.test(d.plan.time) ? d.plan.time : "",
+    interval: d.plan.interval === 2 || d.plan.interval === "2" ? 2 : 1,
+  } : null;
+  const draft = { next_starts_at: dt(d.next_starts_at), next_place: clean(d.next_place, 200), ...(plan ? { plan } : {}) };
+  await env.DB.prepare("UPDATE meetings SET draft = ? WHERE id = ?").bind(JSON.stringify(draft), meeting.id).run();
+  return { ok: true };
 }
 
 async function getMeeting({ env, user, params }) {

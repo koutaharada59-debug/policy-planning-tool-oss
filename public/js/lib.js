@@ -791,3 +791,34 @@ function apChanged(ap) {
   ap.dispatchEvent(new CustomEvent("assignees", { bubbles: true, detail: ids }));
 }
 export const pickerIds = (root) => (root.querySelector("[data-ap]")?.dataset.ids || "").split(",").filter(Boolean);
+
+// ---------- 自動保存：書くのが止まって少ししたら保存する（1回ずつ順番に）。保存中に書いた分は、次の保存で送る ----------
+// save()：保存して Promise を返す。status：「✓ 自動で保存しました」などを出す要素
+export function autoSave(form, save, { status, delay = 1500 } = {}) {
+  let edits = 0;      // 書いた回数（保存のあとに増えていたら、もう一度保存する）
+  let timer = null;
+  let running = null;
+  const show = (t) => { if (status) status.textContent = t; };
+  const run = async () => {
+    clearTimeout(timer);
+    if (running) { await running; }
+    const at = edits;
+    if (!at) return;
+    show("保存中…");
+    running = Promise.resolve().then(save).then(() => {
+      if (edits === at) { edits = 0; markSaved(form); }
+      show(`✓ 自動で保存しました（${new Date().toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}）`);
+    }).catch((err) => {
+      show(`⚠ 保存できませんでした：${err.message}（書き足すと、もう一度保存します）`);
+    }).finally(() => { running = null; });
+    await running;
+    if (edits && edits !== at) schedule();
+  };
+  const schedule = () => { clearTimeout(timer); timer = setTimeout(run, delay); };
+  form.addEventListener("input", () => { edits++; show("入力中…"); schedule(); });
+  // 画面を閉じる・ほかのアプリに移るときは、すぐ保存する
+  const flush = () => { if (edits) run(); };
+  document.addEventListener("visibilitychange", () => { if (document.hidden) flush(); });
+  window.addEventListener("hashchange", flush, { once: true });
+  return { flush: run, pending: () => edits > 0 || Boolean(running) };
+}

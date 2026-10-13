@@ -1,5 +1,5 @@
 // 部門の定例：入口（定例の議事録／進捗を書く／管理者は定例を始める）と、それぞれの画面
-import { api, esc, state, fmtDate, fmtDateTime, jstDateTime, addDays, hashQuery, confirmDialog, busy, toast, formData, copyForNotion, copyButton, bindCopyButtons, pjPicker, pickItem, timerHtml, bindTimer, guardForm, markSaved, mergeText } from "../lib.js";
+import { api, esc, state, fmtDate, fmtDateTime, jstDateTime, addDays, hashQuery, confirmDialog, busy, toast, formData, copyForNotion, copyButton, bindCopyButtons, pjPicker, pickItem, timerHtml, bindTimer, guardForm, markSaved, mergeText, autoSave } from "../lib.js";
 import { enhanceRich, richHtml } from "../rich.js";
 import { FIXED, parseLayout, secTools, customSection, addSectionBox, bindLayout, layoutValue } from "../teirei-layout.js";
 const richView = (md) => `<div class="rich-view">${richHtml(md)}</div>`;
@@ -184,6 +184,7 @@ export async function renderTeirei(el, id) {
       </section>` : ""}
 
       <div class="form-actions sticky">
+        ${canEdit ? `<span class="muted small auto-status" id="auto-status">自動で保存されます</span>` : ""}
         <button type="button" id="copy-md" title="Notion用にコピー">📋<span class="hide-sm"> Notion用にコピー</span></button>
         ${canEdit ? `<button type="submit" data-save>保存する</button>
           ${m.is_open ? `<button type="submit" class="primary" data-end>定例を終わる</button>`
@@ -226,8 +227,9 @@ export async function renderTeirei(el, id) {
   if (canEdit) bindLayout(el.querySelector("#secs"), layout, { onChange: () => form.dispatchEvent(new Event("input", { bubbles: true })) });
   let base = Object.fromEntries(KEYS.map((k) => [k, m[k]]));
   let baseLayout = parseLayout(m.layout);
-  const send = (end) => api(`/api/dept-meetings/${id}`, {
-    method: "PATCH", body: { ...values(), end, version },
+  // auto：自動保存（Notionへは送らない。「保存する」「定例を終わる」で送る）
+  const send = (end, auto = false) => api(`/api/dept-meetings/${id}`, {
+    method: "PATCH", body: { ...values(), end, auto, version },
   }).catch(async (err) => {
     if (!/他の人が更新/.test(err.message)) throw err;
     // ほかの部門長・副部門長も同時に書いていた：相手の変更を取り込んで、もう一度保存する
@@ -252,16 +254,22 @@ export async function renderTeirei(el, id) {
     version = latest.version;
     if (both) toast("ほかの人も同じ欄を書いていたので、両方の内容を残しました。確認してください");
     return api(`/api/dept-meetings/${id}`, {
-      method: "PATCH", body: { ...values(), end, version },
+      method: "PATCH", body: { ...values(), end, auto, version },
     });
   });
-  form.addEventListener("submit", (e) => {
+  const saveNow = (end, auto) => send(end, auto).then((res) => {
+    base = values();
+    baseLayout = parseLayout(layoutValue(form, layout));
+    version = res.version;
+    return res;
+  });
+  // 書くのが止まったら、自動で保存する
+  const auto = canEdit ? autoSave(form, () => saveNow(false, true), { status: el.querySelector("#auto-status") }) : null;
+  form.addEventListener("submit", async (e) => {
     e.preventDefault();
     const end = "end" in e.submitter.dataset;
-    busy(e.submitter, () => send(end)).then((res) => {
-      base = values();
-      baseLayout = parseLayout(layoutValue(form, layout));
-      version = res.version;
+    if (auto?.pending()) await auto.flush();
+    busy(e.submitter, () => saveNow(end, false)).then(() => {
       markSaved(form);
       toast(end ? "定例を終わりました。議事録を保存しました" : "議事録を保存しました");
       if (end) renderTeirei(el, id);
@@ -293,6 +301,7 @@ export async function renderReport(el, projectId) {
       ${FIELDS.map(([k, label]) => `<div class="field"><div class="section-head"><strong>${label}</strong></div><textarea name="${k}" data-rich rows="4" maxlength="3000" aria-label="${label}">${esc(report[k])}</textarea></div>`).join("")}
       <div class="form-actions">
         ${report.updated_at ? `<span class="muted small">最終更新：${esc(report.updated_by_name || "")}・${fmtDateTime(jstDateTime(report.updated_at))}</span>` : ""}
+        <span class="muted small auto-status" id="auto-status">自動で保存されます</span>
         <button class="primary">保存する</button></div>
     </form>
     ${previous ? `<details class="card"><summary>前回（${fmtDate(previous.held_on)}）の定例で共有した内容</summary>${paragraphs(previous)}</details>` : ""}`;
@@ -316,15 +325,13 @@ export async function renderReport(el, projectId) {
       if (both) toast("同じPJのメンバーも同じ欄を書いていたので、両方の内容を残しました。確認してください");
       return api(`/api/projects/${projectId}/dept-report`, { method: "PUT", body: { ...formData(form), version } });
     });
-  form.addEventListener("submit", (e) => {
+  const saveNow = () => send().then((res) => { base = formData(form); version = res.version; return res; });
+  const auto = autoSave(form, saveNow, { status: el.querySelector("#auto-status") });
+  form.addEventListener("submit", async (e) => {
     e.preventDefault();
-    busy(e.submitter, send)
-      .then((res) => {
-        base = formData(form);
-        version = res.version;
-        markSaved(form);
-        toast("保存しました");
-      }).catch(() => {});
+    if (auto.pending()) await auto.flush();
+    busy(e.submitter, saveNow)
+      .then(() => { markSaved(form); toast("保存しました"); }).catch(() => {});
   });
 }
 
@@ -350,6 +357,7 @@ export async function renderTeireiNotice(el) {
         ${addSectionBox()}</div>
       <div class="form-actions sticky">
         ${d.updated_at ? `<span class="muted small">最終更新：${esc(d.updated_by_name)}・${fmtDateTime(jstDateTime(d.updated_at))}</span>` : ""}
+        <span class="muted small auto-status" id="auto-status">自動で保存されます</span>
         ${d.target === "meeting" ? `<a class="button" href="#/teirei/${d.meeting.id}">この定例を開く</a>` : ""}
         <button class="primary">保存する</button>
       </div>
@@ -358,10 +366,32 @@ export async function renderTeireiNotice(el) {
   const noticeForm = el.querySelector("#notice-form");
   guardForm(noticeForm);
   bindLayout(el.querySelector("#secs"), layout, { onChange: () => noticeForm.dispatchEvent(new Event("input", { bubbles: true })) });
-  noticeForm.addEventListener("submit", (e) => {
+  const f = noticeForm;
+  const body = () => ({ notice: f.notice.value, news: f.news.value, exchange: f.exchange.value, layout: layoutValue(f, layout), version, target: d.target, day: d.target === "next" ? null : d.day });
+  let base = { notice: d.notice, news: d.news, exchange: d.exchange };
+  const saveNow = () => api("/api/dept-notice", { method: "PUT", body: body() })
+    .catch(async (err) => {
+      if (!/他の人が更新/.test(err.message)) throw err;
+      // ほかの部門長・副部門長も同時に書いていた：相手の変更を取り込んで、もう一度保存する
+      const latest = await api(`/api/dept-notice${day ? `?day=${encodeURIComponent(day)}` : ""}`);
+      let both = false;
+      for (const k of ["notice", "news", "exchange"]) {
+        const r = mergeText(base[k] || "", f[k].value, latest[k] || "");
+        f[k].value = r.text;
+        both ||= r.both;
+      }
+      const theirs = parseLayout(latest.layout);
+      for (const [cid, c] of Object.entries(theirs.custom)) if (!layout.custom[cid]) { layout.custom[cid] = c; layout.order.push(cid); }
+      version = latest.version;
+      if (both) toast("ほかの人も同じ欄を書いていたので、両方の内容を残しました。確認してください");
+      return api("/api/dept-notice", { method: "PUT", body: body() });
+    })
+    .then((res) => { version = res.version; base = { notice: f.notice.value, news: f.news.value, exchange: f.exchange.value }; return res; });
+  const auto = autoSave(noticeForm, saveNow, { status: el.querySelector("#auto-status") });
+  noticeForm.addEventListener("submit", async (e) => {
     e.preventDefault();
-    busy(e.submitter, () => api("/api/dept-notice", { method: "PUT", body: { notice: e.target.notice.value, news: e.target.news.value, exchange: e.target.exchange.value, layout: layoutValue(e.target, layout), version, target: d.target, day: d.target === "next" ? null : d.day } }))
-      .then((res) => { version = res.version; markSaved(noticeForm); toast("保存しました"); }).catch(() => {});
+    if (auto.pending()) await auto.flush();
+    busy(e.submitter, saveNow).then(() => { markSaved(noticeForm); toast("保存しました"); }).catch(() => {});
   });
 }
 

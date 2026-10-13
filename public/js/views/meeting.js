@@ -6,6 +6,8 @@ import { schedulePollLinks } from "./schedule-poll.js";
 
 export async function renderMeeting(el, id) {
   const data = await api(`/api/meetings/${id}`);
+  // 下書き（次回の日程・MTGの進め方の選びかけ）
+  try { data.draft = JSON.parse(data.meeting.draft || "{}") || {}; } catch { data.draft = {}; }
   const { meeting: m, minute, project: p, previous, canEdit } = data;
   // 「議事録を見る」で開いたときは読むだけ。ただし「今回話し合うこと」はMTGの前に書いておける
   const viewOnly = hashQuery().get("mode") === "view";
@@ -102,6 +104,27 @@ export async function renderMeeting(el, id) {
       busy(e.currentTarget, () => api(`/api/meetings/${m.id}`, { method: "DELETE", body: { with_minutes: true } }))
         .then(() => { toast("MTGを削除しました"); location.hash = `#/projects/${p.id}`; }).catch(() => {});
     });
+  }
+  // 下書き：次回の日程・MTGの進め方は、選ぶたびに残す（画面を移っても消えない。決まるのは「保存する」「決める」のとき）
+  if (canEdit && !viewOnly) {
+    let draftTimer = null;
+    const draftNow = () => {
+      const fm = el.querySelector(".first-meeting");
+      const draft = {
+        next_starts_at: form.next_starts_at?.value || "", next_place: form.next_place?.value || "",
+        ...(fm ? { plan: { mode: fm.querySelector("[name=fm-mode]:checked")?.value, weekdays: [...fm.querySelectorAll("[name=fm-wd]:checked")].map((c) => c.value),
+          time: fm.querySelector("#fm-time")?.value, interval: Number(fm.querySelector("#fm-interval")?.value) } } : {}),
+      };
+      api(`/api/meetings/${m.id}/draft`, { method: "PUT", body: { draft } }).then(() => {
+        const st = el.querySelector("#draft-status");
+        if (st && draft.next_starts_at && !data.nextMeeting) st.textContent = "✓ 残しました。「保存する」か「MTGを終える」で決まり、メンバーに届きます。";
+      }).catch(() => {});
+    };
+    const isDraftField = (t) => t.matches?.("[name=next_starts_at],[name=next_place],[name=fm-mode],[name=fm-wd],#fm-time,#fm-interval");
+    const onDraft = (e) => { if (!isDraftField(e.target)) return; clearTimeout(draftTimer); draftTimer = setTimeout(draftNow, 800); };
+    el.addEventListener("input", onDraft);
+    el.addEventListener("change", onDraft);
+    window.addEventListener("hashchange", () => { if (draftTimer) { clearTimeout(draftTimer); draftNow(); } }, { once: true });
   }
   // 次回の日程が決められないとき：日程調整アンケート
   const spBox = el.querySelector("#sp-links");
@@ -429,7 +452,7 @@ export async function renderMeeting(el, id) {
 }
 
 // 毎回決めるPJ：議事録の最後に次回の日程を決める（任意。未定のままなら翌朝からリマインドが届く）
-function nextMeetingSection({ nextMeeting, meeting: m }, ro) {
+function nextMeetingSection({ nextMeeting, meeting: m, draft }, ro) {
   return `
     <section class="card next-date">
       <h2>📅 次回のミーティング日程 <small class="muted">任意</small></h2>
@@ -437,9 +460,10 @@ function nextMeetingSection({ nextMeeting, meeting: m }, ro) {
         ? `次回は <strong>${fmtDateTime(nextMeeting.starts_at)}</strong> に決まっています。変える場合は日時を直して保存してください。`
         : "MTGの最後に決めましょう。未定のままだと、翌朝からPJメンバーにリマインドが届きます。"}</p>
       <div class="inline-form">
-        <input name="next_starts_at" type="datetime-local" min="${esc(m.starts_at)}" value="${esc(nextMeeting?.starts_at || "")}" aria-label="次回の日時" ${ro}>
-        <input name="next_place" maxlength="200" placeholder="場所・URL（任意）" value="${esc(nextMeeting?.place || m.place || "")}" ${ro}>
+        <input name="next_starts_at" type="datetime-local" min="${esc(m.starts_at)}" value="${esc(nextMeeting?.starts_at || draft.next_starts_at || "")}" aria-label="次回の日時" ${ro}>
+        <input name="next_place" maxlength="200" placeholder="場所・URL（任意）" value="${esc(nextMeeting?.place || draft.next_place || m.place || "")}" ${ro}>
       </div>
+      <p class="muted small" id="draft-status">${!nextMeeting && draft.next_starts_at ? "前に選んだ日時を残してあります。「保存する」か「MTGを終える」で決まり、メンバーに届きます。" : ""}</p>
       ${nextMeeting ? "" : `<div class="sp-links" id="sp-links"></div>`}
     </section>`;
 }
@@ -495,8 +519,10 @@ function memoDocSection(p) {
 const WEEKDAYS = ["日", "月", "火", "水", "木", "金", "土"];
 function firstMeetingCard(data, memberUsers) {
   const p = data.project;
-  const wd = new Set((p.meeting_weekdays || "").split(",").filter(Boolean));
-  const regular = p.meeting_mode === "regular";
+  // まだ決めていなければ、前に選びかけていたものを出す
+  const plan = !p.plan_decided && p.meeting_mode !== "regular" && data.draft.plan ? data.draft.plan : null;
+  const wd = new Set(plan ? plan.weekdays : (p.meeting_weekdays || "").split(",").filter(Boolean));
+  const regular = plan ? plan.mode === "regular" : p.meeting_mode === "regular";
   const step = (n, key, title, body) => `
     <li class="fm-step" data-step="${key}"><span class="fm-no">${n}</span>
       <div class="fm-body"><strong>${title}</strong>${body}</div><span class="fm-done" aria-label="決まった">✓</span></li>`;
@@ -514,8 +540,8 @@ function firstMeetingCard(data, memberUsers) {
         </div>
         <div class="fm-regular" ${regular ? "" : "hidden"}>
           <div class="row-left">${WEEKDAYS.map((w, i) => `<label class="chip-check"><input type="checkbox" name="fm-wd" value="${i}" ${wd.has(String(i)) ? "checked" : ""}><span>${w}</span></label>`).join("")}</div>
-          <div class="row-left"><input type="time" id="fm-time" value="${esc(p.meeting_time || "21:00")}" aria-label="時刻">
-            <select id="fm-interval" aria-label="頻度"><option value="1">毎週</option><option value="2" ${p.meeting_interval === 2 ? "selected" : ""}>隔週</option></select></div>
+          <div class="row-left"><input type="time" id="fm-time" value="${esc(plan?.time || p.meeting_time || "21:00")}" aria-label="時刻">
+            <select id="fm-interval" aria-label="頻度"><option value="1">毎週</option><option value="2" ${(plan ? plan.interval : p.meeting_interval) === 2 ? "selected" : ""}>隔週</option></select></div>
         </div>
         <button type="button" class="primary small" id="fm-plan-save">決める</button>`)}
       ${step(3, "next", "📅 次回のMTGを決める", `
@@ -560,7 +586,8 @@ function bindFirstMeeting(el, data, p) {
         refresh();
       }).catch(() => {});
   });
-  // ① PM
+  // ① PM（選んだらすぐ決まる。「決める」を押してもいい）
+  card.querySelector("#pm-select").addEventListener("change", () => card.querySelector("#pm-save").click());
   card.querySelector("#pm-save").addEventListener("click", (e) => {
     const sel = card.querySelector("#pm-select");
     const name = sel.selectedOptions[0]?.textContent || "";
