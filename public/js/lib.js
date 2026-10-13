@@ -664,7 +664,11 @@ function reportClientError(message, stack) {
     body: JSON.stringify({ message: String(message).slice(0, 500), stack: String(stack || "").slice(0, 2000), url: location.hash }),
   }).catch(() => {});
 }
-window.addEventListener("error", (e) => reportClientError(e.message, e.error?.stack));
+window.addEventListener("error", (e) => {
+  // 「Script error.」：ほかのサイトのスクリプト（アプリ内ブラウザが足すものなど）のエラーで、中身が分からないので記録しない
+  if (/^Script error\.?$/.test(e.message || "") && !e.error) return;
+  reportClientError(e.message, e.error?.stack);
+});
 window.addEventListener("unhandledrejection", (e) => {
   const r = e.reason;
   if (r?.silent) return; // 確認画面の「キャンセル」など

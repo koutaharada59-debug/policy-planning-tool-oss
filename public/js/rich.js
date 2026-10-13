@@ -194,7 +194,29 @@ function attach(ta) {
   ed.dataset.field = ta.name;
 
   const blockOf = (node) => { while (node && node.parentNode !== ed) node = node.parentNode; return node; };
-  const caretBlock = () => { const s = getSelection(); return s.rangeCount ? blockOf(s.anchorNode) : null; };
+  const caretBlock = () => {
+    const s = getSelection();
+    const b = s.rangeCount ? blockOf(s.anchorNode) : null;
+    return b?.nodeType === 1 && b.dataset ? b : null;
+  };
+  // ブラウザが行の外（欄に直接）に置いた文字・要素を、段落に入れる。カーソルはその中に戻す
+  const wrapStray = () => {
+    for (const n of [...ed.childNodes]) {
+      if (!(n.nodeType === 3 || (n.nodeType === 1 && !n.dataset?.type))) continue;
+      if (n.nodeType === 3 && !n.textContent) { n.remove(); continue; }
+      const sel = getSelection();
+      const caretHere = sel.rangeCount && (sel.anchorNode === n || n.contains?.(sel.anchorNode));
+      const offset = caretHere && sel.anchorNode.nodeType === 3 ? sel.anchorOffset : null;
+      const p = document.createElement("div"); p.className = "rb rb-p"; p.dataset.type = "p"; p.innerHTML = `<span class="rb-text"></span>`;
+      const text = document.createTextNode(n.textContent);
+      n.replaceWith(p); p.firstChild.append(text);
+      if (caretHere) {
+        const r = document.createRange();
+        r.setStart(text, Math.min(offset ?? text.length, text.length)); r.collapse(true);
+        sel.removeAllRanges(); sel.addRange(r);
+      }
+    }
+  };
   const textEl = (b) => b.querySelector(".rb-text") || b;
   const placeCaret = (el, atEnd = true) => { const r = document.createRange(); r.selectNodeContents(el); r.collapse(!atEnd); const s = getSelection(); s.removeAllRanges(); s.addRange(r); };
   const indentOf = (b) => Number(b?.dataset.indent || 0);
@@ -218,6 +240,7 @@ function attach(ta) {
 
   // 行の頭の書き方で変える（「# 」「- 」「[] 」など）
   ed.addEventListener("input", (e) => {
+    wrapStray();
     const b = caretBlock();
     if (b && (b.dataset.type === "p" || !b.dataset.type)) {
       const t = textEl(b).textContent;
@@ -226,11 +249,6 @@ function attach(ta) {
       if (hit) { textEl(b).textContent = ""; setType(b, hit[1]); return; }
       if (t === "/") openSlash(b);
     }
-    // ブラウザが外に置いた文字は、段落に入れる
-    for (const n of [...ed.childNodes]) if (n.nodeType === 3 || (n.nodeType === 1 && !n.dataset?.type)) {
-      const p = document.createElement("div"); p.className = "rb rb-p"; p.dataset.type = "p"; p.innerHTML = `<span class="rb-text"></span>`;
-      n.replaceWith(p); p.firstChild.append(n.nodeType === 3 ? n : n.textContent);
-    }
     if (slash && !slash.block.isConnected) closeSlash();
     if (slash) filterSlash();
     sync();
@@ -238,6 +256,7 @@ function attach(ta) {
 
   ed.addEventListener("keydown", (e) => {
     if (slash && ["ArrowDown", "ArrowUp", "Enter", "Escape"].includes(e.key)) { e.preventDefault(); slashKey(e.key); return; }
+    if (!e.isComposing) wrapStray();
     const b = caretBlock();
     if (!b) return;
     if (e.key === "Enter" && !e.shiftKey && !e.isComposing) {
@@ -327,6 +346,7 @@ function attach(ta) {
     if (/^https?:\/\/\S+$/.test(text.trim()) && !s.isCollapsed) { document.execCommand("createLink", false, text.trim()); ed.querySelectorAll("a:not([target])").forEach((a) => { a.target = "_blank"; a.rel = "noopener"; }); sync(); return; }
     const lines = text.replace(/\r/g, "").split("\n");
     if (lines.length === 1 && !/^https?:\/\/\S+$/.test(text.trim())) { document.execCommand("insertText", false, text); return; }
+    wrapStray();
     let b = caretBlock();
     if (b && !textEl(b).textContent.trim() && b.dataset.type === "p") { const prev = b.previousElementSibling; b.remove(); b = prev; }
     let last = b;
