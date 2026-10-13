@@ -1,10 +1,10 @@
 // 部門の定例：入口（定例の議事録／進捗を書く／管理者は定例を始める）と、それぞれの画面
 import { api, esc, state, fmtDate, fmtDateTime, jstDateTime, addDays, hashQuery, confirmDialog, busy, toast, formData, copyForNotion, copyButton, bindCopyButtons, pjPicker, pickItem, timerHtml, bindTimer, guardForm, markSaved, mergeText } from "../lib.js";
 import { enhanceRich, richHtml } from "../rich.js";
+import { FIXED, parseLayout, secTools, customSection, addSectionBox, bindLayout, layoutValue } from "../teirei-layout.js";
+const richView = (md) => `<div class="rich-view">${richHtml(md)}</div>`;
 
 const EVENTS = { "": "なし", news: "ニュース勉強会", exchange: "意見交換会" };
-// 定例の議事録のテンプレート：事務連絡／各PJの進捗共有／ニュース勉強会／意見交換会
-const NOTES = [["news", "📰 ニュース勉強会"], ["exchange", "💬 意見交換会"]];
 const FIELDS = [
   ["done", "前回の定例からやったこと"],
   ["next", "次の定例までにやること"],
@@ -137,25 +137,23 @@ export async function renderTeireiMinutes(el) {
 export async function renderTeirei(el, id) {
   const { meeting: m, reports, missing, canEdit } = await api(`/api/dept-meetings/${id}`);
   let version = m.version;
-  el.innerHTML = `
-    <nav class="breadcrumb"><a href="#/teirei">定例</a> / <a href="#/teirei/minutes">定例の議事録</a> / ${fmtDate(m.held_on)}</nav>
-    ${m.is_open ? timerHtml(`teirei-${m.id}`, { bar: true }) : ""}
-    <div class="page-heading left"><h1>🏛️ ${meetingLabel(m)} ${stateTag(m)}</h1>
-      ${m.updated_by_name ? `<p>最終更新：${esc(m.updated_by_name)}・${fmtDateTime(jstDateTime(m.updated_at))}</p>` : ""}</div>
-
-    <form class="minutes" id="teirei-form">
-      <section class="card">
-        <div class="section-head"><h2>📢 事務連絡</h2>${copyButton("notice")}</div>
-        ${canEdit ? `<textarea name="notice" data-rich rows="5" maxlength="5000" aria-label="事務連絡">${esc(m.notice)}</textarea>`
-          : m.notice ? `<div class="rich-view">${richHtml(m.notice)}</div>` : `<p class="muted">事務連絡はありません。</p>`}
-      </section>
-
-      <section class="card">
-        <div class="section-head"><h2>📊 各PJの進捗共有</h2>${m.is_open ? `<button type="button" class="small" id="reload">最新にする</button>` : ""}</div>
+  // 枠の並び順と、部門長・副部門長が足した枠
+  const layout = parseLayout(m.layout);
+  const textSec = (k, empty) => `<section class="card" data-sec="${k}">
+        <div class="section-head"><h2>${FIXED[k]}</h2><span class="row-left">${copyButton(k)}${secTools(k, canEdit)}</span></div>
+        ${canEdit ? `<textarea name="${k}" data-rich rows="${k === "notice" ? 5 : 3}" maxlength="5000" aria-label="${FIXED[k]}">${esc(m[k])}</textarea>`
+          : m[k] ? richView(m[k]) : `<p class="muted">${empty}</p>`}
+      </section>`;
+  const SECTION = {
+    notice: () => textSec("notice", "事務連絡はありません。"),
+    news: () => textSec("news", "なし"),
+    exchange: () => textSec("exchange", "なし"),
+    reports: () => `<section class="card" data-sec="reports">
+        <div class="section-head"><h2>${FIXED.reports}</h2><span class="row-left">${m.is_open ? `<button type="button" class="small" id="reload">最新にする</button>` : ""}${secTools("reports", canEdit)}</span></div>
         ${reports.length || missing.length ? `<div class="report-toggles">
           ${reports.map((r) => `
             <details class="report-toggle">
-              <summary><span class="rt-name">${esc(r.project_name)}</span><span class="stage-pill">${stageLabel(r)}</span></summary>
+              <summary><span class="rt-name">${esc(r.project_name)}${r.member_names ? `<small class="rt-members">${esc(r.member_names)}</small>` : ""}</span><span class="stage-pill">${stageLabel(r)}</span></summary>
               <div class="rt-body">
                 <div class="section-head"><a class="small" href="#/projects/${r.project_id}">PJを開く</a>${copyButton(`report-${r.project_id}`)}</div>
                 ${paragraphs(r)}
@@ -164,18 +162,21 @@ export async function renderTeirei(el, id) {
             </details>`).join("")}
           ${missing.map((p) => `
             <details class="report-toggle is-missing">
-              <summary><span class="rt-name">${esc(p.name)}</span><span class="stage-pill">${stageLabel(p)}</span><span class="muted small">未記入</span></summary>
-              <div class="rt-body"><p class="muted small">まだ記入されていません。<a href="#/report/${p.id}">進捗を書く</a></p></div>
+              <summary><span class="rt-name">${esc(p.name)}${p.member_names ? `<small class="rt-members">${esc(p.member_names)}</small>` : ""}</span><span class="stage-pill">${stageLabel(p)}</span><span class="muted small">未記入</span></summary>
+              <div class="rt-body"><p class="muted small">まだ書かれていません。PJが「進捗を書く」で書くと、ここに入ります。<a href="#/report/${p.id}">進捗を書く</a></p></div>
             </details>`).join("")}
         </div>` : `<p class="muted">進捗共有はありません。</p>`}
-      </section>
+      </section>`,
+  };
+  el.innerHTML = `
+    <nav class="breadcrumb"><a href="#/teirei">定例</a> / <a href="#/teirei/minutes">定例の議事録</a> / ${fmtDate(m.held_on)}</nav>
+    ${m.is_open ? timerHtml(`teirei-${m.id}`, { bar: true }) : ""}
+    <div class="page-heading left"><h1>🏛️ ${meetingLabel(m)} ${stateTag(m)}</h1>
+      ${m.updated_by_name ? `<p>最終更新：${esc(m.updated_by_name)}・${fmtDateTime(jstDateTime(m.updated_at))}</p>` : ""}</div>
 
-      ${NOTES.map(([k, label]) => `
-      <section class="card">
-        <div class="section-head"><h2>${label}</h2>${copyButton(k)}</div>
-        ${canEdit ? `<textarea name="${k}" data-rich rows="3" maxlength="5000" aria-label="${label}">${esc(m[k])}</textarea>`
-          : m[k] ? `<div class="rich-view">${richHtml(m[k])}</div>` : `<p class="muted">なし</p>`}
-      </section>`).join("")}
+    <form class="minutes" id="teirei-form">
+      <div id="secs">${layout.order.map((k) => SECTION[k]?.() ?? customSection(k, layout.custom[k], canEdit, richView)).join("")}
+      ${canEdit ? addSectionBox() : ""}</div>
 
       ${m.memo ? `<section class="card">
         <div class="section-head"><h2>📝 メモ</h2>${copyButton("memo")}</div>
@@ -210,16 +211,21 @@ export async function renderTeirei(el, id) {
   };
   bindCopyButtons(form, (key) => (key.startsWith("report-")
     ? section.report(reports.find((r) => `report-${r.project_id}` === key)) : section[key]()).join("\n"));
+  const customText = (k) => form[`sec_${k}`]?.value ?? layout.custom[k]?.body ?? "";
+  const bySec = (k) => (k === "reports"
+    ? ["### 各PJの進捗共有", "", ...reports.flatMap(section.report), ...missing.flatMap((p) => [`#### ${p.name}`, "（未記入）", ""])]
+    : section[k] ? section[k]()
+    : [`### ${layout.custom[k]?.title || ""}`, ...(customText(k).trim() ? mdText(customText(k)) : ["（なし）"]), ""]);
   el.querySelector("#copy-md").addEventListener("click", () => copyForNotion([
-    `## ${fmtDate(m.held_on)}の定例`, "", ...section.notice(),
-    "### 各PJの進捗共有", "", ...reports.flatMap(section.report), ...missing.flatMap((p) => [`#### ${p.name}`, "（未記入）", ""]),
-    ...section.news(), ...section.exchange(), ...section.memo(),
+    `## ${fmtDate(m.held_on)}の定例`, "", ...layout.order.flatMap(bySec), ...section.memo(),
   ].join("\n")));
 
   // 最後にサーバーと一致していた内容（ぶつかったときにまとめるため）
   const KEYS = ["notice", "news", "exchange", "memo"].filter((k) => form[k]);
-  const values = () => Object.fromEntries(KEYS.map((k) => [k, form[k].value]));
+  const values = () => ({ ...Object.fromEntries(KEYS.map((k) => [k, form[k].value])), ...(canEdit ? { layout: layoutValue(form, layout) } : {}) });
+  if (canEdit) bindLayout(el.querySelector("#secs"), layout, { onChange: () => form.dispatchEvent(new Event("input", { bubbles: true })) });
   let base = Object.fromEntries(KEYS.map((k) => [k, m[k]]));
+  let baseLayout = parseLayout(m.layout);
   const send = (end) => api(`/api/dept-meetings/${id}`, {
     method: "PATCH", body: { ...values(), end, version },
   }).catch(async (err) => {
@@ -232,7 +238,17 @@ export async function renderTeirei(el, id) {
       form[k].value = r.text;
       both ||= r.both;
     }
+    // 足した枠：相手が足した枠も取り込み、同じ枠の中身はまとめる
+    const theirs = parseLayout(latest.layout);
+    for (const [cid, c] of Object.entries(theirs.custom)) {
+      if (!layout.custom[cid]) { layout.custom[cid] = c; layout.order.push(cid); continue; }
+      const field = form[`sec_${cid}`];
+      const r = mergeText(baseLayout.custom[cid]?.body || "", field ? field.value : layout.custom[cid].body, c.body);
+      if (field) field.value = r.text; else layout.custom[cid].body = r.text;
+      both ||= r.both;
+    }
     base = Object.fromEntries(KEYS.map((k) => [k, latest[k]]));
+    baseLayout = theirs;
     version = latest.version;
     if (both) toast("ほかの人も同じ欄を書いていたので、両方の内容を残しました。確認してください");
     return api(`/api/dept-meetings/${id}`, {
@@ -244,6 +260,7 @@ export async function renderTeirei(el, id) {
     const end = "end" in e.submitter.dataset;
     busy(e.submitter, () => send(end)).then((res) => {
       base = values();
+      baseLayout = parseLayout(layoutValue(form, layout));
       version = res.version;
       markSaved(form);
       toast(end ? "定例を終わりました。議事録を保存しました" : "議事録を保存しました");
@@ -316,17 +333,22 @@ export async function renderTeireiNotice(el) {
   const day = hashQuery().get("day");
   const d = await api(`/api/dept-notice${day ? `?day=${encodeURIComponent(day)}` : ""}`);
   let version = d.version;
+  const layout = parseLayout(d.layout);
   const where = d.target === "meeting" ? `${fmtDate(d.day)}の定例の議事録に直接書きます`
     : d.target === "day" ? `${fmtDate(d.day)}の定例に向けて書いておきます（その日の定例を始めると、議事録の事務連絡に移ります）`
     : "次の定例に入ります（「定例を始める」を押すと、その定例の議事録に移ります）";
   el.innerHTML = `
     <nav class="breadcrumb"><a href="#/teirei">定例</a> / 事務連絡を書く</nav>
     <div class="page-heading left"><h1>📢 ${d.day ? `${fmtDate(d.day)}の定例の` : ""}事務連絡</h1><p>${where}</p></div>
-    <form class="card form" id="notice-form">
-      <div class="field"><strong>📢 事務連絡</strong><textarea name="notice" data-rich rows="6" maxlength="5000" aria-label="事務連絡">${esc(d.notice)}</textarea></div>
-      <p class="muted small">📊 各PJの進捗共有は、各PJが「進捗を書く」で書いたものが、PJごとのトグルで自動で入ります。</p>
-      ${NOTES.map(([k, label]) => `<div class="field"><strong>${label}</strong><textarea name="${k}" data-rich rows="3" maxlength="5000" aria-label="${label}">${esc(d[k])}</textarea></div>`).join("")}
-      <div class="form-actions">
+    <form class="minutes" id="notice-form">
+      <div id="secs">${layout.order.map((k) => k === "reports"
+        ? `<section class="card" data-sec="reports"><div class="section-head"><h2>${FIXED.reports}</h2>${secTools("reports", true)}</div>
+            <p class="muted small">各PJが「進捗を書く」で書いたものが、PJごとのトグルで自動で入ります。</p></section>`
+        : FIXED[k] ? `<section class="card" data-sec="${k}"><div class="section-head"><h2>${FIXED[k]}</h2>${secTools(k, true)}</div>
+            <textarea name="${k}" data-rich rows="${k === "notice" ? 6 : 3}" maxlength="5000" aria-label="${FIXED[k]}">${esc(d[k])}</textarea></section>`
+        : customSection(k, layout.custom[k], true, richView)).join("")}
+        ${addSectionBox()}</div>
+      <div class="form-actions sticky">
         ${d.updated_at ? `<span class="muted small">最終更新：${esc(d.updated_by_name)}・${fmtDateTime(jstDateTime(d.updated_at))}</span>` : ""}
         ${d.target === "meeting" ? `<a class="button" href="#/teirei/${d.meeting.id}">この定例を開く</a>` : ""}
         <button class="primary">保存する</button>
@@ -335,9 +357,10 @@ export async function renderTeireiNotice(el) {
   enhanceRich(el);
   const noticeForm = el.querySelector("#notice-form");
   guardForm(noticeForm);
+  bindLayout(el.querySelector("#secs"), layout, { onChange: () => noticeForm.dispatchEvent(new Event("input", { bubbles: true })) });
   noticeForm.addEventListener("submit", (e) => {
     e.preventDefault();
-    busy(e.submitter, () => api("/api/dept-notice", { method: "PUT", body: { notice: e.target.notice.value, news: e.target.news.value, exchange: e.target.exchange.value, version, target: d.target, day: d.target === "next" ? null : d.day } }))
+    busy(e.submitter, () => api("/api/dept-notice", { method: "PUT", body: { notice: e.target.notice.value, news: e.target.news.value, exchange: e.target.exchange.value, layout: layoutValue(e.target, layout), version, target: d.target, day: d.target === "next" ? null : d.day } }))
       .then((res) => { version = res.version; markSaved(noticeForm); toast("保存しました"); }).catch(() => {});
   });
 }

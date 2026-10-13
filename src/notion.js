@@ -1,6 +1,7 @@
 // Notion との連携：MTGの議事録を、PJのNotionページ（見出し「議事録」の下）に新しいページとして作る
 // NOTION_TOKEN（Notionのインテグレーションのトークン。シークレット）が必要。PJのページをそのインテグレーションに「接続」しておく
 import { HttpError } from "./util.js";
+import { parseLayout, FIXED_TITLES } from "./teirei-layout.js";
 
 const API = "https://api.notion.com/v1";
 const VERSION = "2022-06-28";
@@ -187,9 +188,23 @@ export async function findTeireiPage(env, title) {
 }
 
 // 定例の議事録の中身：事務連絡／各PJの進捗共有（PJごとのトグル）／ニュース勉強会／意見交換会
-export function teireiBlocks({ notice, reports, missing, news, exchange, memo, appUrl }) {
+export function teireiBlocks({ notice, reports, missing, news, exchange, memo, layout, appUrl }) {
   const section = (label, text) => [heading(label), ...(lines(text).length ? nest(text) : [para("（なし）")])];
-  const blocks = [...section("📢 事務連絡", notice), heading("📊 各PJの進捗共有")];
+  const l = parseLayout(layout);
+  const text = { notice, news, exchange };
+  const blocks = [];
+  for (const k of l.order) {
+    if (k === "reports") blocks.push(...reportBlocks(reports, missing));
+    else if (FIXED_TITLES[k]) blocks.push(...section(FIXED_TITLES[k], text[k]));
+    else blocks.push(...section(l.custom[k].title, l.custom[k].body));
+  }
+  if (lines(memo).length) blocks.push(...section("📝 メモ", memo));
+  if (appUrl) blocks.push(para(`政策立案ツールの議事録：${appUrl}`));
+  return blocks.slice(0, 100);
+}
+
+function reportBlocks(reports, missing) {
+  const blocks = [heading("📊 各PJの進捗共有")];
   for (const r of reports) {
     // トグルの中は1段だけ（Notionに一度に作れる深さのため、字下げはなくす）
     const kids = [];
@@ -202,10 +217,7 @@ export function teireiBlocks({ notice, reports, missing, news, exchange, memo, a
   }
   for (const p of missing) blocks.push({ object: "block", type: "toggle", toggle: { rich_text: inline(`${p.name}（未記入）`), children: [para("まだ記入されていません")] } });
   if (!reports.length && !missing.length) blocks.push(para("（なし）"));
-  blocks.push(...section("📰 ニュース勉強会", news), ...section("💬 意見交換会", exchange));
-  if (lines(memo).length) blocks.push(...section("📝 メモ", memo));
-  if (appUrl) blocks.push(para(`政策立案ツールの議事録：${appUrl}`));
-  return blocks.slice(0, 100);
+  return blocks;
 }
 
 // 手で作ってあったページに入れるとき：手で書いた中身は残し、ページの最後の「ツールの議事録」の見出しから下だけを書き直す

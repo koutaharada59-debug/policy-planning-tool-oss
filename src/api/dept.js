@@ -3,6 +3,7 @@ import { HttpError, readJson, clean, int, oneOf, assertUpdated, todayJst, reqDat
 import { addDays } from "../project-types.js";
 import { regularOccurrences } from "../schedule.js";
 import { loadProject, requireAdmin, requireEditor } from "./common.js";
+import { cleanLayout } from "../teirei-layout.js";
 import { notionConfigured, createTeireiPage, findTeireiPage, replaceNotionPage, replaceToolSection, teireiBlocks } from "../notion.js";
 
 export const routes = [
@@ -39,6 +40,8 @@ async function openMeeting(env) {
 const withState = (m, today) => ({ ...m, is_open: !m.ended_at && m.held_on === today, is_ready: !m.ended_at && m.held_on > today });
 // 第◯回（Notionの議事録の回数と同じ数え方）
 const firstNumber = (env) => Number(env.TEIREI_FIRST_NUMBER) || 1;
+// PJのメンバーの名前（「A・B・C」）
+const MEMBER_NAMES = "(SELECT GROUP_CONCAT(mu.name, '・') FROM project_members pm JOIN users mu ON mu.id = pm.user_id WHERE pm.project_id = p.id)";
 const NUMBER_SQL = "(SELECT COUNT(*) FROM dept_meetings x WHERE x.held_on < d.held_on)";
 
 async function listDeptMeetings({ env }) {
@@ -79,7 +82,8 @@ function collectStatements(env, meetingId, heldOn, now) {
     const from = `SELECT ${f} FROM ${src} WHERE ${where}`;
     return `${f} = CASE WHEN COALESCE((${from}), '') = '' THEN ${f} WHEN ${f} = '' THEN (${from}) ELSE ${f} || char(10) || (${from}) END`;
   }).join(", ");
-  const move = (src, where) => env.DB.prepare(`UPDATE dept_meetings SET ${moveNotice(src, where)}, version = version + 1 WHERE id = ?1`);
+  const moveLayout = (src, where) => `layout = CASE WHEN COALESCE((SELECT layout FROM ${src} WHERE ${where}), '') = '' OR layout != '' THEN layout ELSE (SELECT layout FROM ${src} WHERE ${where}) END`;
+  const move = (src, where) => env.DB.prepare(`UPDATE dept_meetings SET ${moveNotice(src, where)}, ${moveLayout(src, where)}, version = version + 1 WHERE id = ?1`);
   return [
     // 再開したとき：定例を終えたあとに書き直したPJは、新しいほうを残す
     env.DB.prepare(
@@ -91,7 +95,7 @@ function collectStatements(env, meetingId, heldOn, now) {
     move("dept_notice_days", "held_on = ?2").bind(meetingId, heldOn),
     env.DB.prepare("DELETE FROM dept_notice_days WHERE held_on = ?").bind(heldOn),
     move("dept_notice_draft", "id = 1").bind(meetingId),
-    env.DB.prepare("UPDATE dept_notice_draft SET notice = '', news = '', exchange = '', version = version + 1, updated_at = ? WHERE id = 1 AND (notice != '' OR news != '' OR exchange != '')").bind(now),
+    env.DB.prepare("UPDATE dept_notice_draft SET notice = '', news = '', exchange = '', layout = '', version = version + 1, updated_at = ? WHERE id = 1 AND (notice != '' OR news != '' OR exchange != '' OR layout != '')").bind(now),
   ];
 }
 
@@ -101,20 +105,18 @@ async function getDeptMeeting({ env, user, params }) {
   ).bind(firstNumber(env), params.id).first();
   if (!meeting) throw new HttpError(404, "定例が見つかりません");
   const { results: reports } = await env.DB.prepare(
-    `SELECT r.*, p.name AS project_name, p.type, p.current_stage, u.name AS updated_by_name
+    `SELECT r.*, p.name AS project_name, p.type, p.current_stage, u.name AS updated_by_name, ${MEMBER_NAMES} AS member_names
      FROM dept_reports r JOIN projects p ON p.id = r.project_id LEFT JOIN users u ON u.id = r.updated_by
      WHERE r.dept_meeting_id = ? ORDER BY p.created_at`
   ).bind(meeting.id).all();
-  // 進行中の定例なら、まだ書いていない進行中のPJも「未記入」として並べる
   Object.assign(meeting, withState(meeting, teireiDay()), { is_today: meeting.held_on === teireiDay() });
-  let missing = [];
-  if (meeting.is_open || meeting.is_ready) {
-    const { results } = await env.DB.prepare(
-      `SELECT id, name, type, current_stage FROM projects p WHERE status = 'active'
-       AND NOT EXISTS (SELECT 1 FROM dept_reports r WHERE r.project_id = p.id AND r.dept_meeting_id = ?) ORDER BY created_at`
-    ).bind(meeting.id).all();
-    missing = results;
-  }
+  // まだ書いていないPJも、トグル（PJ名とメンバー）だけ並べておく（中身は空。書いたら入る）
+  // その定例の日までに始まっていた、アーカイブしていないPJ
+  const { results: missing } = await env.DB.prepare(
+    `SELECT p.id, p.name, p.type, p.current_stage, ${MEMBER_NAMES} AS member_names FROM projects p
+     WHERE p.status != 'archived' AND (p.status = 'active' OR p.updated_at >= ?2) AND p.created_at < ?2
+       AND NOT EXISTS (SELECT 1 FROM dept_reports r WHERE r.project_id = p.id AND r.dept_meeting_id = ?1) ORDER BY p.created_at`
+  ).bind(meeting.id, Date.parse(`${meeting.held_on}T23:59:59+09:00`)).all();
   return { meeting, reports, missing, canEdit: user.isAdmin };
 }
 
@@ -163,6 +165,7 @@ async function updateDeptMeeting({ request, env, user, params, ctx }) {
   const memo = "memo" in body ? clean(body.memo, 10000) : cur.memo;
   const news = "news" in body ? clean(body.news, 5000) : cur.news;
   const exchange = "exchange" in body ? clean(body.exchange, 5000) : cur.exchange;
+  const layout = "layout" in body ? cleanLayout(String(body.layout || "")) : cur.layout;
   const event = "event" in body ? (body.event ? oneOf(body.event, EVENTS, "イベント") : "") : cur.event;
   const now = Date.now();
   // 再開できるのは、今日の定例だけ（終えたあとに書かれた進捗共有・事務連絡もまとめ直す）
@@ -170,9 +173,9 @@ async function updateDeptMeeting({ request, env, user, params, ctx }) {
   const endedAt = body.reopen ? null : body.end ? cur.ended_at || now : cur.ended_at;
   const version = int(body.version, { min: 1, label: "版" });
   const res = await env.DB.prepare(
-    `UPDATE dept_meetings SET notice = ?, memo = ?, news = ?, exchange = ?, event = ?, ended_at = ?, updated_by = ?, updated_at = ?, version = version + 1
+    `UPDATE dept_meetings SET notice = ?, memo = ?, news = ?, exchange = ?, layout = ?, event = ?, ended_at = ?, updated_by = ?, updated_at = ?, version = version + 1
      WHERE id = ? AND version = ?`
-  ).bind(notice, memo, news, exchange, event, endedAt, user.id, now, cur.id, version).run();
+  ).bind(notice, memo, news, exchange, layout, event, endedAt, user.id, now, cur.id, version).run();
   assertUpdated(res, "定例の議事録");
   if (body.reopen && cur.ended_at) await env.DB.batch(collectStatements(env, cur.id, cur.held_on, now));
   if (!body.reopen && teireiNotionOn(env)) ctx?.waitUntil(syncTeireiNotion(env, cur.id).catch((err) => console.error("teirei notion sync failed", err?.status, err?.code || err?.message)));
@@ -250,14 +253,14 @@ async function getNotice({ env, user, url }) {
   const day = url.searchParams.get("day") ? reqDate(url.searchParams.get("day"), "定例の日") : null;
   const t = await noticeTarget(env, day);
   const by = (table, where) => env.DB.prepare(
-    `SELECT d.notice, d.news, d.exchange, d.version, d.updated_at, u.name AS updated_by_name FROM ${table} d LEFT JOIN users u ON u.id = d.updated_by WHERE ${where}`
+    `SELECT d.notice, d.news, d.exchange, d.layout, d.version, d.updated_at, u.name AS updated_by_name FROM ${table} d LEFT JOIN users u ON u.id = d.updated_by WHERE ${where}`
   );
   const row = t.target === "meeting" ? await by("dept_meetings", "d.id = ?").bind(t.meeting.id).first()
     : t.target === "day" ? await by("dept_notice_days", "d.held_on = ?").bind(day).first()
     : await by("dept_notice_draft", "d.id = 1").first();
   return {
     target: t.target, day: day || t.meeting?.held_on || null, meeting: t.meeting || null,
-    notice: row?.notice || "", news: row?.news || "", exchange: row?.exchange || "", version: row?.version ?? 0, updated_at: row?.updated_at || 0, updated_by_name: row?.updated_by_name || "",
+    notice: row?.notice || "", news: row?.news || "", exchange: row?.exchange || "", layout: row?.layout || "", version: row?.version ?? 0, updated_at: row?.updated_at || 0, updated_by_name: row?.updated_by_name || "",
   };
 }
 
@@ -268,22 +271,23 @@ async function saveNotice({ request, env, user }) {
   const notice = clean(body.notice, 5000);
   const news = clean(body.news, 5000);
   const exchange = clean(body.exchange, 5000);
+  const layout = cleanLayout(String(body.layout || ""));
   const version = int(body.version, { min: 0, label: "版" });
   const now = Date.now();
   const t = await noticeTarget(env, day);
   // 開いたときと保存するときで行き先が変わった（そのあいだに定例が始まった・終わった）なら、読み込み直してもらう
   if (body.target !== t.target) throw new HttpError(409, "定例の状態が変わりました。画面を再読み込みしてください");
   const res = t.target === "meeting"
-    ? await env.DB.prepare("UPDATE dept_meetings SET notice = ?, news = ?, exchange = ?, updated_by = ?, updated_at = ?, version = version + 1 WHERE id = ? AND version = ?")
-      .bind(notice, news, exchange, user.id, now, t.meeting.id, version).run()
+    ? await env.DB.prepare("UPDATE dept_meetings SET notice = ?, news = ?, exchange = ?, layout = ?, updated_by = ?, updated_at = ?, version = version + 1 WHERE id = ? AND version = ?")
+      .bind(notice, news, exchange, layout, user.id, now, t.meeting.id, version).run()
     : t.target === "day"
       ? version === 0
-        ? await env.DB.prepare("INSERT OR IGNORE INTO dept_notice_days (held_on, notice, news, exchange, updated_by, updated_at) VALUES (?, ?, ?, ?, ?, ?)")
-          .bind(day, notice, news, exchange, user.id, now).run()
-        : await env.DB.prepare("UPDATE dept_notice_days SET notice = ?, news = ?, exchange = ?, updated_by = ?, updated_at = ?, version = version + 1 WHERE held_on = ? AND version = ?")
-          .bind(notice, news, exchange, user.id, now, day, version).run()
-      : await env.DB.prepare("UPDATE dept_notice_draft SET notice = ?, news = ?, exchange = ?, updated_by = ?, updated_at = ?, version = version + 1 WHERE id = 1 AND version = ?")
-        .bind(notice, news, exchange, user.id, now, version).run();
+        ? await env.DB.prepare("INSERT OR IGNORE INTO dept_notice_days (held_on, notice, news, exchange, layout, updated_by, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)")
+          .bind(day, notice, news, exchange, layout, user.id, now).run()
+        : await env.DB.prepare("UPDATE dept_notice_days SET notice = ?, news = ?, exchange = ?, layout = ?, updated_by = ?, updated_at = ?, version = version + 1 WHERE held_on = ? AND version = ?")
+          .bind(notice, news, exchange, layout, user.id, now, day, version).run()
+      : await env.DB.prepare("UPDATE dept_notice_draft SET notice = ?, news = ?, exchange = ?, layout = ?, updated_by = ?, updated_at = ?, version = version + 1 WHERE id = 1 AND version = ?")
+        .bind(notice, news, exchange, layout, user.id, now, version).run();
   assertUpdated(res, "事務連絡");
   return { ok: true, version: version + 1 };
 }
@@ -307,7 +311,7 @@ async function upcomingSlots(env, limit) {
     `SELECT id, held_on, ended_at FROM dept_meetings WHERE held_on IN (${list.map(() => "?").join(",")})`
   ).bind(...list.map((x) => x.slice(0, 10))).all();
   const { results: notes } = await env.DB.prepare(
-    `SELECT held_on FROM dept_notice_days WHERE (notice != '' OR news != '' OR exchange != '') AND held_on IN (${list.map(() => "?").join(",")})`
+    `SELECT held_on FROM dept_notice_days WHERE (notice != '' OR news != '' OR exchange != '' OR layout != '') AND held_on IN (${list.map(() => "?").join(",")})`
   ).bind(...list.map((x) => x.slice(0, 10))).all();
   return list.map((starts_at) => {
     const m = meetings.find((x) => x.held_on === starts_at.slice(0, 10));
