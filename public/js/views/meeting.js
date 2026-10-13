@@ -75,8 +75,8 @@ export async function renderMeeting(el, id) {
       ${p.meeting_mode === "adhoc" ? nextMeetingSection(data, ro) : ""}
 
       <div class="form-actions sticky">
-        <button type="button" id="copy-md" title="Notion用にコピー">📋 Notion用にコピー</button>
-        ${canEdit || m.notion_url ? `<button type="button" id="notion-make" class="notion-btn">📝 ${m.notion_url ? "Notionの議事録を開く" : "Notionに議事録を作る"}</button>` : ""}
+        <button type="button" id="copy-md" title="Notion用にコピー">📋<span class="hide-sm"> Notion用にコピー</span></button>
+        ${canEdit || m.notion_url ? `<button type="button" id="notion-make" class="notion-btn" title="${m.notion_url ? "Notionの議事録を開く" : "Notionに議事録を作る"}">📝<span class="hide-sm"> ${m.notion_url ? "Notionの議事録を開く" : "Notionに議事録を作る"}</span></button>` : ""}
         ${canEdit ? `<button class="${viewOnly ? "primary" : ""}" type="submit">${viewOnly ? "話すことを保存" : "保存する"}</button>` : ""}
         ${canEdit && !viewOnly ? `<button class="primary" type="button" id="end-meeting">✅ MTGを終える</button>` : ""}
       </div>
@@ -98,7 +98,7 @@ export async function renderMeeting(el, id) {
     el.querySelector("#delete-mtg").addEventListener("click", async (e) => {
       const n = todos.filter((t) => t.id).length;
       const has = form.agenda.value.trim() || form.summary.value.trim() || n;
-      if (!await confirmDialog(`${fmtDateTime(m.starts_at)} のMTGを削除しますか？${has ? `\n議事録${n ? `と、ここで作ったタスク${n}件` : ""}も消えます。元には戻せません。` : ""}${m.kind === "regular" ? "\n定例の回なので「中止」になります。" : ""}`)) return;
+      if (!await confirmDialog(`${fmtDateTime(m.starts_at)} のMTGを削除しますか？${has ? `\n議事録${n ? `と、ここで作ったタスク${n}件` : ""}も消えます。30日のあいだは「確認する」→「最近削除した項目」から戻せます。` : ""}${m.kind === "regular" ? "\n定例の回なので「中止」になります。" : ""}`)) return;
       forgetUnsaved(form);
       clearTimer(`meeting-${m.id}`);
       busy(e.currentTarget, () => api(`/api/meetings/${m.id}`, { method: "DELETE", body: { with_minutes: true } }))
@@ -407,7 +407,7 @@ export async function renderMeeting(el, id) {
       await flushAll();
       const res = await busy(button, () => api(`/api/meetings/${m.id}/notion`, { method: "POST", body: {} }));
       m.notion_url = res.url;
-      button.innerHTML = "📝 Notionの議事録を開く";
+      button.innerHTML = `📝<span class="hide-sm"> Notionの議事録を開く</span>`;
       toast(res.existed ? "Notionの議事録を開きます" : "Notionに議事録を作りました");
       openNotion(res.url, win);
     } catch (err) {

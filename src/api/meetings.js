@@ -1,6 +1,7 @@
 // MTG日程・議事録・ICS
 import { HttpError, readJson, clean, reqDateTime, optDate, int, nowJst, shortDateTime } from "../util.js";
 import { notifyProject } from "../notify.js";
+import { trashStatement, meetingSnapshot } from "./trash.js";
 import { ASSIGNEE_COLUMNS, readAssignees, setAssigneeStatements, notifyNewAssignees } from "../task-assignees.js";
 import { addDays } from "../project-types.js";
 import { regularOccurrences, parseWeekdays } from "../schedule.js";
@@ -71,6 +72,11 @@ async function deleteMeeting({ request, env, user, params }) {
   const minute = await env.DB.prepare("SELECT id FROM minutes WHERE meeting_id = ?").bind(meeting.id).first();
   if (minute && !body.with_minutes) throw new HttpError(400, "議事録のあるMTGです。議事録ごと削除してよいか確認してください");
   const stmts = [];
+  // 「最近削除した項目」に残す（議事録があるとき・臨時の回を消すとき。定例の回の中止だけなら「中止を取り消す」で戻せる）
+  if (minute || meeting.kind !== "regular") {
+    stmts.push(trashStatement(env, { kind: "meeting", projectId: meeting.project_id, title: `${shortDateTime(meeting.starts_at)} のMTG${minute ? "（議事録あり）" : ""}`,
+      data: await meetingSnapshot(env, meeting), userId: user.id }));
+  }
   if (minute) {
     stmts.push(env.DB.prepare("DELETE FROM tasks WHERE source_minute_id = ?").bind(minute.id));
     stmts.push(env.DB.prepare("DELETE FROM minutes WHERE id = ?").bind(minute.id));

@@ -16,11 +16,12 @@ import { routes as timelineRoutes } from "./api/timeline.js";
 import { routes as surveyRoutes } from "./api/surveys.js";
 import { routes as notionBackfillRoutes } from "./api/notion-backfill.js";
 import { routes as schedulePollRoutes } from "./api/schedule-polls.js";
+import { routes as trashRoutes } from "./api/trash.js";
 import { runDailyReminders } from "./cron.js";
 import { reportError } from "./monitor.js";
 
 // [メソッド, パス（:id は数字）, ハンドラ]。ハンドラは (ctx) => Response | data
-const ROUTES = [...overviewRoutes, ...projectRoutes, ...taskRoutes, ...meetingRoutes, ...seedRoutes, ...hearingRoutes, ...adminRoutes, ...researchRoutes, ...presentationRoutes, ...deptRoutes, ...searchRoutes, ...timelineRoutes, ...surveyRoutes, ...notionBackfillRoutes, ...schedulePollRoutes].map(([method, path, handler]) => [
+const ROUTES = [...overviewRoutes, ...projectRoutes, ...taskRoutes, ...meetingRoutes, ...seedRoutes, ...hearingRoutes, ...adminRoutes, ...researchRoutes, ...presentationRoutes, ...deptRoutes, ...searchRoutes, ...timelineRoutes, ...surveyRoutes, ...notionBackfillRoutes, ...schedulePollRoutes, ...trashRoutes].map(([method, path, handler]) => [
   method,
   new RegExp(`^${path.replace(/:(\w+)/g, "(?<$1>\\d+)")}$`),
   handler,

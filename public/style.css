@@ -1414,3 +1414,12 @@ table.accounts input,table.accounts select{width:100%;min-width:180px;margin:0}
 .copy-all{margin:28px 0 12px;text-align:center}
 .copy-all .primary{min-height:52px;padding:12px 28px;font-size:16px}
 .copy-all p{margin-top:6px}
+
+/* スマホ：下のボタンの帯・やることの行が、はみ出さないように */
+@media (max-width:760px){
+  .form-actions.sticky{justify-content:safe flex-end;overflow-x:auto;scrollbar-width:none;max-width:100%}
+  .form-actions.sticky::-webkit-scrollbar{display:none}
+  .form-actions.sticky > button:not(.primary){padding-left:12px;padding-right:12px}
+}
+.todo-row > *{min-width:0}
+.todo-row input[type=date],.task-form input[type=date]{width:100%;max-width:100%;min-width:0;box-sizing:border-box}

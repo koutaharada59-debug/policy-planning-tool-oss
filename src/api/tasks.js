@@ -2,6 +2,7 @@
 import { HttpError, readJson, required, optDate, int, oneOf, assertUpdated } from "../util.js";
 import { getType } from "../project-types.js";
 import { loadProject, requireEditor, assertUsers } from "./common.js";
+import { trashStatement, taskSnapshot } from "./trash.js";
 import { readAssignees, hasAssignees, setAssigneeStatements, notifyNewAssignees } from "../task-assignees.js";
 
 export const routes = [
@@ -75,6 +76,9 @@ async function updateTask({ request, env, user, params }) {
 
 async function deleteTask({ env, user, params }) {
   const task = await loadTask(env, user, params.id);
-  await env.DB.prepare("DELETE FROM tasks WHERE id = ?").bind(task.id).run();
+  await env.DB.batch([
+    trashStatement(env, { kind: "task", projectId: task.project_id, title: `タスク「${task.title}」`, data: await taskSnapshot(env, task), userId: user.id }),
+    env.DB.prepare("DELETE FROM tasks WHERE id = ?").bind(task.id),
+  ]);
   return { ok: true };
 }

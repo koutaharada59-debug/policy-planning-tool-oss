@@ -188,7 +188,7 @@ export async function renderTeirei(el, id) {
 
       <div class="form-actions sticky">
         ${canEdit ? `<span class="muted small auto-status" id="auto-status">自動で保存されます</span>` : ""}
-        <button type="button" id="copy-md" title="Notion用にコピー">📋 Notion用にコピー</button>
+        <button type="button" id="copy-md" title="Notion用にコピー">📋<span class="hide-sm"> Notion用にコピー</span></button>
         ${canEdit ? `<button type="submit" data-save>保存する</button>
           ${m.is_open ? `<button type="submit" class="primary" data-end>定例を終わる</button>`
             : m.is_today ? `<button type="button" data-reopen>↩ 定例を再開する</button>` : ""}` : ""}
