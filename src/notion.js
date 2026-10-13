@@ -110,6 +110,24 @@ async function call(env, path, method, body) {
   return data;
 }
 
+// PJページの「参加者」（人の欄）を、人事に合わせる
+//   members：このPJのメンバーのNotionアカウント／known：ツールでNotionアカウントを対応づけた人全員
+//   ツールが知らない人（対応づけていない人）は、Notionで手で入れたものとして残す
+export async function syncProjectPeople(env, pageUrl, members, known) {
+  const id = notionPageId(pageUrl);
+  if (!id) return false;
+  const page = await call(env, `/pages/${id}`, "GET");
+  const people = Object.entries(page.properties || {}).filter(([, p]) => p.type === "people");
+  const [name, prop] = people.find(([n]) => /参加|メンバー|member/i.test(n)) || people[0] || [];
+  if (!name) return false;
+  const now = (prop.people || []).map((u) => u.id);
+  const keep = now.filter((uid) => !known.includes(uid));
+  const next = [...new Set([...members, ...keep])];
+  if (next.length === now.length && next.every((uid) => now.includes(uid))) return false;
+  await call(env, `/pages/${id}`, "PATCH", { properties: { [name]: { people: next.map((uid) => ({ object: "user", id: uid })) } } });
+  return true;
+}
+
 // MTGを消したら、Notionの議事録ページもNotionのゴミ箱へ（元に戻したら戻す）
 export async function setNotionArchived(env, pageUrl, archived) {
   const id = notionPageId(pageUrl);

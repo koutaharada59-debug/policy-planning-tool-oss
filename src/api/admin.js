@@ -3,6 +3,7 @@ import { HttpError, readJson, idList, headIds } from "../util.js";
 import { notify } from "../notify.js";
 import { botConfigured } from "../discord.js";
 import { notionConfigured, listNotionUsers } from "../notion.js";
+import { syncPeopleLater } from "../notion-people.js";
 import { requireAdmin as requireAdminFor, loadSchedule, stageDateStatements } from "./common.js";
 import { getType, effectiveSchedule } from "../project-types.js";
 
@@ -152,7 +153,7 @@ async function getAccounts({ env, user }) {
   return { users: results, notionUsers, notion: notionConfigured(env), notionError };
 }
 
-async function saveAccount({ request, env, user }) {
+async function saveAccount({ request, env, user, ctx }) {
   requireAdmin(user);
   const body = await readJson(request);
   const uid = typeof body.user_id === "string" ? body.user_id : "";
@@ -163,10 +164,13 @@ async function saveAccount({ request, env, user }) {
   if (notionId && !/^[0-9a-f-]{32,36}$/i.test(notionId)) throw new HttpError(400, "Notionのアカウントを選び直してください");
   await env.DB.prepare("UPDATE users SET google_email = ?, notion_user_id = ?, notion_name = ? WHERE id = ?")
     .bind(email, notionId, notionId ? String(body.notion_name || "").slice(0, 80) : "", uid).run();
+  // Notionアカウントを対応づけたら、その人が入っているPJのNotionページの参加者を合わせる
+  const { results: pjs } = await env.DB.prepare("SELECT project_id FROM project_members WHERE user_id = ?").bind(uid).all();
+  syncPeopleLater(env, ctx, pjs.map((r) => r.project_id));
   return { ok: true };
 }
 
-async function moveMember({ request, env, user }) {
+async function moveMember({ request, env, user, ctx }) {
   requireAdmin(user);
   const body = await readJson(request);
   const uid = typeof body.user_id === "string" ? body.user_id : "";
@@ -191,6 +195,7 @@ async function moveMember({ request, env, user }) {
   const message = from && to ? `「${from.name}」から「${to.name}」に異動になりました`
     : to ? `「${to.name}」のメンバーになりました` : `「${from.name}」のメンバーから外れました`;
   await notify(env, [uid], message, to ? `#/projects/${to.id}` : "#/projects", { dm: false, except: user.id });
+  syncPeopleLater(env, ctx, [from?.id, to?.id]);
   return { ok: true };
 }
 

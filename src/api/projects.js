@@ -10,6 +10,7 @@ import {
 } from "./common.js";
 import { notify, notifyProject } from "../notify.js";
 import { ASSIGNEE_COLUMNS } from "../task-assignees.js";
+import { syncPeopleLater } from "../notion-people.js";
 
 export const routes = [
   ["GET", "/api/projects", listProjects],
@@ -223,7 +224,7 @@ async function getProject({ env, user, params }) {
   };
 }
 
-async function updateProject({ request, env, user, params }) {
+async function updateProject({ request, env, user, params, ctx }) {
   const project = await loadProject(env, params.id);
   await requireEditor(env, user, project.id);
   const body = await readJson(request);
@@ -267,6 +268,7 @@ async function updateProject({ request, env, user, params }) {
   await env.DB.batch(stmts);
   await notify(env, added, `【${updated.name}】PJのメンバーになりました`, `#/projects/${project.id}`, { dm: false, except: user.id });
   if (meetingChanged && updated.meeting_mode === "regular") await notifyProject(env, updated, "定例MTGの曜日・時刻が変わりました", "", user.id, { dm: true });
+  syncPeopleLater(env, ctx, [project.id]); // Notionの参加者も人事に合わせる
   return { ok: true };
 }
 

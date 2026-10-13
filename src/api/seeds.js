@@ -6,6 +6,7 @@ import { requireAdmin as requireAdminFor, assertUsers } from "./common.js";
 import { syncSurveyRound, surveyLinked } from "../survey-sync.js";
 import { notify } from "../notify.js";
 import { notionConfigured, createProjectPage } from "../notion.js";
+import { syncPeopleLater } from "../notion-people.js";
 
 export const routes = [
   ["GET", "/api/rounds", listRounds],
@@ -355,7 +356,11 @@ async function createProjectFromSeed({ request, env, user, params, ctx }) {
   const seed = await loadSeed(env, params.id);
   if (seed.project_id) throw new HttpError(400, "この種はすでにPJになっています");
   const body = await readJson(request);
-  if (body.restore) return restoreProjectFromSeed(env, user, seed, body);
+  if (body.restore) {
+    const res = await restoreProjectFromSeed(env, user, seed, body);
+    syncPeopleLater(env, ctx, [res.id]);
+    return res;
+  }
   const projectId = await insertProject(env, user, {
     meeting_mode: "adhoc",
     ...body,
