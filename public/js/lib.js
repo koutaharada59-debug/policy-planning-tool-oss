@@ -319,8 +319,19 @@ export function stageStepper(project, stages, { compact = false, progress = null
 }
 
 // 議事録などを、Notionに貼ると見出し・箇条書き・チェックボックスになるMarkdownでコピーする
+// Notion用にコピー：Notionに貼ると、見出し・箇条書き・チェック・トグル・リンクなどがそのままのブロックになる形（HTML）と、文字（Markdown）の両方を入れる
 export async function copyForNotion(markdown) {
-  await copyText(`${markdown.trim()}\n`);
+  const text = `${markdown.trim()}\n`;
+  try {
+    const { notionHtml } = await import("./notion-html.js");
+    const html = `<meta charset="utf-8">${notionHtml(text)}`;
+    await navigator.clipboard.write([new ClipboardItem({
+      "text/html": new Blob([html], { type: "text/html" }),
+      "text/plain": new Blob([text], { type: "text/plain" }),
+    })]);
+  } catch {
+    await copyText(text); // HTMLでコピーできないブラウザでは、文字だけ
+  }
   toast("Notion用にコピーしました。Notionに貼り付けてください");
 }
 

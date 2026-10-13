@@ -16,8 +16,11 @@ const stageLabel = (p) => `工程${p.current_stage}・${esc(stageName(p))}`;
 const paragraphs = (r) => FIELDS.filter(([k]) => r[k]).map(([k, label]) => `<h4>${label}</h4><div class="rich-view">${richHtml(r[k])}</div>`).join("")
   || `<p class="muted small">（空欄）</p>`;
 // Notionに貼ると見出し・箇条書きになる形（行頭の「・」「-」は箇条書きにする）
-const mdText = (text) => text.trim().split("\n").map((l) => (/^\s*[-・]/.test(l) ? `- ${l.replace(/^\s*[-・]\s*/, "")}` : l));
-const reportMd = (r, level = "####") => FIELDS.filter(([k]) => r[k]?.trim()).flatMap(([k, label]) => [`${level} ${label}`, ...mdText(r[k]), ""]);
+// 行頭の「・」は箇条書きに。字下げ（トグルの中など）はそのまま残す
+const mdText = (text) => text.replace(/\s+$/, "").split("\n").filter((l) => l.trim()).map((l) => l.replace(/^(\s*)・\s*/, "$1- "));
+const indent = (lines, n = 1) => lines.map((l) => `${"  ".repeat(n)}${l}`);
+// PJの進捗：トグル（PJ名）の中に、項目ごとの太字の見出しと中身
+const reportMd = (r) => FIELDS.filter(([k]) => r[k]?.trim()).flatMap(([k, label]) => [`**${label}**`, ...indent(mdText(r[k]))]);
 
 // ---------- 定例の入口：定例の議事録／進捗を書く／（部門長・副部門長）事務連絡を書く・定例 ----------
 const WEEK_JA = ["日", "月", "火", "水", "木", "金", "土"];
@@ -185,7 +188,7 @@ export async function renderTeirei(el, id) {
 
       <div class="form-actions sticky">
         ${canEdit ? `<span class="muted small auto-status" id="auto-status">自動で保存されます</span>` : ""}
-        <button type="button" id="copy-md" title="Notion用にコピー">📋<span class="hide-sm"> Notion用にコピー</span></button>
+        <button type="button" id="copy-md" title="Notion用にコピー">📋 Notion用にコピー</button>
         ${canEdit ? `<button type="submit" data-save>保存する</button>
           ${m.is_open ? `<button type="submit" class="primary" data-end>定例を終わる</button>`
             : m.is_today ? `<button type="button" data-reopen>↩ 定例を再開する</button>` : ""}` : ""}
@@ -208,18 +211,23 @@ export async function renderTeirei(el, id) {
     memo: () => (val("memo").trim() ? ["### メモ", ...mdText(val("memo")), ""] : []),
     news: () => ["### ニュース勉強会", ...(val("news").trim() ? mdText(val("news")) : ["（なし）"]), ""],
     exchange: () => ["### 意見交換会", ...(val("exchange").trim() ? mdText(val("exchange")) : ["（なし）"]), ""],
-    report: (r) => [`#### ${r.project_name}（工程${r.current_stage}・${stageName(r)}）`, ...reportMd(r, "#####")],
+    report: (r) => [`▶ ${r.project_name}（工程${r.current_stage}・${stageName(r)}）${r.member_names ? `　${r.member_names}` : ""}`, ...indent(reportMd(r))],
   };
   bindCopyButtons(form, (key) => (key.startsWith("report-")
     ? section.report(reports.find((r) => `report-${r.project_id}` === key)) : section[key]()).join("\n"));
   const customText = (k) => form[`sec_${k}`]?.value ?? layout.custom[k]?.body ?? "";
   const bySec = (k) => (k === "reports"
-    ? ["### 各PJの進捗共有", "", ...reports.flatMap(section.report), ...missing.flatMap((p) => [`#### ${p.name}`, "（未記入）", ""])]
+    ? ["### 各PJの進捗共有", ...reports.flatMap(section.report), ...missing.map((p) => `▶ ${p.name}（未記入）${p.member_names ? `　${p.member_names}` : ""}`), ""]
     : section[k] ? section[k]()
     : [`### ${layout.custom[k]?.title || ""}`, ...(customText(k).trim() ? mdText(customText(k)) : ["（なし）"]), ""]);
-  el.querySelector("#copy-md").addEventListener("click", () => copyForNotion([
-    `## ${fmtDate(m.held_on)}の定例`, "", ...layout.order.flatMap(bySec), ...section.memo(),
-  ].join("\n")));
+  const copyAll = () => copyForNotion([
+    `## ${meetingLabel(m)}`, "", ...layout.order.flatMap(bySec), ...section.memo(),
+  ].join("\n"));
+  el.querySelector("#copy-md").addEventListener("click", copyAll);
+  // 画面のいちばん下：この定例の議事録をまとめてNotion用にコピー
+  el.insertAdjacentHTML("beforeend", `<div class="copy-all"><button type="button" class="primary" id="copy-all">📋 この定例の議事録をまとめてNotion用にコピー</button>
+    <p class="muted small">Notionに貼ると、見出し・PJごとのトグル・箇条書き・チェック・リンクがそのまま入ります。</p></div>`);
+  el.querySelector("#copy-all").addEventListener("click", copyAll);
 
   // 最後にサーバーと一致していた内容（ぶつかったときにまとめるため）
   const KEYS = ["notice", "news", "exchange", "memo"].filter((k) => form[k]);

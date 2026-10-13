@@ -26,7 +26,7 @@ const SLASH = [["h1", "大", "見出し（大）"], ["h2", "中", "見出し（�
 
 // ---------- Markdown → 表示用HTML ----------
 const URL_RE = /https?:\/\/[^\s<>"'）)]+/g;
-function inlineHtml(text) {
+export function inlineHtml(text) {
   let s = esc(text);
   s = s.replace(/`([^`]+)`/g, "<code>$1</code>")
     .replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>")
@@ -37,7 +37,7 @@ function inlineHtml(text) {
   s = s.replace(/(^|[^"'>=])(https?:\/\/[^\s<>"']+)/g, '$1<a href="$2" target="_blank" rel="noopener">$2</a>');
   return s;
 }
-function parseLine(raw) {
+export function parseLine(raw) {
   // 字下げ（行の頭の空白2つで1段。トグルの中身など）
   const indent = Math.min(3, Math.floor(raw.match(/^ */)[0].length / 2));
   const b = parseBody(raw.slice(indent * 2));
@@ -52,8 +52,9 @@ function parseBody(line) {
   if ((r = m(/^###\s+(.*)$/))) return ["h3", r[1]];
   if ((r = m(/^##\s+(.*)$/))) return ["h2", r[1]];
   if ((r = m(/^#\s+(.*)$/))) return ["h1", r[1]];
-  if ((r = m(/^\s*\[( |x|X)\]\s?(.*)$/))) return ["todo", r[2], r[1].toLowerCase() === "x"];
-  if ((r = m(/^\s*[-*・]\s?(.*)$/))) return ["ul", r[1]];
+  if ((r = m(/^\s*(?:[-*]\s)?\[( |x|X)\]\s?(.*)$/))) return ["todo", r[2], r[1].toLowerCase() === "x"];
+  // 「- 」「* 」（後ろに空白）と「・」が箇条書き。行頭の **太字** は箇条書きにしない
+  if ((r = m(/^\s*(?:[-*]\s|・\s?)(.*)$/)) || (r = m(/^\s*-$/))) return ["ul", r[1] || ""];
   if ((r = m(/^\s*\d+[.)]\s+(.*)$/))) return ["ol", r[1]];
   if ((r = m(/^>\s?(.*)$/))) return ["quote", r[1]];
   if (/^-{3,}$/.test(line.trim())) return ["hr", ""];

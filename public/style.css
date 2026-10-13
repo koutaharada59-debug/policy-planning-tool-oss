@@ -1409,3 +1409,8 @@ table.accounts input,table.accounts select{width:100%;min-width:180px;margin:0}
 .sec-btn.danger{background:#fff;color:var(--muted);border-color:var(--line)}
 
 .auto-status{margin-right:auto;align-self:center}
+
+/* まとめてNotion用にコピー */
+.copy-all{margin:28px 0 12px;text-align:center}
+.copy-all .primary{min-height:52px;padding:12px 28px;font-size:16px}
+.copy-all p{margin-top:6px}

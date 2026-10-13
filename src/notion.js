@@ -55,8 +55,9 @@ function mdBlock(line) {
   if ((m = line.match(/^###\s+(.*)$/))) return block("heading_3", m[1]);
   if ((m = line.match(/^##\s+(.*)$/))) return block("heading_2", m[1]);
   if ((m = line.match(/^#\s+(.*)$/))) return block("heading_1", m[1]);
-  if ((m = line.match(/^\s*\[( |x|X)\]\s?(.*)$/))) return block("to_do", m[2], { checked: m[1].toLowerCase() === "x" });
-  if ((m = line.match(/^\s*[-*・]\s?(.*)$/))) return block("bulleted_list_item", m[1]);
+  if ((m = line.match(/^\s*(?:[-*]\s)?\[( |x|X)\]\s?(.*)$/))) return block("to_do", m[2], { checked: m[1].toLowerCase() === "x" });
+  // 「- 」「* 」（後ろに空白）と「・」が箇条書き。行頭の **太字** は箇条書きにしない
+  if ((m = line.match(/^\s*(?:[-*]\s|・\s?)(.*)$/))) return block("bulleted_list_item", m[1]);
   if ((m = line.match(/^\s*\d+[.)]\s+(.*)$/))) return block("numbered_list_item", m[1]);
   if ((m = line.match(/^>\s?(.*)$/))) return block("quote", m[1]);
   if (/^-{3,}$/.test(line.trim())) return { object: "block", type: "divider", divider: {} };

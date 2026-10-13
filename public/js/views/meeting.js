@@ -75,7 +75,7 @@ export async function renderMeeting(el, id) {
       ${p.meeting_mode === "adhoc" ? nextMeetingSection(data, ro) : ""}
 
       <div class="form-actions sticky">
-        <button type="button" id="copy-md" title="Notion用にコピー">📋<span class="hide-sm"> Notion用にコピー</span></button>
+        <button type="button" id="copy-md" title="Notion用にコピー">📋 Notion用にコピー</button>
         ${canEdit || m.notion_url ? `<button type="button" id="notion-make" class="notion-btn">📝 ${m.notion_url ? "Notionの議事録を開く" : "Notionに議事録を作る"}</button>` : ""}
         ${canEdit ? `<button class="${viewOnly ? "primary" : ""}" type="submit">${viewOnly ? "話すことを保存" : "保存する"}</button>` : ""}
         ${canEdit && !viewOnly ? `<button class="primary" type="button" id="end-meeting">✅ MTGを終える</button>` : ""}
@@ -208,10 +208,16 @@ export async function renderMeeting(el, id) {
   // Notion用：まとめてコピー／項目ごとにコピー（編集中の内容を使う）
   const sections = () => minutesSections({ previous, form, todos, memberUsers, el });
   bindCopyButtons(form, (key) => (sections()[key] || []).join("\n"));
-  el.querySelector("#copy-md").addEventListener("click", () => {
+  const copyAll = () => {
     const s = sections();
     copyForNotion([`## ${p.name} MTG ${fmtDateTime(m.starts_at)}`, "", ...s.homework, ...s.agenda, ...s.summary, ...s.todos].join("\n"));
-  });
+  };
+  el.querySelector("#copy-md").addEventListener("click", copyAll);
+  // 画面の下：この議事録をまとめてNotion用にコピー（「このMTGを削除する」の上）
+  const copyAnchor = el.querySelector(".danger-zone");
+  (copyAnchor || el).insertAdjacentHTML(copyAnchor ? "beforebegin" : "beforeend", `<div class="copy-all"><button type="button" class="primary" id="copy-all">📋 この議事録をまとめてNotion用にコピー</button>
+    <p class="muted small">Notionに貼ると、見出し・箇条書き・チェック・トグル・リンクがそのまま入ります。</p></div>`);
+  el.querySelector("#copy-all")?.addEventListener("click", copyAll);
 
   // スキップしても書きかけの議事録が消えないよう、保存してから描き直す
   bindSkipButtons(form, () => flushAll().then(() => renderMeeting(el, id)).catch(() => {}));
@@ -472,7 +478,7 @@ function nextMeetingSection({ nextMeeting, meeting: m, draft }, ro) {
 function minutesSections({ previous, form, todos, memberUsers, el }) {
   const nameOf = (id) => memberUsers.find((u) => u.id === id)?.name || "担当未定";
   const block = (title, text) => [`### ${title}`,
-    ...(text.trim() ? text.trim().split("\n").map((l) => (/^[-・]/.test(l) ? `- ${l.replace(/^[-・]\s*/, "")}` : l)) : ["（なし）"]), ""];
+    ...(text.trim() ? text.replace(/\s+$/, "").split("\n").filter((l) => l.trim()).map((l) => l.replace(/^(\s*)・\s*/, "$1- ")) : ["（なし）"]), ""];
   const valid = todos.filter((t) => t.title.trim());
   return {
     homework: previous?.homework.length ? ["### 前回の宿題", ...previous.homework.map((t) =>
