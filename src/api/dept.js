@@ -130,7 +130,7 @@ export async function syncTeireiNotion(env, id) {
   if (!meeting) return;
   // 決めた回より前の定例は入れない（まとめて入れるときに、もう数えないよう印を付ける）
   if (meeting.number < (Number(env.NOTION_TEIREI_FROM) || Infinity)) {
-    await env.DB.prepare("UPDATE dept_meetings SET notion_url = 'skip' WHERE id = ? AND notion_url IS NULL").bind(meeting.id).run();
+    await env.DB.prepare("UPDATE dept_meetings SET notion_url = 'skip' WHERE id = ? AND (notion_url IS NULL OR notion_url = '')").bind(meeting.id).run();
     return;
   }
   const title = `${String(meeting.number).padStart(3, "0")}_政策立案部門定例第${meeting.number}回`;
@@ -148,11 +148,11 @@ export async function syncTeireiNotion(env, id) {
   }
   const existing = await findTeireiPage(env, title);
   if (existing) {
-    await env.DB.prepare("UPDATE dept_meetings SET notion_url = ? WHERE id = ? AND notion_url IS NULL").bind(`merge:${existing}`, meeting.id).run();
+    await env.DB.prepare("UPDATE dept_meetings SET notion_url = ? WHERE id = ? AND (notion_url IS NULL OR notion_url = '')").bind(`merge:${existing}`, meeting.id).run();
     return replaceToolSection(env, existing, children);
   }
   const url = await createTeireiPage(env, { title, date: meeting.held_on, children });
-  await env.DB.prepare("UPDATE dept_meetings SET notion_url = ? WHERE id = ? AND notion_url IS NULL").bind(url, meeting.id).run();
+  await env.DB.prepare("UPDATE dept_meetings SET notion_url = ? WHERE id = ? AND (notion_url IS NULL OR notion_url = '')").bind(url, meeting.id).run();
 }
 export const teireiNotionOn = (env) => notionConfigured(env) && Boolean(env.NOTION_TEIREI_DB);
 

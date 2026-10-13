@@ -209,7 +209,7 @@ async function loadAccounts(box, person) {
   const d = await api("/api/admin/accounts");
   const options = (sel) => `<option value="">（選ばない）</option>${d.notionUsers.map((n) => `<option value="${esc(n.id)}" ${n.id === sel ? "selected" : ""}>${esc(n.name)}</option>`).join("")}`;
   box.innerHTML = `
-    <p class="muted small">Googleアカウントは打ち込み、Notionアカウントは学生チームのNotionのメンバーから選びます。変えるとすぐ保存されます。見られるのは管理者だけです。</p>
+    <p class="muted small">Googleアカウントは打ち込み、Notionアカウントは、学生チームのNotionのメンバーと、NotionのPJページ・議事録の「人」の欄に入っている人から選びます（いない人は、NotionのPJページの参加者に一度入れると出てきます）。変えるとすぐ保存されます。見られるのは管理者だけです。</p>
     ${!d.notion ? `<p class="caution small">⚠ Notion連携（NOTION_TOKEN）がまだなので、Notionアカウントは選べません。</p>` : d.notionError ? `<p class="caution small">⚠ ${esc(d.notionError)}</p>` : ""}
     <div class="table-wrap"><table class="accounts">
       <thead><tr><th>Discord</th><th>Googleアカウント</th><th>Notionアカウント</th></tr></thead>

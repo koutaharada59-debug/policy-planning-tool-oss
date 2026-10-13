@@ -1,6 +1,7 @@
 // 最近削除した項目：消したMTG（議事録・そこで作ったタスクごと）とタスクを30日残し、元に戻せるようにする
 import { HttpError } from "../util.js";
 import { loadProject, requireEditor } from "./common.js";
+import { notionConfigured, setNotionArchived } from "../notion.js";
 
 export const routes = [
   ["GET", "/api/trash", listTrash],
@@ -84,6 +85,8 @@ async function restoreTrash({ env, user, params }) {
       for (const t of data.tasks || []) await restoreTask(env, t, { source_minute_id: minuteId });
     }
     link = `#/meetings/${meetingId}`;
+    // Notionの議事録ページも、Notionのゴミ箱から戻す
+    if (data.meeting.notion_url && notionConfigured(env)) await setNotionArchived(env, data.meeting.notion_url, false).catch(() => {});
   } else {
     throw new HttpError(400, "この項目は元に戻せません");
   }

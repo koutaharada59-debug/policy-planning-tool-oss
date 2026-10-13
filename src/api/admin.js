@@ -146,7 +146,8 @@ async function getAccounts({ env, user }) {
   let notionUsers = [];
   let notionError = "";
   if (notionConfigured(env)) {
-    notionUsers = await listNotionUsers(env).catch((err) => { notionError = `Notionのメンバーを読めませんでした（${err.status || "通信"}）`; return []; });
+    const { results: pages } = await env.DB.prepare("SELECT notion_url FROM projects WHERE notion_url IS NOT NULL AND notion_url != '' ORDER BY id DESC").all();
+    notionUsers = await listNotionUsers(env, { sampleUrls: pages.map((p) => p.notion_url) }).catch((err) => { notionError = `Notionのメンバーを読めませんでした（${err.status || "通信"}）`; return []; });
   }
   return { users: results, notionUsers, notion: notionConfigured(env), notionError };
 }

@@ -7,7 +7,7 @@ import { addDays } from "../project-types.js";
 import { regularOccurrences, parseWeekdays } from "../schedule.js";
 import { buildIcs, icsResponse, weeklyRule } from "../ics.js";
 import { loadProject, requireEditor, assertUsers, canEdit } from "./common.js";
-import { notionConfigured, notionPageId, minutesBlocks, createNotionPage, replaceNotionPage } from "../notion.js";
+import { notionConfigured, notionPageId, minutesBlocks, createNotionPage, replaceNotionPage, setNotionArchived } from "../notion.js";
 
 export const routes = [
   ["POST", "/api/projects/:id/meetings", createMeeting],
@@ -65,7 +65,7 @@ async function updateMeeting({ request, env, user, params }) {
 
 // MTGを削除する。議事録があるとき（間違えて開いた・二重に始めた など）は、with_minutes: true で議事録ごと消す
 // （この議事録の「次回までにやること」から作ったタスクも消す）。定例の回は消すと作り直されるので、中止扱いにする
-async function deleteMeeting({ request, env, user, params }) {
+async function deleteMeeting({ request, env, user, params, ctx }) {
   const meeting = await loadMeeting(env, params.id);
   await requireEditor(env, user, meeting.project_id);
   const body = await readJson(request).catch(() => ({}));
@@ -87,6 +87,10 @@ async function deleteMeeting({ request, env, user, params }) {
     ? env.DB.prepare("UPDATE meetings SET cancelled = 1, started_at = NULL WHERE id = ?").bind(meeting.id)
     : env.DB.prepare("DELETE FROM meetings WHERE id = ?").bind(meeting.id));
   await env.DB.batch(stmts);
+  // Notionの議事録ページもNotionのゴミ箱へ（「最近削除した項目」から戻すと、Notionも戻る）
+  if (meeting.notion_url && notionConfigured(env)) {
+    ctx?.waitUntil(setNotionArchived(env, meeting.notion_url, true).catch((err) => console.error("notion archive failed", err?.status, err?.code)));
+  }
   // これからのMTGを取りやめたときだけ知らせる（始めてしまったMTG・過ぎたMTGを消したときは知らせない）
   if (!meeting.started_at && meeting.starts_at > nowJst()) {
     const project = await loadProject(env, meeting.project_id);
@@ -150,7 +154,7 @@ export async function syncNotion(env, meetingId) {
   const { title, blocks } = await notionMinutes(env, meeting, project);
   if (meeting.notion_url) return replaceNotionPage(env, meeting.notion_url, title, blocks);
   const pageUrl = await createNotionPage(env, project.notion_url, title, blocks);
-  await env.DB.prepare("UPDATE meetings SET notion_url = ? WHERE id = ? AND notion_url IS NULL").bind(pageUrl, meeting.id).run();
+  await env.DB.prepare("UPDATE meetings SET notion_url = ? WHERE id = ? AND (notion_url IS NULL OR notion_url = '')").bind(pageUrl, meeting.id).run();
 }
 
 // 下書き：次回の日程・MTGの進め方の選びかけ（お知らせは送らない。決まるのは「保存する」「決める」のとき）

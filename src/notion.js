@@ -110,6 +110,13 @@ async function call(env, path, method, body) {
   return data;
 }
 
+// MTGを消したら、Notionの議事録ページもNotionのゴミ箱へ（元に戻したら戻す）
+export async function setNotionArchived(env, pageUrl, archived) {
+  const id = notionPageId(pageUrl);
+  if (!id) return;
+  await call(env, `/pages/${id}`, "PATCH", { archived });
+}
+
 // 作ってあるNotionの議事録ページを、いまの内容で書き直す（題名と中身を入れ替える）
 export async function replaceNotionPage(env, pageUrl, title, children) {
   const id = notionPageId(pageUrl);
@@ -127,15 +134,44 @@ export async function replaceNotionPage(env, pageUrl, title, children) {
 }
 
 // ---------- メンバー（Notionのワークスペースに入っている人） ----------
-export async function listNotionUsers(env) {
-  const out = [];
+// Notion がそのまま見せるのはワークスペースの「メンバー」だけ。ゲストの人は、PJページの「参加者」など、
+// つないだページの「人」の欄に入っている人から集める（sampleUrls：PJのNotionページ。その親のデータベースも読む）
+export async function listNotionUsers(env, { sampleUrls = [] } = {}) {
+  const found = new Map();
+  const add = (u) => { if (u?.object === "user" && u.type !== "bot" && u.id && u.name && !found.has(u.id)) found.set(u.id, { id: u.id, name: u.name, avatar: u.avatar_url || "" }); };
+  const fromProps = (props) => {
+    for (const p of Object.values(props || {})) {
+      if (p.type === "people") (p.people || []).forEach(add);
+      else if (p.type === "created_by" || p.type === "last_edited_by") add(p[p.type]);
+    }
+  };
   let cursor;
   do {
     const r = await call(env, `/users?page_size=100${cursor ? `&start_cursor=${cursor}` : ""}`, "GET");
-    for (const u of r.results) if (u.type === "person") out.push({ id: u.id, name: u.name || "", avatar: u.avatar_url || "" });
+    r.results.filter((u) => u.type === "person").forEach(add);
     cursor = r.has_more ? r.next_cursor : null;
-  } while (cursor && out.length < 1000);
-  return out.sort((a, b) => a.name.localeCompare(b.name, "ja"));
+  } while (cursor && found.size < 1000);
+  // PJページとその親のデータベース、定例の議事録のデータベースから
+  const dbs = new Set([env.NOTION_PJ_DB, env.NOTION_TEIREI_DB].filter(Boolean));
+  for (const url of sampleUrls.slice(0, 20)) {
+    const id = notionPageId(url);
+    if (!id) continue;
+    const page = await call(env, `/pages/${id}`, "GET").catch(() => null);
+    if (!page) continue;
+    fromProps(page.properties);
+    if (page.parent?.type === "database_id") dbs.add(page.parent.database_id.replace(/-/g, ""));
+  }
+  for (const db of dbs) {
+    let next;
+    for (let i = 0; i < 5; i++) {
+      const r = await call(env, `/databases/${db}/query`, "POST", { page_size: 100, ...(next ? { start_cursor: next } : {}) }).catch(() => null);
+      if (!r) break;
+      r.results.forEach((pg) => fromProps(pg.properties));
+      if (!r.has_more) break;
+      next = r.next_cursor;
+    }
+  }
+  return [...found.values()].sort((a, b) => a.name.localeCompare(b.name, "ja"));
 }
 
 // ---------- PJのページ：今あるPJページと同じデータベースに「PJ名」のページを作り、参加者を入れ、見出し「議事録」を置く ----------

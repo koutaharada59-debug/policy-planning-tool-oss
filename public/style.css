@@ -1423,3 +1423,12 @@ table.accounts input,table.accounts select{width:100%;min-width:180px;margin:0}
 }
 .todo-row > *{min-width:0}
 .todo-row input[type=date],.task-form input[type=date]{width:100%;max-width:100%;min-width:0;box-sizing:border-box}
+
+/* スマホ：定例のPJのトグルは、PJ名を1行目、工程と「未記入」を2行目に */
+@media (max-width:760px){
+  .report-toggle summary{flex-wrap:wrap;row-gap:6px}
+  .report-toggle .rt-name{flex:1 1 calc(100% - 30px)}
+  .report-toggle summary .stage-pill{margin-left:24px}
+  .report-toggle .rt-body{padding-left:16px}
+  .auto-status{font-size:11px;max-width:90px;line-height:1.3}
+}
