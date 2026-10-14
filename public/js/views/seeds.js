@@ -43,7 +43,7 @@ function roundForm(round, surveyLinkAvailable = false) {
             ${linked ? `<small class="muted">希望PJアンケートの締め切りに自動で合わせます</small>` : ""}</label>
           <label>決めるPJの数<input name="seats" type="number" min="1" max="10" value="${esc(round?.seats ?? 3)}"></label>
         </div>
-        ${round ? `<label class="check"><input type="checkbox" name="archived" ${round.archived ? "checked" : ""}> アーカイブする（PJ決めのトップに出さない）</label>` : ""}
+        ${round ? `<label class="check"><input type="checkbox" name="archived" ${round.archived ? "checked" : ""}> アーカイブする（PJ決めのトップに出さない。PJにならなかった種は次のPJ決めに移ります）</label>` : ""}
         ${!round && surveyLinkAvailable ? `<label class="check"><input type="checkbox" name="link_survey">
           <span>希望PJアンケートと連動する<small>アンケートの選択肢・投票・締め切りを自動で映します。投票はアンケートで行います</small></span></label>` : ""}
         <div class="form-actions"><button class="primary">${round ? "保存する" : "作成する"}</button></div>
@@ -59,7 +59,7 @@ function bindRoundForm(el, round) {
     const body = { ...formData(form), archived: form.archived?.checked, link_survey: form.link_survey?.checked };
     busy(e.submitter, () => api(round ? `/api/rounds/${round.id}` : "/api/rounds", { method: round ? "PUT" : "POST", body }))
       .then((res) => {
-        toast("保存しました");
+        toast(res?.carried ? `保存しました。PJにならなかった種 ${res.carried}件を次のPJ決めに移しました` : "保存しました");
         location.hash = `#/seeds/${round ? round.id : res.id}?t=${Date.now()}`;
       }).catch(() => {});
   });

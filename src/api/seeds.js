@@ -106,7 +106,40 @@ async function updateRound({ request, env, user, params }) {
   // 連動する募集回の締め切りはアンケートの締め切りに合わせるので、ここでは変えない
   await env.DB.prepare("UPDATE seed_rounds SET title = ?, deadline = ?, seats = ?, archived = ? WHERE id = ?")
     .bind(f.title, round.source === "survey" ? round.deadline : f.deadline, f.seats, body.archived ? 1 : 0, round.id).run();
-  return { ok: true };
+  const carried = !round.archived && body.archived ? await carryOverSeeds(env, user, round) : 0;
+  return { ok: true, carried };
+}
+
+// アーカイブするとき：PJにならなかった種を、受付中のPJ決め（なければ「次のPJ決め」を作る）へ写す。
+// アーカイブした回の記録（種・投票・開票結果）はそのまま残す。リサーチメモとコメントも一緒に写す
+async function carryOverSeeds(env, user, round) {
+  const { results: seeds } = await env.DB.prepare("SELECT * FROM seeds WHERE round_id = ? AND project_id IS NULL ORDER BY sort, id")
+    .bind(round.id).all();
+  if (!seeds.length) return 0;
+  const { results: rounds } = await env.DB.prepare(
+    "SELECT * FROM seed_rounds WHERE archived = 0 AND source != 'survey' AND id != ? ORDER BY created_at DESC"
+  ).bind(round.id).all();
+  const now = Date.now();
+  const target = rounds.find((r) => !isClosed(r)) || await env.DB.prepare(
+    "INSERT INTO seed_rounds (title, deadline, seats, source, created_by, created_at) VALUES (?, NULL, 3, '', ?, ?) RETURNING *"
+  ).bind("次のPJ決め", user.id, now).first();
+  let carried = 0;
+  for (const s of seeds) {
+    const dup = await env.DB.prepare("SELECT 1 FROM seeds WHERE round_id = ? AND title = ?").bind(target.id, s.title).first();
+    if (dup) continue;
+    const row = await env.DB.prepare(
+      `INSERT INTO seeds (round_id, title, description, tag, icon, categories, created_by, author_name, prev_project_id, sort, created_at, updated_at)
+       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, (SELECT COALESCE(MAX(sort), 0) + 1 FROM seeds WHERE round_id = ?1), ?10, ?11) RETURNING id`
+    ).bind(target.id, s.title, s.description, s.tag, s.icon, s.categories, s.created_by, s.author_name, s.prev_project_id, s.created_at, now).first();
+    await env.DB.batch([
+      env.DB.prepare("INSERT INTO seed_notes (seed_id, user_id, body, url, created_at) SELECT ?, user_id, body, url, created_at FROM seed_notes WHERE seed_id = ? ORDER BY id")
+        .bind(row.id, s.id),
+      env.DB.prepare("INSERT INTO seed_comments (seed_id, user_id, body, created_at) SELECT ?, user_id, body, created_at FROM seed_comments WHERE seed_id = ? ORDER BY id")
+        .bind(row.id, s.id),
+    ]);
+    carried++;
+  }
+  return carried;
 }
 
 async function getRound({ env, user, params }) {
