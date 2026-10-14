@@ -1444,3 +1444,6 @@ table.accounts input,table.accounts select{width:100%;min-width:180px;margin:0}
 .history-item{border:1px solid var(--soft-line);border-radius:12px;padding:10px 12px}
 .history-meta{font-size:13px;color:#555;margin-bottom:4px}
 .history-body{margin:0 0 8px;white-space:pre-wrap;overflow-wrap:anywhere;font:inherit;font-size:14px;line-height:1.6;max-height:180px;overflow-y:auto}
+
+/* 議事録がまだ保存できていないときは目立たせる */
+.save-warn{color:#b3261e;font-weight:700;background:#fdecea;border-radius:8px;padding:2px 8px}

@@ -87,6 +87,44 @@ test("PJを作ってMTGをし、記録に残る", async ({ page }) => {
   expect(errors).toEqual([]);
 });
 
+// 2026-10-14：保存が一度失敗すると、その欄の自動保存がそれ以降止まり、書いた概要が消えた。二度と起きないことを確かめる
+test("議事録は、通信が失敗しても書いた内容が保存される", async ({ page }) => {
+  await login(page);
+  const name = `保存テストPJ ${stamp}`;
+  await page.goto("/#/projects/new");
+  await page.fill("#pj-form [name=name]", name);
+  await page.check("#pj-form [name=meeting_mode][value=adhoc]");
+  await page.getByRole("button", { name: "作成する" }).click();
+  await page.locator(".pj-quick").getByRole("link", { name: /MTG/ }).click();
+  await page.getByRole("button", { name: /臨時のMTG/ }).click();
+  await page.getByRole("button", { name: "この内容で始める" }).click();
+  await expect(page.locator("#minutes-form")).toBeVisible();
+  const meetingUrl = page.url();
+
+  // 最初の3回の保存は通信エラーにする
+  let fails = 3;
+  await page.route("**/api/meetings/*/minutes", (route) => {
+    if (route.request().method() === "PUT" && fails > 0) { fails--; return route.abort(); }
+    return route.continue();
+  });
+  await page.waitForTimeout(500);
+  await page.locator('.rich-editor[data-field="summary"]').click();
+  await page.keyboard.type("消えてはいけない一行目");
+  await expect(page.locator("#live-status")).toContainText("まだ保存できていません", { timeout: 10_000 });
+  await page.keyboard.press("Enter");
+  await page.keyboard.type("消えてはいけない二行目");
+  // 自動でやり直して、保存できる
+  await expect(page.locator("#live-status")).toContainText("自動で保存しました", { timeout: 30_000 });
+  await page.unroute("**/api/meetings/*/minutes");
+
+  // 開き直しても残っている。履歴にもある
+  await page.goto("/#/");
+  await page.goto(meetingUrl);
+  await expect(page.locator('.rich-editor[data-field="summary"]')).toContainText("消えてはいけない二行目");
+  await page.locator("[data-history=summary]").click();
+  await expect(page.locator(".history-item").first()).toContainText("消えてはいけない一行目");
+});
+
 test("🔔でお知らせの枠が開く（ページは移らない）", async ({ page }) => {
   await login(page);
   await page.locator("#bell").click();

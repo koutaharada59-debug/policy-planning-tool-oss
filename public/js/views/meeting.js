@@ -227,7 +227,7 @@ export async function renderMeeting(el, id) {
   const valueOf = (f) => (f === "todos"
     ? { todos: todos.map(({ key, id, title, assignee_ids, due_date }) => ({ key, id, title, assignee_ids, due_date })) }
     : { [f]: form[f].value });
-  const status = (text) => { const x = el.querySelector("#live-status"); if (x) x.textContent = text; };
+  const status = (text) => { const x = el.querySelector("#live-status"); if (x) { x.textContent = text; x.classList.toggle("save-warn", text.startsWith("⚠")); } };
 
   function markDirty(f) {
     if (!canWrite(f)) return;
@@ -263,7 +263,11 @@ export async function renderMeeting(el, id) {
           const t = todos.find((x) => x.key === key);
           if (t) t.id = tid;
         }
-        status(`✓ 自動で保存しました（${new Date().toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}）`);
+        // ほかの欄がまだ保存できていないときは「保存しました」と出さない（1つの表示をみんなで使っているので、失敗が隠れないように）
+        const failing = Object.keys(live.retries).filter((x) => live.retries[x] > 0);
+        status(failing.length
+          ? `⚠ 「${failing.map((x) => ({ agenda: "今回話し合うこと", summary: "話し合いの概要", todos: "次回までにやること" })[x]).join("・")}」がまだ保存できていません。自動でやり直しています…`
+          : `✓ 自動で保存しました（${new Date().toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}）`);
       } catch (err) {
         live.dirty.add(f);
         // 保存できるまで、少し待って自動でやり直す（画面を移っても続ける）
