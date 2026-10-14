@@ -1,6 +1,6 @@
 // 議事録：前回の宿題（自動引き継ぎ）／話し合うこと／概要／キーワード／次回までにやること
 // 詳細なフィードバックはGoogleドキュメントに残す運用なので、入力欄は短くしている
-import { api, esc, state, fmtDateTime, fmtDate, busy, toast, memberOptions, dueBadge, addDays, embedUrl, membersFirst, copyForNotion, copyButton, bindCopyButtons, hashQuery, timerHtml, bindTimer, clearTimer, syncTimerStart, confirmDialog, guardPending, celebrateProgress, setProgressHint, skipButton, bindSkipButtons, assigneePicker, idsOf, forgetUnsaved } from "../lib.js";
+import { api, esc, state, fmtDateTime, fmtDate, busy, toast, memberOptions, dueBadge, addDays, embedUrl, membersFirst, copyForNotion, copyButton, bindCopyButtons, hashQuery, timerHtml, bindTimer, clearTimer, syncTimerStart, confirmDialog, guardPending, putUnsent, dropUnsent, restoreUnsent, celebrateProgress, setProgressHint, skipButton, bindSkipButtons, assigneePicker, idsOf, forgetUnsaved } from "../lib.js";
 import { enhanceRich } from "../rich.js";
 import { schedulePollLinks } from "./schedule-poll.js";
 
@@ -16,6 +16,7 @@ export async function renderMeeting(el, id) {
   // 同時編集の状態。locked：ほかの人が書いている項目 → その人の名前
   // base：項目ごとに、サーバーの内容として最後に知っている値（保存のときに送り、ほかの人の内容を上書きで消さないようにする）
   // touched：項目ごとに、最後に書いた・保存した時刻（それより前に問い合わせた古い内容で、画面を上書きしないため）
+  const unsentKey = `meeting:${m.id}`; // 端末への一時保存の名前（lib.js の putUnsent）
   const live = { focus: null, dirty: new Set(), chain: {}, timers: {}, locked: {}, busy: false, inflight: new Set(),
     base: { agenda: minute?.agenda || "", summary: minute?.summary || "" }, touched: {}, retries: {}, restore: new Set() };
   // key：画面の行の目印（自動保存で新しく作ったタスクの id を、どの行のものか受け取るため）
@@ -233,6 +234,7 @@ export async function renderMeeting(el, id) {
     if (!canWrite(f)) return;
     live.dirty.add(f);
     live.touched[f] = Date.now();
+    if (f !== "todos") putUnsent(unsentKey, { agenda: form.agenda.value, summary: form.summary.value }, { ...live.base });
     status("入力中…");
     clearTimeout(live.timers[f]);
     live.timers[f] = setTimeout(() => saveField(f).catch(() => {}), 1000);
@@ -250,6 +252,9 @@ export async function renderMeeting(el, id) {
         const body = f === "todos" ? sent : { ...sent, base: { [f]: live.base[f] }, restore: live.restore.delete(f) || undefined };
         const res = await api(`/api/meetings/${m.id}/minutes`, { method: "PUT", body });
         live.touched[f] = Date.now();
+        // 送った内容が今の欄と同じなら、端末の一時保存は要らない
+        if (f !== "todos" && !live.dirty.has("agenda") && !live.dirty.has("summary") && !live.inflight.has(f === "agenda" ? "summary" : "agenda")
+          && form[f].value === (res.merged?.[f] ?? sent[f])) dropUnsent(unsentKey);
         if (live.retries[f]) { live.retries[f] = 0; if (!form.isConnected) toast("✓ MTGの議事録を保存できました"); }
         if (f !== "todos") {
           live.base[f] = res.merged?.[f] ?? sent[f];
@@ -298,6 +303,14 @@ export async function renderMeeting(el, id) {
   window.addEventListener("beforeunload", onUnload);
   // ほかの画面へ移るときは、保存が終わるのを待つ（app.js。保存できなければ確かめる）
   guardPending(form, pending, flushAll);
+  // 前に送れなかった書きかけ（端末に置いてあるもの）があれば戻して、保存する
+  {
+    const restored = canEdit ? restoreUnsent(unsentKey, Object.fromEntries(["agenda", "summary"].filter(canWrite).map((f) => [f, form[f]]))) : [];
+    if (restored.length) {
+      for (const f of restored) markDirty(f);
+      toast("前に保存できていなかった書きかけを戻しました");
+    }
+  }
   // 電波が戻ったら、すぐ送り直す
   window.addEventListener("online", () => { if (live.dirty.size) flushAll().catch(() => {}); });
 

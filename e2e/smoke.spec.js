@@ -125,6 +125,36 @@ test("議事録は、通信が失敗しても書いた内容が保存される",
   await expect(page.locator(".history-item").first()).toContainText("消えてはいけない一行目");
 });
 
+// 電源が落ちた・アプリが閉じた：送れていない書きかけは端末に残り、開き直すと戻って保存される
+test("議事録は、送れないまま閉じても開き直すと戻る", async ({ page }) => {
+  await login(page);
+  const name = `閉じるテストPJ ${stamp}`;
+  await page.goto("/#/projects/new");
+  await page.fill("#pj-form [name=name]", name);
+  await page.check("#pj-form [name=meeting_mode][value=adhoc]");
+  await page.getByRole("button", { name: "作成する" }).click();
+  await page.locator(".pj-quick").getByRole("link", { name: /MTG/ }).click();
+  await page.getByRole("button", { name: /臨時のMTG/ }).click();
+  await page.getByRole("button", { name: "この内容で始める" }).click();
+  await expect(page.locator("#minutes-form")).toBeVisible();
+  const meetingUrl = page.url();
+
+  await page.route("**/api/meetings/*/minutes", (route) => (route.request().method() === "PUT" ? route.abort() : route.continue()));
+  await page.waitForTimeout(500);
+  await page.locator('.rich-editor[data-field="summary"]').click();
+  await page.keyboard.type("閉じる前に書いた行");
+  await expect(page.locator("#live-status")).toContainText("まだ保存できていません", { timeout: 10_000 });
+
+  // 強制終了の代わりに、確認を出さずに別のページを開き直す
+  const again = await page.context().newPage();
+  await page.close({ runBeforeUnload: false });
+  await again.goto(meetingUrl);
+  await expect(again.locator("#live-status")).toContainText("自動で保存しました", { timeout: 15_000 });
+  await again.goto("/#/");
+  await again.goto(meetingUrl);
+  await expect(again.locator('.rich-editor[data-field="summary"]')).toContainText("閉じる前に書いた行");
+});
+
 test("🔔でお知らせの枠が開く（ページは移らない）", async ({ page }) => {
   await login(page);
   await page.locator("#bell").click();

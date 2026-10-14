@@ -817,9 +817,47 @@ function apChanged(ap) {
 }
 export const pickerIds = (root) => (root.querySelector("[data-ap]")?.dataset.ids || "").split(",").filter(Boolean);
 
+// ---------- 端末への一時保存（まだサーバーに届いていない書きかけだけ） ----------
+// データの正はサーバー。ここに置くのは「送る前・送れなかった」文章だけで、サーバーに保存できたらすぐ消す。
+// スマホの電源が落ちた・アプリが強制終了した・電波がない、で書きかけが消えないようにするため。
+// value：書きかけ（欄の名前 → 文章）。base：書きはじめる前のサーバーの内容（開き直したとき、ほかの人の内容と合わせるのに使う）
+const UNSENT_DAYS = 3;
+const unsentKey = (key) => `pp-unsent:${state.me?.id || "-"}:${key}`;
+export function putUnsent(key, value, base) {
+  try { localStorage.setItem(unsentKey(key), JSON.stringify({ value, base, at: Date.now() })); } catch { /* 保存できない端末では何もしない */ }
+}
+export function getUnsent(key) {
+  try {
+    const d = JSON.parse(localStorage.getItem(unsentKey(key)) || "null");
+    if (d && d.value && Date.now() - d.at < UNSENT_DAYS * 86400000) return d;
+    if (d) localStorage.removeItem(unsentKey(key));
+  } catch { /* 読めなければ、ないものとする */ }
+  return null;
+}
+export function dropUnsent(key) {
+  try { localStorage.removeItem(unsentKey(key)); } catch { /* 何もしない */ }
+}
+// 開いたとき：送れていなかった書きかけがあれば、今のサーバーの内容と合わせて欄に戻す。戻した欄の名前を返す
+export function restoreUnsent(key, fields) {
+  const d = getUnsent(key);
+  if (!d) return [];
+  const restored = [];
+  for (const [name, el] of Object.entries(fields)) {
+    const mine = d.value[name];
+    if (typeof mine !== "string" || !el) continue;
+    const text = mergeText(d.base?.[name] ?? "", mine, el.value).text;
+    if (text !== el.value) { el.value = text; restored.push(name); }
+  }
+  if (!restored.length) dropUnsent(key);
+  return restored;
+}
+const textFields = (form) => Object.fromEntries([...form.querySelectorAll("textarea[name]")].map((t) => [t.name, t]));
+const valuesOf = (fields) => Object.fromEntries(Object.entries(fields).map(([k, t]) => [k, t.value]));
+
 // ---------- 自動保存：書くのが止まって少ししたら保存する（1回ずつ順番に）。保存中に書いた分は、次の保存で送る ----------
 // save()：保存して Promise を返す。status：「✓ 自動で保存しました」などを出す要素
-export function autoSave(form, save, { status, delay = 1500 } = {}) {
+// key：端末への一時保存の名前（あれば、送れていない書きかけを端末にも置き、開き直したときに戻す）
+export function autoSave(form, save, { status, delay = 1500, key = null } = {}) {
   let edits = 0;      // 書いた回数（保存のあとに増えていたら、もう一度保存する）
   let timer = null;
   let running = null;
@@ -833,7 +871,8 @@ export function autoSave(form, save, { status, delay = 1500 } = {}) {
     show("保存中…");
     running = Promise.resolve().then(save).then(() => {
       failed = 0;
-      if (edits === at) { edits = 0; markSaved(form); }
+      savedValues = valuesOf(textFields(form));
+      if (edits === at) { edits = 0; markSaved(form); if (key) dropUnsent(key); }
       show(`✓ 自動で保存しました（${new Date().toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}）`);
     }).catch((err) => {
       show(`⚠ まだ保存できていません（${err.message}）。自動でやり直しています…`);
@@ -844,7 +883,22 @@ export function autoSave(form, save, { status, delay = 1500 } = {}) {
     if (edits && edits !== at) schedule();
   };
   const schedule = () => { clearTimeout(timer); timer = setTimeout(run, delay); };
-  form.addEventListener("input", () => { edits++; show("入力中…"); schedule(); });
+  let savedValues = valuesOf(textFields(form)); // サーバーにあると分かっている内容
+  form.addEventListener("input", () => {
+    edits++; show("入力中…"); schedule();
+    if (key) putUnsent(key, valuesOf(textFields(form)), savedValues);
+  });
+  // 前に送れなかった書きかけがあれば戻して、保存する
+  if (key) {
+    const restored = restoreUnsent(key, textFields(form));
+    if (restored.length) {
+      edits++;
+      putUnsent(key, valuesOf(textFields(form)), savedValues);
+      show("保存できていなかった書きかけを戻しました。保存します…");
+      toast("前に保存できていなかった書きかけを戻しました");
+      setTimeout(run, 300);
+    }
+  }
   // 画面を閉じる・ほかのアプリに移るときは、すぐ保存する
   const flush = () => { if (edits) run(); };
   document.addEventListener("visibilitychange", () => { if (document.hidden) flush(); });
