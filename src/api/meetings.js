@@ -246,6 +246,19 @@ async function claimField(env, meetingId, field, user, now) {
   return holder && holder.user_id !== user.id ? holder : null;
 }
 
+// 同じ欄を別々に変えたとき：自分だけが変えたなら自分の、相手だけなら相手の内容。両方なら両方を残す（同じ行は二重にしない）
+function mergeText(base, mine, theirs) {
+  base = base || ""; mine = mine || ""; theirs = theirs || "";
+  if (mine === theirs || theirs === base) return { text: mine, both: false };
+  if (mine === base) return { text: theirs, both: false };
+  if (mine.includes(theirs)) return { text: mine, both: false };
+  if (theirs.includes(mine)) return { text: theirs, both: false };
+  // 両方が書き足したとき：自分の内容のあとに、相手の内容のうち自分の方にない行を足す（同じ行は二重にしない）
+  const have = new Set(mine.split("\n").map((l) => l.trim()));
+  const extra = theirs.split("\n").filter((l) => l.trim() && !have.has(l.trim()));
+  return { text: extra.length ? `${mine}\n${extra.join("\n")}` : mine, both: true };
+}
+
 // 議事録を保存する。送られてきた項目だけを書き換える（自動保存は1項目ずつ送る）
 async function saveMinutes({ request, env, user, params, ctx }) {
   const meeting = await loadMeeting(env, params.id);
@@ -255,12 +268,26 @@ async function saveMinutes({ request, env, user, params, ctx }) {
   const now = Date.now();
   const sent = LIVE_FIELDS.filter((f) => f in body);
   for (const f of sent) {
+    // 文章の欄（今回話し合うこと・概要）はロックしない：同時に書いても、下の base で両方を残す。「次回までにやること」だけは1人ずつ
     const holder = await claimField(env, meeting.id, f, user, now);
-    if (holder) throw new HttpError(409, `${holder.name || "ほかの人"}さんが入力中です。書き終わるまで待ってください`);
+    if (holder && f === "todos") throw new HttpError(409, `${holder.name || "ほかの人"}さんが入力中です。書き終わるまで待ってください`);
   }
   const cols = [];
   if ("agenda" in body) cols.push(["agenda", clean(body.agenda, 5000)]);
   if ("summary" in body) cols.push(["summary", clean(body.summary, 10000)]);
+  // base：送った人の画面が最後に知っていた内容。そのあとDBの内容が変わっていたら（ほかの人の保存・古い画面からの保存）、
+  // 上書きして消さずに両方を残す。merged：両方を残した項目 → その内容（画面に映し直す）
+  const merged = {};
+  const base = body.base && typeof body.base === "object" ? body.base : null;
+  if (base && cols.length) {
+    const current = await env.DB.prepare("SELECT agenda, summary FROM minutes WHERE meeting_id = ?").bind(meeting.id).first();
+    for (const c of cols) {
+      const [name, mine] = c;
+      if (!current || typeof base[name] !== "string") continue;
+      const m = mergeText(clean(base[name], 10000), mine, current[name]);
+      if (m.text !== mine) { c[1] = m.text.slice(0, name === "agenda" ? 5000 : 10000); merged[name] = c[1]; }
+    }
+  }
 
   // 議事録がなければ作り、あれば送られた項目だけを書き換える
   const names = cols.map(([c]) => c);
@@ -343,7 +370,7 @@ async function saveMinutes({ request, env, user, params, ctx }) {
   // 保存ボタン（body.notion）のときだけ。1秒ごとの自動保存では送らない
   const notion = Boolean(body.notion) && notionConfigured(env) && Boolean(project.notion_url);
   if (notion) ctx?.waitUntil(syncNotion(env, meeting.id).catch((err) => console.error("notion sync failed", err?.status, err?.code || err?.message)));
-  return { ok: true, nextMeeting: nextStartsAt, ids, notion };
+  return { ok: true, nextMeeting: nextStartsAt, ids, notion, merged };
 }
 
 // 議事録を開いているあいだ、数秒ごとに呼ぶ。field：いま自分が書いている項目（なければ null）

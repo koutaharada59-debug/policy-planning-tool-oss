@@ -14,7 +14,10 @@ export async function renderMeeting(el, id) {
   const ro = canEdit && !viewOnly ? "" : "disabled";
   const baseRo = ro;
   // 同時編集の状態。locked：ほかの人が書いている項目 → その人の名前
-  const live = { focus: null, dirty: new Set(), chain: {}, timers: {}, locked: {}, busy: false, inflight: new Set() };
+  // base：項目ごとに、サーバーの内容として最後に知っている値（保存のときに送り、ほかの人の内容を上書きで消さないようにする）
+  // touched：項目ごとに、最後に書いた・保存した時刻（それより前に問い合わせた古い内容で、画面を上書きしないため）
+  const live = { focus: null, dirty: new Set(), chain: {}, timers: {}, locked: {}, busy: false, inflight: new Set(),
+    base: { agenda: minute?.agenda || "", summary: minute?.summary || "" }, touched: {} };
   // key：画面の行の目印（自動保存で新しく作ったタスクの id を、どの行のものか受け取るため）
   const newKey = () => Math.random().toString(36).slice(2, 10);
   // 担当は複数人（assignee_ids）。notified：もう「担当になりました」を知らせた人
@@ -229,6 +232,7 @@ export async function renderMeeting(el, id) {
   function markDirty(f) {
     if (!canWrite(f)) return;
     live.dirty.add(f);
+    live.touched[f] = Date.now();
     status("入力中…");
     clearTimeout(live.timers[f]);
     live.timers[f] = setTimeout(() => saveField(f), 1000);
@@ -241,7 +245,18 @@ export async function renderMeeting(el, id) {
       live.dirty.delete(f);
       live.inflight.add(f);
       try {
-        const res = await api(`/api/meetings/${m.id}/minutes`, { method: "PUT", body: valueOf(f) });
+        const sent = valueOf(f);
+        const body = f === "todos" ? sent : { ...sent, base: { [f]: live.base[f] } };
+        const res = await api(`/api/meetings/${m.id}/minutes`, { method: "PUT", body });
+        live.touched[f] = Date.now();
+        if (f !== "todos") {
+          live.base[f] = res.merged?.[f] ?? sent[f];
+          // ほかの人の内容と合わせた：書き足していなければ画面にも映す（書き足していれば、次の保存で合わさる）
+          if (res.merged?.[f] !== undefined) {
+            if (form[f].value === sent[f]) { form[f].value = res.merged[f]; flash(f); }
+            toast("ほかの人が同じ欄を書き換えていたので、両方の内容を残しました");
+          }
+        }
         for (const [key, tid] of Object.entries(res.ids || {})) {
           const t = todos.find((x) => x.key === key);
           if (t) t.id = tid;
@@ -250,6 +265,7 @@ export async function renderMeeting(el, id) {
       } catch (err) {
         live.dirty.add(f);
         status(`⚠ 保存できませんでした：${err.message}`);
+        if (!form.isConnected) toast(`⚠ MTGの議事録を保存できませんでした：${err.message}。MTGの画面に戻って確かめてください`);
         throw err;
       } finally {
         live.inflight.delete(f);
@@ -258,6 +274,19 @@ export async function renderMeeting(el, id) {
     return live.chain[f];
   }
   const flushAll = () => Promise.all(["agenda", "summary", "todos"].map((f) => saveField(f)));
+  // ほかの画面へ移るとき：書きかけをすぐ保存する（保存は画面を移っても続く。失敗したら知らせる）
+  const pending = () => live.dirty.size > 0 || live.inflight.size > 0;
+  window.addEventListener("hashchange", () => { if (live.dirty.size) flushAll().catch(() => {}); }, { once: true });
+  document.addEventListener("visibilitychange", () => { if (document.hidden && form.isConnected && live.dirty.size) flushAll().catch(() => {}); });
+  // タブを閉じる・再読み込みするときは、保存が終わっていなければ確かめる
+  const onUnload = (e) => {
+    if (!form.isConnected) { window.removeEventListener("beforeunload", onUnload); return; }
+    if (!pending()) return;
+    flushAll().catch(() => {});
+    e.preventDefault();
+    e.returnValue = "";
+  };
+  window.addEventListener("beforeunload", onUnload);
 
   // 自分が書いている・保存待ち・保存中の項目は、ほかの人の内容で上書きしない
   const mine = (f) => live.focus === f || live.dirty.has(f) || live.inflight.has(f);
@@ -270,8 +299,8 @@ export async function renderMeeting(el, id) {
     sec?.classList.add("live-updated");
   };
 
-  function apply(r) {
-    if (r.blocked && live.focus) {
+  function apply(r, askedAt = 0) {
+    if (r.blocked && live.focus === "todos") {
       toast(`${r.blocked}さんが入力中です。書き終わるまで待ってください`);
       document.activeElement?.blur();
       live.focus = null;
@@ -280,8 +309,13 @@ export async function renderMeeting(el, id) {
     live.locked = Object.fromEntries(r.editors.map((e) => [e.field, e.name || "ほかの人"]));
     for (const f of ["agenda", "summary"]) {
       const v = r.minute?.[f] ?? "";
-      if (!mine(f) && form[f].value !== v) { form[f].value = v; flash(f); }
-      if (canWrite(f)) form[f].readOnly = Boolean(live.locked[f]);
+      // 問い合わせたあとに自分が書いた・保存した項目は、古い内容なので映さない
+      const stale = (live.touched[f] || 0) >= askedAt;
+      if (!mine(f) && !stale) {
+        live.base[f] = v;
+        if (form[f].value !== v) { form[f].value = v; flash(f); }
+      }
+      if (canWrite(f)) form[f].readOnly = false; // 文章の欄はロックしない（同時に書いたら両方残す）
     }
     if (!mine("todos")) {
       const next = r.todos.map((t) => ({ ...withIds(t), key: todos.find((x) => x.id === t.id)?.key || newKey() }));
@@ -298,7 +332,7 @@ export async function renderMeeting(el, id) {
     }
     el.querySelectorAll("[data-badge]").forEach((b) => {
       const who = live.locked[b.dataset.badge];
-      b.textContent = who ? `✏️ ${who}さんが入力中` : "";
+      b.textContent = who ? (b.dataset.badge === "todos" ? `✏️ ${who}さんが入力中` : `✏️ ${who}さんも書いています（両方残ります）`) : "";
     });
     const v = el.querySelector("#live-viewers");
     if (v) v.textContent = r.viewers.length ? `👥 ${r.viewers.join("、")}さんも開いています` : "";
@@ -309,12 +343,13 @@ export async function renderMeeting(el, id) {
     if (live.busy) return;
     live.busy = true;
     try {
+      const askedAt = Date.now();
       const r = await api(`/api/meetings/${m.id}/live`, { method: "POST", body: { field: live.focus, start: !viewOnly && !live.started } });
       if (r.started_at) {
         live.started = true;
         syncTimerStart(`meeting-${m.id}`, r.started_at);
       }
-      apply(r);
+      apply(r, askedAt);
     } catch { /* 通信が途切れても、次の合図でやり直す */ } finally {
       live.busy = false;
     }
@@ -323,7 +358,7 @@ export async function renderMeeting(el, id) {
   form.addEventListener("focusin", (e) => {
     const f = fieldOf(e.target);
     if (!f || f === live.focus) return;
-    if (live.locked[f]) { toast(`${live.locked[f]}さんが入力中です`); return; }
+    if (f === "todos" && live.locked[f]) { toast(`${live.locked[f]}さんが入力中です`); return; }
     live.focus = f;
     beat();
   });
