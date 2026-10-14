@@ -9,8 +9,8 @@ export function openSeedBox(button) {
 
 export async function renderProjects(el) {
   const [{ projects }, { rounds }] = await Promise.all([api("/api/projects"), api("/api/rounds").catch(() => ({ rounds: [] }))]);
-  // いま受付中のPJ決め（思いついた種をすぐ出せるように、いつも上に出す）
-  const open = rounds.find((r) => !r.archived && !r.closed);
+  // 赤ポチ：締め切りが決まっていて受付中のPJ決めがあるときだけ（締め切りなしの「次のPJ決め」はいつもあるので出さない）
+  const open = rounds.find((r) => !r.archived && !r.closed && r.deadline);
 
   // 参加中のPJがない人（部門長など）は、進行中すべてから見せる
   let filter = projects.some((p) => p.isMine) ? "mine" : "active";

@@ -751,7 +751,7 @@ export function viewSwitch(current, { seedsOpen = false } = {}) {
   const tri = (dir) => `<svg width="16" height="18" viewBox="0 0 16 18" aria-hidden="true"><path d="${dir === "right" ? "M2 1.5L14 9 2 16.5z" : "M14 1.5L2 9l12 7.5z"}" fill="currentColor"/></svg>`;
   return current === "pj"
     ? `<div class="view-switch"><h1>PJ</h1>
-        <a class="view-switch-arrow is-right" href="#/seeds" data-slide="right" aria-label="PJ決めへ" title="PJ決めへ">${tri("right")}${seedsOpen ? '<span class="view-switch-dot" aria-hidden="true"></span>' : ""}</a></div>`
+        <a class="view-switch-arrow is-right" href="#/seeds" data-slide="right" aria-label="PJ決めへ" title="${seedsOpen ? "PJ決めへ（締め切りのある回が受付中）" : "PJ決めへ"}">${tri("right")}${seedsOpen ? '<span class="view-switch-dot" aria-hidden="true"></span>' : ""}</a></div>`
     : `<div class="view-switch"><a class="view-switch-arrow is-left" href="#/projects" data-slide="left" aria-label="PJへ戻る" title="PJへ戻る">${tri("left")}</a>
         <h1>PJ決め</h1></div>`;
 }
