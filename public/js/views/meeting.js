@@ -1,6 +1,6 @@
 // 議事録：前回の宿題（自動引き継ぎ）／話し合うこと／概要／キーワード／次回までにやること
 // 詳細なフィードバックはGoogleドキュメントに残す運用なので、入力欄は短くしている
-import { api, esc, state, fmtDateTime, fmtDate, busy, toast, memberOptions, dueBadge, addDays, embedUrl, membersFirst, copyForNotion, copyButton, bindCopyButtons, hashQuery, timerHtml, bindTimer, clearTimer, syncTimerStart, confirmDialog, celebrateProgress, setProgressHint, skipButton, bindSkipButtons, assigneePicker, idsOf, forgetUnsaved } from "../lib.js";
+import { api, esc, state, fmtDateTime, fmtDate, busy, toast, memberOptions, dueBadge, addDays, embedUrl, membersFirst, copyForNotion, copyButton, bindCopyButtons, hashQuery, timerHtml, bindTimer, clearTimer, syncTimerStart, confirmDialog, guardPending, celebrateProgress, setProgressHint, skipButton, bindSkipButtons, assigneePicker, idsOf, forgetUnsaved } from "../lib.js";
 import { enhanceRich } from "../rich.js";
 import { schedulePollLinks } from "./schedule-poll.js";
 
@@ -17,7 +17,7 @@ export async function renderMeeting(el, id) {
   // base：項目ごとに、サーバーの内容として最後に知っている値（保存のときに送り、ほかの人の内容を上書きで消さないようにする）
   // touched：項目ごとに、最後に書いた・保存した時刻（それより前に問い合わせた古い内容で、画面を上書きしないため）
   const live = { focus: null, dirty: new Set(), chain: {}, timers: {}, locked: {}, busy: false, inflight: new Set(),
-    base: { agenda: minute?.agenda || "", summary: minute?.summary || "" }, touched: {} };
+    base: { agenda: minute?.agenda || "", summary: minute?.summary || "" }, touched: {}, retries: {}, restore: new Set() };
   // key：画面の行の目印（自動保存で新しく作ったタスクの id を、どの行のものか受け取るため）
   const newKey = () => Math.random().toString(36).slice(2, 10);
   // 担当は複数人（assignee_ids）。notified：もう「担当になりました」を知らせた人
@@ -52,7 +52,7 @@ export async function renderMeeting(el, id) {
       </section>
 
       <section class="card" data-live="agenda">
-        <div class="section-head"><h2>今回話し合うこと <span class="live-badge" data-badge="agenda"></span></h2>${copyButton("agenda")}</div>
+        <div class="section-head"><h2>今回話し合うこと <span class="live-badge" data-badge="agenda"></span></h2><span class="row-left">${canEdit ? `<button type="button" class="copy-btn" data-history="agenda" title="これまでに保存した内容">🕘 履歴</button>` : ""}${copyButton("agenda")}</span></div>
         <label><textarea name="agenda" data-rich rows="3" maxlength="5000" aria-label="今回話し合うこと" ${canEdit ? "" : "disabled"} placeholder="・先行事例の共有&#10;・課題の絞り込み">${esc(minute?.agenda)}</textarea>
           <small class="counter" data-for="agenda"></small></label>
       </section>
@@ -60,7 +60,7 @@ export async function renderMeeting(el, id) {
       ${memoDocSection(p)}
 
       <section class="card" data-live="summary">
-        <div class="section-head"><h2>話し合いの概要 <span class="live-badge" data-badge="summary"></span></h2>${copyButton("summary")}</div>
+        <div class="section-head"><h2>話し合いの概要 <span class="live-badge" data-badge="summary"></span></h2><span class="row-left">${canEdit ? `<button type="button" class="copy-btn" data-history="summary" title="これまでに保存した内容">🕘 履歴</button>` : ""}${copyButton("summary")}</span></div>
         <label><textarea name="summary" data-rich rows="3" maxlength="10000" aria-label="話し合いの概要" ${ro} placeholder="決まったこと・方向性だけを数行で">${esc(minute?.summary)}</textarea>
           <small class="counter" data-for="summary"></small></label>
       </section>
@@ -235,20 +235,22 @@ export async function renderMeeting(el, id) {
     live.touched[f] = Date.now();
     status("入力中…");
     clearTimeout(live.timers[f]);
-    live.timers[f] = setTimeout(() => saveField(f), 1000);
+    live.timers[f] = setTimeout(() => saveField(f).catch(() => {}), 1000);
   }
   // 1項目ずつ、順番に保存する（前の保存が終わってから次を送る）
   function saveField(f) {
     clearTimeout(live.timers[f]);
-    live.chain[f] = (live.chain[f] || Promise.resolve()).then(async () => {
+    // 前の保存が失敗していても、次の保存は必ず送る（失敗したままつなぐと、それ以降の保存がすべて止まってしまう）
+    live.chain[f] = (live.chain[f] || Promise.resolve()).catch(() => {}).then(async () => {
       if (!live.dirty.has(f)) return;
       live.dirty.delete(f);
       live.inflight.add(f);
       try {
         const sent = valueOf(f);
-        const body = f === "todos" ? sent : { ...sent, base: { [f]: live.base[f] } };
+        const body = f === "todos" ? sent : { ...sent, base: { [f]: live.base[f] }, restore: live.restore.delete(f) || undefined };
         const res = await api(`/api/meetings/${m.id}/minutes`, { method: "PUT", body });
         live.touched[f] = Date.now();
+        if (live.retries[f]) { live.retries[f] = 0; if (!form.isConnected) toast("✓ MTGの議事録を保存できました"); }
         if (f !== "todos") {
           live.base[f] = res.merged?.[f] ?? sent[f];
           // ほかの人の内容と合わせた：書き足していなければ画面にも映す（書き足していれば、次の保存で合わさる）
@@ -264,8 +266,11 @@ export async function renderMeeting(el, id) {
         status(`✓ 自動で保存しました（${new Date().toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}）`);
       } catch (err) {
         live.dirty.add(f);
-        status(`⚠ 保存できませんでした：${err.message}`);
-        if (!form.isConnected) toast(`⚠ MTGの議事録を保存できませんでした：${err.message}。MTGの画面に戻って確かめてください`);
+        // 保存できるまで、少し待って自動でやり直す（画面を移っても続ける）
+        live.retries[f] = (live.retries[f] || 0) + 1;
+        status(`⚠ まだ保存できていません（${err.message}）。自動でやり直しています…`);
+        if (!form.isConnected && live.retries[f] === 1) toast(`⚠ MTGの議事録をまだ保存できていません：${err.message}。自動でやり直しています`);
+        if (live.retries[f] <= 200) live.timers[f] = setTimeout(() => saveField(f).catch(() => {}), Math.min(10000, 2000 * live.retries[f]));
         throw err;
       } finally {
         live.inflight.delete(f);
@@ -287,6 +292,40 @@ export async function renderMeeting(el, id) {
     e.returnValue = "";
   };
   window.addEventListener("beforeunload", onUnload);
+  // ほかの画面へ移るときは、保存が終わるのを待つ（app.js。保存できなければ確かめる）
+  guardPending(form, pending, flushAll);
+  // 電波が戻ったら、すぐ送り直す
+  window.addEventListener("online", () => { if (live.dirty.size) flushAll().catch(() => {}); });
+
+  // 🕘 履歴：今回話し合うこと・概要の、これまでに保存した内容を見て戻す
+  el.querySelectorAll("[data-history]").forEach((b) => b.addEventListener("click", () => openHistory(b.dataset.history)));
+  async function openHistory(f) {
+    const { revisions } = await api(`/api/meetings/${m.id}/revisions?field=${f}`);
+    const back = document.createElement("div");
+    back.className = "dialog-backdrop";
+    const label = f === "summary" ? "話し合いの概要" : "今回話し合うこと";
+    back.innerHTML = `<div class="dialog history-dialog" role="dialog" aria-modal="true" aria-label="${label}の履歴">
+      <h3>🕘 ${label}の履歴</h3>
+      <p class="muted small">これまでに保存した内容です（新しい順）。「この内容に戻す」を押すと、今の内容も履歴に残したまま戻します。</p>
+      <div class="history-list">${revisions.length ? revisions.map((r) => `
+        <div class="history-item"><div class="history-meta"><strong>${esc(new Date(r.updated_at).toLocaleString("ja-JP", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" }))}</strong> ${esc(r.name || "")}</div>
+          <pre class="history-body">${esc(r.body)}</pre>
+          ${canWrite(f) ? `<button type="button" class="small" data-restore="${r.id}">この内容に戻す</button>` : ""}</div>`).join("") : `<p class="muted">まだ履歴はありません。</p>`}</div>
+      <div class="form-actions"><button type="button" data-close>閉じる</button></div></div>`;
+    const close = () => back.remove();
+    back.addEventListener("click", (e) => { if (e.target === back || e.target.closest("[data-close]")) close(); });
+    back.querySelectorAll("[data-restore]").forEach((rb) => rb.addEventListener("click", () => {
+      const r = revisions.find((x) => String(x.id) === rb.dataset.restore);
+      form[f].value = r.body;
+      live.restore.add(f);
+      markDirty(f);
+      saveField(f).catch(() => {});
+      close();
+      flash(f);
+      toast("履歴の内容に戻しました（戻す前の内容も履歴に残っています）");
+    }));
+    document.body.append(back);
+  }
 
   // 自分が書いている・保存待ち・保存中の項目は、ほかの人の内容で上書きしない
   const mine = (f) => live.focus === f || live.dirty.has(f) || live.inflight.has(f);

@@ -1,5 +1,5 @@
 // 起動・ログイン状態・ハッシュルーティング
-import { api, esc, avatar, toast, state, hasUnsaved, forgetUnsaved, confirmDialog, fmtDateTime, jstDateTime, prefetch, burst, plusOne, celebrate } from "./lib.js";
+import { api, esc, avatar, toast, state, hasUnsaved, forgetUnsaved, flushPending, confirmDialog, fmtDateTime, jstDateTime, prefetch, burst, plusOne, celebrate } from "./lib.js";
 import { renderHome } from "./views/home.js";
 import { renderSurvey, renderSurveyNew, renderSurveyList } from "./views/surveys.js";
 import { renderSchedulePoll, renderSchedulePollNew } from "./views/schedule-poll.js";
@@ -302,8 +302,10 @@ export async function route() {
     returning = false;
     return;
   }
+  // 自動保存の途中なら、まず送り終わるのを待つ（保存できれば、そのまま移る）
+  if (location.hash !== shownHash && hasUnsaved()) await flushPending();
   if (location.hash !== shownHash && hasUnsaved()) {
-    const leave = await confirmDialog("保存していない内容があります。\n保存せずに、この画面を離れますか？", { ok: "保存せずに離れる" });
+    const leave = await confirmDialog("書いた内容がまだ保存できていません。\nこのまま離れると、消えてしまうおそれがあります。離れますか？", { ok: "保存せずに離れる" });
     if (!leave) {
       returning = true;
       location.replace(`${location.pathname}${location.search}${shownHash}`);

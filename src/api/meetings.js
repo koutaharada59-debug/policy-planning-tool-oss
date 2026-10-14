@@ -19,6 +19,7 @@ export const routes = [
   ["PATCH", "/api/meetings/:id", updateMeeting],
   ["DELETE", "/api/meetings/:id", deleteMeeting],
   ["PUT", "/api/meetings/:id/minutes", saveMinutes],
+  ["GET", "/api/meetings/:id/revisions", listRevisions],
   ["PUT", "/api/meetings/:id/draft", saveDraft],
   ["POST", "/api/meetings/:id/live", liveMinutes],
 ];
@@ -259,6 +260,39 @@ function mergeText(base, mine, theirs) {
   return { text: extra.length ? `${mine}\n${extra.join("\n")}` : mine, both: true };
 }
 
+// 履歴を残す：同じ人が続けて書いている間（2分以内）は同じ行を書き直し、それ以外は新しい行にする。
+// 履歴がまだない欄は、書き換える前の内容も1行残す（この仕組みより前に書かれた内容を守るため）
+const REVISION_GAP = 120000;
+async function keepRevision(env, meetingId, field, text, userId, now, current, force = false) {
+  const last = await env.DB.prepare(
+    "SELECT id, body, user_id, updated_at FROM minute_revisions WHERE meeting_id = ? AND field = ? ORDER BY updated_at DESC, id DESC LIMIT 1"
+  ).bind(meetingId, field).first();
+  if (last && last.body === text) return;
+  if (!last && current?.[field] && current[field] !== text) {
+    await env.DB.prepare("INSERT INTO minute_revisions (meeting_id, field, body, user_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)")
+      .bind(meetingId, field, current[field], current.updated_by, current.updated_at, current.updated_at).run();
+  }
+  if (!text.trim()) return; // 空にしたときは、その前の内容が履歴に残っている
+  if (!force && last && last.user_id === userId && now - last.updated_at < REVISION_GAP && !(last.body.length > 20 && text.length < last.body.length / 2)) {
+    await env.DB.prepare("UPDATE minute_revisions SET body = ?, updated_at = ? WHERE id = ?").bind(text, now, last.id).run();
+  } else {
+    await env.DB.prepare("INSERT INTO minute_revisions (meeting_id, field, body, user_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)")
+      .bind(meetingId, field, text, userId, now, now).run();
+  }
+}
+
+// 議事録の文章の履歴（新しい順）。PJメンバーと管理者が見て、戻せる
+async function listRevisions({ env, user, params, url }) {
+  const meeting = await loadMeeting(env, params.id);
+  await requireEditor(env, user, meeting.project_id);
+  const field = ["agenda", "summary"].includes(url.searchParams.get("field")) ? url.searchParams.get("field") : "summary";
+  const { results } = await env.DB.prepare(
+    `SELECT r.id, r.body, r.created_at, r.updated_at, u.name FROM minute_revisions r LEFT JOIN users u ON u.id = r.user_id
+     WHERE r.meeting_id = ? AND r.field = ? ORDER BY r.updated_at DESC, r.id DESC LIMIT 100`
+  ).bind(meeting.id, field).all();
+  return { revisions: results };
+}
+
 // 議事録を保存する。送られてきた項目だけを書き換える（自動保存は1項目ずつ送る）
 async function saveMinutes({ request, env, user, params, ctx }) {
   const meeting = await loadMeeting(env, params.id);
@@ -279,8 +313,9 @@ async function saveMinutes({ request, env, user, params, ctx }) {
   // 上書きして消さずに両方を残す。merged：両方を残した項目 → その内容（画面に映し直す）
   const merged = {};
   const base = body.base && typeof body.base === "object" ? body.base : null;
+  const current = cols.length
+    ? await env.DB.prepare("SELECT agenda, summary, updated_by, updated_at FROM minutes WHERE meeting_id = ?").bind(meeting.id).first() : null;
   if (base && cols.length) {
-    const current = await env.DB.prepare("SELECT agenda, summary FROM minutes WHERE meeting_id = ?").bind(meeting.id).first();
     for (const c of cols) {
       const [name, mine] = c;
       if (!current || typeof base[name] !== "string") continue;
@@ -299,6 +334,8 @@ async function saveMinutes({ request, env, user, params, ctx }) {
      RETURNING id`
   ).bind(meeting.id, project.id, ...cols.map(([, v]) => v), user.id, user.id, now, now).first();
   const minuteId = row.id;
+  // restore：履歴から戻したとき。戻す前の内容が消えないよう、必ず新しい行にする
+  for (const [field, text] of cols) await keepRevision(env, meeting.id, field, text, user.id, now, current, Boolean(body.restore));
 
   // 「次回までにやること」をタスクとして同期する（この議事録から作ったタスクだけが対象）
   // key：画面の行の目印。新しく作ったタスクの id を、どの行のものか返す（次の自動保存で同じタスクを二重に作らないため）

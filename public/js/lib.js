@@ -583,14 +583,28 @@ export function markSaved(form) {
   if (form) form.dataset.saved = snapshot(form);
 }
 export function hasUnsaved() {
+  if (pendingNow().length) return true;
   for (const f of guarded) {
     if (!f.isConnected) guarded.delete(f);
     else if (snapshot(f) !== f.dataset.saved) return true;
   }
   return false;
 }
+// guardPending(el, pending, flush)：自動保存がまだ終わっていない（失敗して送り直し中も含む）ときに、画面を移る前に保存を待つ
+const pendings = new Set();
+export function guardPending(el, pending, flush) {
+  pendings.add({ el, pending, flush });
+}
+const pendingNow = () => [...pendings].filter((p) => (p.el.isConnected ? p.pending() : (pendings.delete(p), false)));
+// 画面を移る前に、保存待ちの分を送って待つ（長くても ms まで）
+export async function flushPending(ms = 6000) {
+  const list = pendingNow();
+  if (!list.length) return;
+  await Promise.race([Promise.allSettled(list.map((p) => p.flush())), new Promise((r) => setTimeout(r, ms))]);
+}
 export function forgetUnsaved() {
   guarded.clear();
+  pendings.clear();
 }
 window.addEventListener("beforeunload", (e) => {
   if (!hasUnsaved()) return;
@@ -809,6 +823,7 @@ export function autoSave(form, save, { status, delay = 1500 } = {}) {
   let edits = 0;      // 書いた回数（保存のあとに増えていたら、もう一度保存する）
   let timer = null;
   let running = null;
+  let failed = 0;     // 続けて失敗した回数（保存できるまで、少し待って自動でやり直す）
   const show = (t) => { if (status) status.textContent = t; };
   const run = async () => {
     clearTimeout(timer);
@@ -817,10 +832,13 @@ export function autoSave(form, save, { status, delay = 1500 } = {}) {
     if (!at) return;
     show("保存中…");
     running = Promise.resolve().then(save).then(() => {
+      failed = 0;
       if (edits === at) { edits = 0; markSaved(form); }
       show(`✓ 自動で保存しました（${new Date().toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}）`);
     }).catch((err) => {
-      show(`⚠ 保存できませんでした：${err.message}（書き足すと、もう一度保存します）`);
+      show(`⚠ まだ保存できていません（${err.message}）。自動でやり直しています…`);
+      failed++;
+      if (failed <= 200) { clearTimeout(timer); timer = setTimeout(run, Math.min(10000, 2000 * failed)); }
     }).finally(() => { running = null; });
     await running;
     if (edits && edits !== at) schedule();
@@ -831,5 +849,8 @@ export function autoSave(form, save, { status, delay = 1500 } = {}) {
   const flush = () => { if (edits) run(); };
   document.addEventListener("visibilitychange", () => { if (document.hidden) flush(); });
   window.addEventListener("hashchange", flush, { once: true });
+  window.addEventListener("online", flush);
+  // ほかの画面へ移るときは、保存が終わるのを待つ（保存できなければ確かめる）
+  guardPending(form, () => edits > 0 || Boolean(running), run);
   return { flush: run, pending: () => edits > 0 || Boolean(running) };
 }
