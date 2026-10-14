@@ -1,5 +1,5 @@
 // 部門の定例：入口（定例の議事録／進捗を書く／管理者は定例を始める）と、それぞれの画面
-import { api, esc, state, fmtDate, fmtDateTime, jstDateTime, addDays, hashQuery, confirmDialog, busy, toast, formData, copyForNotion, copyButton, bindCopyButtons, pjPicker, pickItem, timerHtml, bindTimer, guardForm, markSaved, mergeText, autoSave } from "../lib.js";
+import { api, esc, state, fmtDate, fmtDateTime, jstDateTime, addDays, hashQuery, confirmDialog, busy, toast, formData, pjPicker, pickItem, timerHtml, bindTimer, guardForm, markSaved, mergeText, autoSave } from "../lib.js";
 import { enhanceRich, richHtml } from "../rich.js";
 import { FIXED, parseLayout, secTools, customSection, addSectionBox, bindLayout, layoutValue } from "../teirei-layout.js";
 const richView = (md) => `<div class="rich-view">${richHtml(md)}</div>`;
@@ -15,12 +15,6 @@ const stageName = (p) => state.types[p.type]?.stages.find((s) => s.no === p.curr
 const stageLabel = (p) => `工程${p.current_stage}・${esc(stageName(p))}`;
 const paragraphs = (r) => FIELDS.filter(([k]) => r[k]).map(([k, label]) => `<h4>${label}</h4><div class="rich-view">${richHtml(r[k])}</div>`).join("")
   || `<p class="muted small">（空欄）</p>`;
-// Notionに貼ると見出し・箇条書きになる形（行頭の「・」「-」は箇条書きにする）
-// 行頭の「・」は箇条書きに。字下げ（トグルの中など）はそのまま残す
-const mdText = (text) => text.replace(/\s+$/, "").split("\n").filter((l) => l.trim()).map((l) => l.replace(/^(\s*)・\s*/, "$1- "));
-const indent = (lines, n = 1) => lines.map((l) => `${"  ".repeat(n)}${l}`);
-// PJの進捗：トグル（PJ名）の中に、項目ごとの太字の見出しと中身
-const reportMd = (r) => FIELDS.filter(([k]) => r[k]?.trim()).flatMap(([k, label]) => [`**${label}**`, ...indent(mdText(r[k]))]);
 
 // ---------- 定例の入口：定例の議事録／進捗を書く／（部門長・副部門長）事務連絡を書く・定例 ----------
 const WEEK_JA = ["日", "月", "火", "水", "木", "金", "土"];
@@ -143,7 +137,7 @@ export async function renderTeirei(el, id) {
   // 枠の並び順と、部門長・副部門長が足した枠
   const layout = parseLayout(m.layout);
   const textSec = (k, empty) => `<section class="card" data-sec="${k}">
-        <div class="section-head"><h2>${FIXED[k]}</h2><span class="row-left">${copyButton(k)}${secTools(k, canEdit)}</span></div>
+        <div class="section-head"><h2>${FIXED[k]}</h2><span class="row-left">${secTools(k, canEdit)}</span></div>
         ${canEdit ? `<textarea name="${k}" data-rich rows="${k === "notice" ? 5 : 3}" maxlength="5000" aria-label="${FIXED[k]}">${esc(m[k])}</textarea>`
           : m[k] ? richView(m[k]) : `<p class="muted">${empty}</p>`}
       </section>`;
@@ -158,7 +152,7 @@ export async function renderTeirei(el, id) {
             <details class="report-toggle">
               <summary><span class="rt-name">${esc(r.project_name)}${r.member_names ? `<small class="rt-members">${esc(r.member_names)}</small>` : ""}</span><span class="stage-pill">${stageLabel(r)}</span></summary>
               <div class="rt-body">
-                <div class="section-head"><a class="small" href="#/projects/${r.project_id}">PJを開く</a>${copyButton(`report-${r.project_id}`)}</div>
+                <div class="section-head"><a class="small" href="#/projects/${r.project_id}">PJを開く</a></div>
                 ${paragraphs(r)}
                 <p class="muted small">${esc(r.updated_by_name || "")}・${fmtDateTime(jstDateTime(r.updated_at))}</p>
               </div>
@@ -182,13 +176,12 @@ export async function renderTeirei(el, id) {
       ${canEdit ? addSectionBox() : ""}</div>
 
       ${m.memo ? `<section class="card">
-        <div class="section-head"><h2>📝 メモ</h2>${copyButton("memo")}</div>
+        <div class="section-head"><h2>📝 メモ</h2></div>
         ${canEdit ? `<textarea name="memo" data-rich rows="4" maxlength="10000" aria-label="メモ">${esc(m.memo)}</textarea>` : `<div class="rich-view">${richHtml(m.memo)}</div>`}
       </section>` : ""}
 
       <div class="form-actions sticky">
         ${canEdit ? `<span class="muted small auto-status" id="auto-status">自動で保存されます</span>` : ""}
-        <button type="button" id="copy-md" title="Notion用にコピー">📋<span class="hide-sm"> Notion用にコピー</span></button>
         ${canEdit ? `<button type="submit" data-save>保存する</button>
           ${m.is_open ? `<button type="submit" class="primary" data-end>定例を終わる</button>`
             : m.is_today ? `<button type="button" data-reopen>↩ 定例を再開する</button>` : ""}` : ""}
@@ -204,30 +197,6 @@ export async function renderTeirei(el, id) {
   el.querySelector("[data-reopen]")?.addEventListener("click", (e) => busy(e.currentTarget, () => reopenTeirei(id, version))
     .then(() => { toast("定例を再開しました"); renderTeirei(el, id); }).catch(() => {}));
 
-  // Notion用：まとめてコピー／項目ごとにコピー（編集中の内容を使う）
-  const val = (k) => (form[k] ? form[k].value : m[k]) || "";
-  const section = {
-    notice: () => ["### 事務連絡", ...(val("notice").trim() ? mdText(val("notice")) : ["（なし）"]), ""],
-    memo: () => (val("memo").trim() ? ["### メモ", ...mdText(val("memo")), ""] : []),
-    news: () => ["### ニュース勉強会", ...(val("news").trim() ? mdText(val("news")) : ["（なし）"]), ""],
-    exchange: () => ["### 意見交換会", ...(val("exchange").trim() ? mdText(val("exchange")) : ["（なし）"]), ""],
-    report: (r) => [`▶ ${r.project_name}（工程${r.current_stage}・${stageName(r)}）${r.member_names ? `　${r.member_names}` : ""}`, ...indent(reportMd(r))],
-  };
-  bindCopyButtons(form, (key) => (key.startsWith("report-")
-    ? section.report(reports.find((r) => `report-${r.project_id}` === key)) : section[key]()).join("\n"));
-  const customText = (k) => form[`sec_${k}`]?.value ?? layout.custom[k]?.body ?? "";
-  const bySec = (k) => (k === "reports"
-    ? ["### 各PJの進捗共有", ...reports.flatMap(section.report), ...missing.map((p) => `▶ ${p.name}（未記入）${p.member_names ? `　${p.member_names}` : ""}`), ""]
-    : section[k] ? section[k]()
-    : [`### ${layout.custom[k]?.title || ""}`, ...(customText(k).trim() ? mdText(customText(k)) : ["（なし）"]), ""]);
-  const copyAll = () => copyForNotion([
-    `## ${meetingLabel(m)}`, "", ...layout.order.flatMap(bySec), ...section.memo(),
-  ].join("\n"));
-  el.querySelector("#copy-md").addEventListener("click", copyAll);
-  // 画面のいちばん下：この定例の議事録をまとめてNotion用にコピー
-  el.insertAdjacentHTML("beforeend", `<div class="copy-all"><button type="button" class="primary" id="copy-all">📋 この定例の議事録をまとめてNotion用にコピー</button>
-    <p class="muted small">Notionに貼ると、見出し・PJごとのトグル・箇条書き・チェック・リンクがそのまま入ります。</p></div>`);
-  el.querySelector("#copy-all").addEventListener("click", copyAll);
 
   // 最後にサーバーと一致していた内容（ぶつかったときにまとめるため）
   const KEYS = ["notice", "news", "exchange", "memo"].filter((k) => form[k]);

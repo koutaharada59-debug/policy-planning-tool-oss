@@ -5,7 +5,22 @@ import { addDays } from "./project-types.js";
 import { regularOccurrences } from "./schedule.js";
 
 export async function runDailyReminders(env) {
-  await Promise.all([remindNextMeeting(env), remindReviews(env), remindTodayMeetings(env), remindTeireiReports(env)]);
+  await Promise.all([remindNextMeeting(env), remindReviews(env), remindTodayMeetings(env), remindTeireiReports(env), remindSchedulePolls(env)]);
+}
+
+// 受付中の日程調整アンケート → まだ答えていないPJのメンバーへ
+async function remindSchedulePolls(env) {
+  const { results } = await env.DB.prepare(
+    `SELECT sp.id, p.name, pm.user_id FROM schedule_polls sp JOIN projects p ON p.id = sp.project_id
+     JOIN project_members pm ON pm.project_id = sp.project_id
+     WHERE sp.closed_at IS NULL AND p.status = 'active'
+       AND NOT EXISTS (SELECT 1 FROM schedule_poll_answers a JOIN schedule_poll_slots s ON s.id = a.slot_id WHERE s.poll_id = sp.id AND a.user_id = pm.user_id)`
+  ).all();
+  const byPoll = new Map();
+  for (const r of results) (byPoll.get(r.id) || byPoll.set(r.id, { name: r.name, users: [] }).get(r.id)).users.push(r.user_id);
+  for (const [id, x] of byPoll) {
+    await notify(env, x.users, `【${x.name}】次回MTGの日程調整アンケートに、まだ答えていません。行ける日時に答えてください`, `#/schedule-polls/${id}`, { dm: true });
+  }
 }
 
 // 今日のPJのMTG → そのPJのメンバーへ（時刻と、議事録を開くリンク）
