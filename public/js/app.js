@@ -443,7 +443,9 @@ function bindPrefetch() {
 bindPrefetch();
 
 // 入力中（スマホでキーボードが出ている間）は、下のメニューを隠す。キーボードの上に浮いて見にくいので
-const isTyping = (t) => Boolean(t?.isContentEditable || t?.matches?.("input:not([type=checkbox]):not([type=radio]):not([type=button]):not([type=submit]),textarea,select"));
+// 選ぶ欄（セレクト・日付など）はキーボードが出ず、選んだあとも選ばれたままになるので入れない
+const isTyping = (t) => Boolean(t?.isContentEditable || t?.matches?.(
+  "input:not([type=checkbox]):not([type=radio]):not([type=button]):not([type=submit]):not([type=date]):not([type=datetime-local]):not([type=time]):not([type=month]):not([type=range]):not([type=color]):not([type=file]),textarea"));
 document.addEventListener("focusin", (e) => document.documentElement.classList.toggle("typing", Boolean(isTyping(e.target))));
 document.addEventListener("focusout", () => setTimeout(() => {
   if (!isTyping(document.activeElement)) document.documentElement.classList.remove("typing");
