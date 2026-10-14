@@ -440,6 +440,13 @@ function bindPrefetch() {
 }
 bindPrefetch();
 
+// 入力中（スマホでキーボードが出ている間）は、下のメニューを隠す。キーボードの上に浮いて見にくいので
+const isTyping = (t) => Boolean(t?.isContentEditable || t?.matches?.("input:not([type=checkbox]):not([type=radio]):not([type=button]):not([type=submit]),textarea,select"));
+document.addEventListener("focusin", (e) => document.documentElement.classList.toggle("typing", Boolean(isTyping(e.target))));
+document.addEventListener("focusout", () => setTimeout(() => {
+  if (!isTyping(document.activeElement)) document.documentElement.classList.remove("typing");
+}, 0));
+
 // やったことにチェックを入れたら、その場ではじけて「+1」（工程のチェック・タスク・宿題など、どの画面でも）
 document.addEventListener("change", (e) => {
   const cb = e.target;

@@ -492,6 +492,10 @@ button.danger:hover{background:#8a3a2b}
   .content{padding-bottom:calc(110px + env(safe-area-inset-bottom))}
   .form-actions.sticky{bottom:calc(76px + env(safe-area-inset-bottom))}
   .toast{bottom:calc(84px + env(safe-area-inset-bottom))}
+  /* 入力中はキーボードの上にメニューが浮くので隠す（public/js/app.js の typing） */
+  .typing .main-nav{display:none}
+  .typing .form-actions.sticky{bottom:0}
+  .typing .toast{bottom:16px}
 
   /* 入力欄は16px（iPhoneで入力するときに画面が拡大されないように） */
   input:not([type=checkbox]):not([type=radio]),select,textarea{font-size:16px;min-height:44px}
