@@ -1,5 +1,6 @@
 // ホームのアンケート：管理者が追加（PJ決めアンケート／その他のアンケート）、みんなが答える、結果を見る
 import { api, esc, shareButton, state, avatar, busy, toast, confirmDialog, fmtDateTime, jstDateTime, celebrate } from "../lib.js";
+import { ico } from "../icons.js";
 
 const METHODS = {
   majority: ["多数決", "1つだけ選ぶ。いちばん多いものに決まる"],
@@ -15,9 +16,9 @@ export async function homeSurveys(box) {
   const open = surveys.filter((s) => !s.closed_at);
   box.innerHTML = `
     ${open.length || polls.length ? `<div class="survey-buttons">${polls.map((x) => `
-      <a class="survey-btn" href="#/schedule-polls/${x.id}"><span class="survey-icon">🗓</span><strong>${esc(x.project_name)}の日程調整</strong><span class="small">回答する ›</span></a>`).join("")}${open.map((s) => `
+      <a class="survey-btn" href="#/schedule-polls/${x.id}"><span class="survey-icon">${ico("calendar")}</span><strong>${esc(x.project_name)}の日程調整</strong><span class="small">回答する ›</span></a>`).join("")}${open.map((s) => `
       <a class="survey-btn ${s.answered ? "is-done" : ""}" href="${s.kind === "pj" ? `#/seeds/${s.round_id}` : `#/surveys/${s.id}`}">
-        <span class="survey-icon">${s.kind === "pj" ? "🗳️" : "📊"}</span><strong>${esc(s.title)}</strong>
+        <span class="survey-icon">${ico(s.kind === "pj" ? "ballot" : "chart")}</span><strong>${esc(s.title)}</strong>
         <span class="small">${s.answered ? "✓ 回答済み" : "回答する ›"}</span></a>`).join("")}</div>` : ""}
     ${state.me.isAdmin ? `<p class="home-admin"><button type="button" class="small" id="add-survey">＋ アンケートを追加</button>
       ${surveys.some((s) => s.closed_at) ? `<a class="small" href="#/surveys">締め切ったアンケート</a>` : ""}</p>` : ""}`;
@@ -32,8 +33,8 @@ function addSurveyDialog() {
     <div class="dialog" role="dialog" aria-modal="true" aria-label="アンケートを追加">
       <p><strong>どのアンケートを追加しますか？</strong></p>
       <div class="survey-kinds">
-        <button type="button" class="kind-btn" data-kind="pj"><span class="kind-icon">🗳️</span><span class="kind-text"><strong>PJ決めアンケート</strong><small class="muted">政策の種に投票して、PJを決める</small></span></button>
-        <button type="button" class="kind-btn" data-kind="other"><span class="kind-icon">📊</span><span class="kind-text"><strong>その他のアンケート</strong><small class="muted">多数決・希望を聞く・RCV・STV から選ぶ</small></span></button>
+        <button type="button" class="kind-btn" data-kind="pj"><span class="kind-icon">${ico("ballot")}</span><span class="kind-text"><strong>PJ決めアンケート</strong><small class="muted">政策の種に投票して、PJを決める</small></span></button>
+        <button type="button" class="kind-btn" data-kind="other"><span class="kind-icon">${ico("chart")}</span><span class="kind-text"><strong>その他のアンケート</strong><small class="muted">多数決・希望を聞く・RCV・STV から選ぶ</small></span></button>
       </div>
       <div class="form-actions"><button type="button" data-no>キャンセル</button></div>
     </div>`;
@@ -58,7 +59,7 @@ export async function renderSurveyNew(el) {
   if (!state.me.isAdmin) throw new Error("アンケートを追加できるのは、管理者です");
   el.innerHTML = `
     <nav class="breadcrumb"><a href="#/">ホーム</a> / アンケートを追加</nav>
-    <div class="page-heading"><h1>📊 その他のアンケート</h1></div>
+    <div class="page-heading"><h1>${ico("chart")} その他のアンケート</h1></div>
     <form class="card form" id="survey-form">
       <label>アンケートの名前<input name="title" maxlength="80" required></label>
       <label>説明（任意）<textarea name="description" rows="2" maxlength="1000"></textarea></label>
@@ -98,7 +99,7 @@ export async function renderSurveyList(el) {
   const { surveys } = await api("/api/surveys");
   el.innerHTML = `
     <nav class="breadcrumb"><a href="#/">ホーム</a> / アンケート</nav>
-    <div class="page-heading"><h1>📊 アンケート</h1></div>
+    <div class="page-heading"><h1>${ico("chart")} アンケート</h1></div>
     <ul class="list">${surveys.map((s) => `
       <li class="list-item"><a href="${s.kind === "pj" ? `#/seeds/${s.round_id}` : `#/surveys/${s.id}`}">${esc(s.title)}</a>
         <div class="meta">${s.closed_at ? `<span class="tag">締め切り</span>` : `<span class="due is-soon">受付中</span>`}
@@ -116,7 +117,7 @@ export async function renderSurvey(el, id) {
 
   el.innerHTML = `
     <nav class="breadcrumb"><a href="#/">ホーム</a> / アンケート</nav>
-    <div class="page-heading"><h1>📊 ${esc(s.title)}</h1>
+    <div class="page-heading"><h1>${ico("chart")} ${esc(s.title)}</h1>
       <p><span class="tag">${mLabel}${s.method === "stv" ? `・${s.seats}つ決める` : ""}</span> ${closed ? `<span class="tag">締め切り</span>` : `<span class="due is-soon">受付中</span>`} <span class="muted small">回答 ${d.count}人</span> ${shareButton("a", s.id)}</p></div>
     ${s.description ? `<p class="survey-desc">${esc(s.description)}</p>` : ""}
     ${closed ? "" : `<form class="card form" id="answer">
@@ -127,7 +128,7 @@ export async function renderSurvey(el, id) {
     </form>`}
     <div id="results"></div>
     ${d.canManage ? `<div class="form-actions" style="justify-content:flex-start">
-      <button type="button" id="toggle-close">${closed ? "↩ 受付を再開する" : "締め切る"}</button>
+      <button type="button" id="toggle-close">${closed ? `${ico("undo")} 受付を再開する` : "締め切る"}</button>
       <button type="button" class="danger" id="delete-survey">削除する</button></div>` : ""}`;
 
   const opts = el.querySelector("#opts");
@@ -172,7 +173,7 @@ function resultsHtml(s, r, answers) {
   const max = Math.max(1, ...r.counts);
   const label = ranked(s.method) ? "第1希望の数" : "票数";
   const bars = s.options.map((o, i) => `
-    <li class="bar-row ${r.winners?.includes(i) ? "is-win" : ""}"><span class="bar-label">${r.winners?.includes(i) ? "🏆 " : ""}${esc(o)}</span>
+    <li class="bar-row ${r.winners?.includes(i) ? "is-win" : ""}"><span class="bar-label">${r.winners?.includes(i) ? `${ico("trophy")} ` : ""}${esc(o)}</span>
       <span class="bar"><span style="width:${(r.counts[i] / max) * 100}%"></span></span><span class="bar-n">${r.counts[i]}</span></li>`).join("");
   const rounds = (r.rounds || []).map((x, n) => `
     <li><strong>${n + 1}回目</strong>：${Object.entries(x.tallies).map(([c, v]) => `${name(c)} ${v}`).join("・")}

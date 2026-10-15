@@ -1477,3 +1477,17 @@ table.accounts input,table.accounts select{width:100%;min-width:180px;margin:0}
   .main-nav a.is-active{color:var(--green)}
   .main-nav .nav-me .nav-ico{width:26px;height:26px}
 }
+
+/* 画面のアイコン（public/js/icons.js の ico()）。大きさは文字に合わせる（絵文字と同じ場所で同じくらいの大きさ） */
+.ico{display:inline-block;width:1.15em;height:1.15em;vertical-align:-.2em;flex:none;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+.ico .solid{fill:currentColor;stroke:none}
+.ico .pt{stroke-width:2.6}
+h1 .ico,h2 .ico,h3 .ico{color:var(--green)}
+.choice-icon .ico,.kind-icon .ico{color:#1d5c50;stroke-width:1.7}
+.survey-icon .ico{color:var(--green)}
+.button .ico,button .ico{vertical-align:-.22em}
+.unverified .ico,.caution .ico,.warn .ico{color:inherit}
+.choice-icon .ico,.kind-icon .ico{width:52%;height:52%;vertical-align:0}
+.survey-icon .ico{width:24px;height:24px}
+.timeline-icon .ico{width:22px;height:22px;color:var(--green)}
+.rb-slash-icon .ico{width:16px;height:16px;vertical-align:0}

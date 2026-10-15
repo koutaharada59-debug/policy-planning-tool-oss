@@ -21,6 +21,7 @@ import { renderHearings, renderHearingNew, renderHearing } from "./views/hearing
 import { renderAdmin } from "./views/admin.js";
 import { renderSourcesView } from "./views/research.js";
 import { renderTeireiHome, renderTeireiMinutes, renderTeireiNotice, renderTeireiSchedule, renderTeirei, renderReportList, renderReport } from "./views/teirei.js";
+import { ico } from "./icons.js";
 
 const ROUTES = [
   [/^\/$/, "home", () => renderHome],
@@ -212,7 +213,7 @@ function bindBellPanel() {
     panel.className = "bell-panel";
     panel.setAttribute("role", "dialog");
     panel.setAttribute("aria-label", "お知らせ");
-    panel.innerHTML = `<div class="bell-panel-head"><strong>🔔 お知らせ</strong><button type="button" class="link-btn" data-close aria-label="閉じる">✕</button></div>
+    panel.innerHTML = `<div class="bell-panel-head"><strong>${ico("bell")} お知らせ</strong><button type="button" class="link-btn" data-close aria-label="閉じる">✕</button></div>
       <p class="muted small bell-loading">読み込み中…</p>`;
     document.querySelector(".site-header").append(panel);
     bell.setAttribute("aria-expanded", "true");
@@ -228,7 +229,7 @@ function bindBellPanel() {
             <small class="muted">${fmtDateTime(jstDateTime(n.created_at))}</small>
           ${n.link ? "</a>" : "</span>"}
         </li>`).join("")}</ul>` : `<p class="muted small">お知らせはまだありません。</p>`}
-      <div class="bell-panel-foot"><a href="#/notices">すべて見る（${notices.length}件）</a><a href="#/my-tasks">✅ 自分のタスク</a></div>`;
+      <div class="bell-panel-foot"><a href="#/notices">すべて見る（${notices.length}件）</a><a href="#/my-tasks">${ico("check")} 自分のタスク</a></div>`;
     // 開いたら既読にする（数字を消す）
     if (notices.some((n) => !n.read_at)) {
       api("/api/notices/read", { method: "POST", body: {} }).then(() => { document.getElementById("bell-count").hidden = true; }).catch(() => {});

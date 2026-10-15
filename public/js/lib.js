@@ -1,3 +1,4 @@
+import { ico } from "./icons.js";
 // 画面共通の小道具。データはすべてサーバーに保存する（ブラウザには、まだ送れていない書きかけだけを一時的に置く）
 
 // ログイン中の情報（ユーザー・メンバー一覧・PJの型）。画面間で共有するだけで、ブラウザには保存しない
@@ -41,7 +42,7 @@ function handleResponse(status, ok, data) {
     const login = `/?returnTo=${encodeURIComponent(location.pathname + location.hash)}`;
     // 書きかけがあるときは、勝手にログイン画面へ移らない（書きかけは端末に残っているので、ログインし直せば戻る）
     if (hasUnsaved()) {
-      setSaveAlert("login", `⚠ ログインが切れました。書いた内容はこの端末に残っています。<a href="${esc(login)}">ログインし直す</a>と、続きから保存されます`);
+      setSaveAlert("login", `${ico("warning")} ログインが切れました。書いた内容はこの端末に残っています。<a href="${esc(login)}">ログインし直す</a>と、続きから保存されます`);
       throw new Error("ログインが切れました");
     }
     location.href = login;
@@ -347,7 +348,7 @@ export async function copyForNotion(markdown) {
 }
 
 // 項目ごとのコピーボタン。押すと bindCopyButtons に渡した関数で、その項目のMarkdownを作ってコピーする
-export const copyButton = (key) => `<button type="button" class="copy-btn" data-copy="${esc(key)}" title="この項目をNotion用にコピー">📋 コピー</button>`;
+export const copyButton = (key) => `<button type="button" class="copy-btn" data-copy="${esc(key)}" title="この項目をNotion用にコピー">${ico("clipboard")} コピー</button>`;
 
 export function bindCopyButtons(el, toMarkdown) {
   el.addEventListener("click", (e) => {
@@ -459,7 +460,7 @@ const fmtElapsed = (ms) => {
 // bar：スクロールしても画面の上に残る1行のタイマー。経過時間で色が変わる（MTG・定例）
 export function timerHtml(key, { target = false, bar = false } = {}) {
   return `<div class="timer ${bar ? "timer-bar" : ""}" data-timer="${esc(key)}">
-    <span class="timer-icon" aria-hidden="true">⏱</span><span class="timer-time" aria-live="off">0:00</span>
+    <span class="timer-icon" aria-hidden="true">${ico("timer")}</span><span class="timer-time" aria-live="off">0:00</span>
     <span class="timer-note muted small"></span>
     ${target ? `<select class="timer-target" aria-label="目標時間"><option value="0">目標なし</option>${[3, 5, 7, 10, 15, 20, 30].map((m) => `<option value="${m}">${m}分</option>`).join("")}</select>` : ""}
     <button type="button" class="small timer-toggle"></button>
@@ -510,7 +511,7 @@ export function bindTimer(root, key, { auto = false, since = null } = {}) {
   const draw = () => {
     const ms = now();
     time.textContent = fmtElapsed(ms);
-    toggle.textContent = t.startedAt ? "⏸ 一時停止" : ms ? "▶ 再開" : "▶ スタート";
+    toggle.innerHTML = t.startedAt ? `${ico("pause")} 一時停止` : ms ? `${ico("play")} 再開` : `${ico("play")} スタート`;
     const over = t.target && ms > t.target * 60000;
     if (box.classList.contains("timer-bar")) {
       const min = ms / 60000;
@@ -802,7 +803,7 @@ export function assigneePicker(users, ids = [], { ro = "", empty = "担当", nam
   const chosen = new Set(ids);
   const label = (set) => (set.size ? users.filter((u) => set.has(u.id)).map((u) => u.name).join("・") || `${set.size}人` : empty);
   return `<details class="ap" data-ap data-ids="${esc([...chosen].join(","))}" ${name ? `data-name="${esc(name)}"` : ""}>
-    <summary class="ap-sum ${ro ? "is-ro" : ""}" ${ro ? 'tabindex="-1"' : ""} aria-label="担当">${chosen.size > 1 ? "👥 " : ""}${esc(label(chosen))}</summary>
+    <summary class="ap-sum ${ro ? "is-ro" : ""}" ${ro ? 'tabindex="-1"' : ""} aria-label="担当">${chosen.size > 1 ? `${ico("users")} ` : ""}${esc(label(chosen))}</summary>
     ${ro ? "" : `<div class="ap-menu">
       <div class="ap-quick"><button type="button" class="small" data-ap-all>${members ? "PJメンバー全員" : "全員"}</button><button type="button" class="small" data-ap-none>なし</button></div>
       ${users.map((u, i) => `${members && !isMember(u) && (i === 0 || isMember(users[i - 1])) ? `<p class="ap-sep">PJ外の人</p>` : ""}<label class="ap-item" ${isMember(u) ? "data-member" : ""}><input type="checkbox" value="${esc(u.id)}" ${chosen.has(u.id) ? "checked" : ""}> ${esc(u.name)}</label>`).join("")}
@@ -827,7 +828,7 @@ function apChanged(ap) {
   const ids = items.filter((l) => l.querySelector("input").checked).map((l) => l.querySelector("input").value);
   const names = items.filter((l) => l.querySelector("input").checked).map((l) => l.textContent.trim());
   ap.dataset.ids = ids.join(",");
-  ap.querySelector(".ap-sum").textContent = `${ids.length > 1 ? "👥 " : ""}${names.join("・") || "担当"}`;
+  ap.querySelector(".ap-sum").innerHTML = `${ids.length > 1 ? `${ico("users")} ` : ""}${esc(names.join("・") || "担当")}`;
   ap.dispatchEvent(new CustomEvent("assignees", { bubbles: true, detail: ids }));
 }
 export const pickerIds = (root) => (root.querySelector("[data-ap]")?.dataset.ids || "").split(",").filter(Boolean);
@@ -906,7 +907,7 @@ export function setSaveAlert(id, message) {
   }
   bar.innerHTML = [...alerts.values()].map((m) => `<div>${m}</div>`).join("");
 }
-const alertText = (what, err) => `⚠ ${esc(what)}がまだ保存できていません（${esc(err?.message || "通信できません")}）。自動でやり直しています。<b>この画面を閉じないでください</b>`;
+const alertText = (what, err) => `${ico("warning")} ${esc(what)}がまだ保存できていません（${esc(err?.message || "通信できません")}）。自動でやり直しています。<b>この画面を閉じないでください</b>`;
 export { alertText as saveAlertText };
 
 // ---------- 自動保存：書くのが止まって少ししたら保存する（1回ずつ順番に）。保存中に書いた分は、次の保存で送る ----------
@@ -976,7 +977,7 @@ export function autoSave(form, save, { status, delay = 1500, key = null, label =
 // kind：a（アンケート）／ r（PJ決め）／ p（日程調整アンケート）
 // 横に「📣 Discordに投稿」（アンケート・日程調整）：PJごとのウェブフックで既存のスレッドに1回投稿し、回答が入るたびに書き直す（src/discord-post.js）
 export const shareButton = (kind, id) =>
-  `<button type="button" class="link-btn share-btn" data-share="${esc(kind)}" data-share-id="${Number(id)}" title="Discordに貼ると、いまの回答状況がカードで出ます">🔗 Discord用にリンクをコピー</button>`
+  `<button type="button" class="link-btn share-btn" data-share="${esc(kind)}" data-share-id="${Number(id)}" title="Discordに貼ると、いまの回答状況がカードで出ます">${ico("link")} Discord用にリンクをコピー</button>`
   + (["a", "p"].includes(kind) ? `<span class="discord-post" data-dp="${esc(kind)}" data-dp-id="${Number(id)}"></span>` : "");
 const DP_LABEL = { a: "アンケート", p: "日程調整アンケート" };
 const dpCache = new WeakMap();
@@ -988,10 +989,10 @@ async function drawDiscordPost(box) {
   dpCache.set(box, st);
   const latest = st.posts[0];
   box.innerHTML = [
-    latest?.url ? `<a class="link-btn" href="${esc(latest.url)}" target="_blank" rel="noopener">💬 Discordの投稿を開く（回答状況を自動で更新中）</a>` : "",
+    latest?.url ? `<a class="link-btn" href="${esc(latest.url)}" target="_blank" rel="noopener">${ico("chat")} Discordの投稿を開く（回答状況を自動で更新中）</a>` : "",
     !st.canPost ? "" : st.targets.length
-      ? `<button type="button" class="link-btn" data-dp-post>📣 ${latest ? "別のスレッドにも投稿" : "Discordのスレッドに投稿（回答状況がリアルタイムで更新）"}</button>`
-      : `<span class="muted small">📣 Discordへの投稿は、管理者メニューでPJのウェブフックを登録すると使えます</span>`,
+      ? `<button type="button" class="link-btn" data-dp-post>${ico("megaphone")} ${latest ? "別のスレッドにも投稿" : "Discordのスレッドに投稿（回答状況がリアルタイムで更新）"}</button>`
+      : `<span class="muted small">${ico("megaphone")} Discordへの投稿は、管理者メニューでPJのウェブフックを登録すると使えます</span>`,
   ].filter(Boolean).join(" ");
 }
 // 画面に「Discordに投稿」の場所が出たら、投稿してあるかを読み込む

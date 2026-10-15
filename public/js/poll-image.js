@@ -85,7 +85,17 @@ export async function draw(d, withAvatars) {
   let y = 24;
   ctx.fillStyle = C.ink;
   ctx.font = `800 24px ${FONT}`;
-  ctx.fillText(`🗓 ${project.name}`.slice(0, 40), PAD, y);
+  // カレンダーのアイコン（画面のアイコンと同じ線）＋PJ名
+  ctx.save();
+  ctx.translate(PAD, y + 2);
+  ctx.scale(26 / 24, 26 / 24);
+  ctx.strokeStyle = C.green;
+  ctx.lineWidth = 1.9;
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  ctx.stroke(new Path2D("M6 5.5h12A2.5 2.5 0 0 1 20.5 8v10A2.5 2.5 0 0 1 18 20.5H6A2.5 2.5 0 0 1 3.5 18V8A2.5 2.5 0 0 1 6 5.5zM3.5 10h17M8 3.5v4M16 3.5v4"));
+  ctx.restore();
+  ctx.fillText(project.name.slice(0, 36), PAD + 34, y);
   y += 34;
   ctx.font = `700 16px ${FONT}`;
   ctx.fillStyle = C.muted;

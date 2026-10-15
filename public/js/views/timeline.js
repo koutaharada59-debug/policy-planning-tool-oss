@@ -1,5 +1,6 @@
 // タイムライン：部門で起きたこと（PJの始まり・工程の完了・議事録・定例の進捗・発表・完了・政策の種・定例）を新しい順に
 import { api, esc, avatar, fmtDate, todayStr, addDays, jstDateTime } from "../lib.js";
+import { ico, EMOJI_ICON } from "../icons.js";
 
 let mine = false; // 自分のPJだけにするか（画面を開いているあいだだけ覚える）
 
@@ -9,7 +10,7 @@ export async function renderTimeline(el) {
   const dayLabel = (d) => (d === today ? "今日" : d === addDays(today, -1) ? "昨日" : fmtDate(d));
   let day = "";
   el.innerHTML = `
-    <div class="page-heading left"><h1>🕒 タイムライン</h1>
+    <div class="page-heading left"><h1>${ico("clock")} タイムライン</h1>
       <p class="muted small">部門で起きたことを新しい順に（この${days}日）。</p></div>
     <div class="tabs" role="tablist">
       <button role="tab" aria-selected="${!mine}" data-mine="0">部門全体</button>
@@ -23,7 +24,7 @@ export async function renderTimeline(el) {
       return `${head}
       <li class="timeline-item kind-${i.kind}">
         <a href="${i.href}">
-          <span class="timeline-icon" aria-hidden="true">${i.icon}</span>
+          <span class="timeline-icon" aria-hidden="true">${EMOJI_ICON[String(i.icon).replace("\uFE0F", "")] ? ico(EMOJI_ICON[String(i.icon).replace("\uFE0F", "")]) : esc(i.icon)}</span>
           <span class="timeline-body">
             <span class="timeline-text">${esc(i.text)}</span>
             <small class="muted">${at.slice(11, 16)}${i.actor ? `・${avatar(i.actor)} ${esc(i.actor.name)}` : ""}</small>

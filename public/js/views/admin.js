@@ -1,5 +1,6 @@
 // 管理者メニュー：管理者ができることの一覧、人事（PJの配属）、ログイン状況、管理者の追加・削除
 import { api, esc, state, avatar, busy, toast, fmtDateTime, jstDateTime, confirmDialog } from "../lib.js";
+import { ico } from "../icons.js";
 
 export async function renderAdmin(el) {
   if (!state.me.isAdmin) throw new Error("管理者メニューは管理者だけが使えます");
@@ -34,16 +35,16 @@ export async function renderAdmin(el) {
   const adminIds = new Set([...data.heads, ...data.fixedAdmins].map((u) => u.id).concat(data.admins.map((a) => a.user_id), (data.addedHeads || []).map((r) => r.user_id)));
   const candidates = data.users.filter((u) => !adminIds.has(u.id));
   const person = (u) => `<span class="person">${avatar(u)} ${esc(u.name)}</span>`;
-  const ok = (v, label) => `<li>${v ? "✅" : "⚠️"} ${label}${v ? "" : "：未設定"}</li>`;
+  const ok = (v, label) => `<li>${ico(v ? "check" : "warning")} ${label}${v ? "" : "：未設定"}</li>`;
 
   el.innerHTML = `
-    <div class="page-heading"><h1>🛠️ 管理者メニュー</h1></div>
+    <div class="page-heading"><h1>${ico("tools")} 管理者メニュー</h1></div>
 
     <details class="section admin-help">
       <summary><strong>管理者ができること</strong></summary>
       <div class="card-grid admin-grid">
         <a class="card admin-card" href="#/seeds">
-          <strong>🌱 PJ決め</strong>
+          <strong>${ico("sprout")} PJ決め</strong>
           <ul>
             <li>PJ決めの作成・締め切り・決めるPJの数の設定</li>
             <li>種の出どころ（ニュース勉強会など）の設定、どの種でも編集・削除</li>
@@ -52,7 +53,7 @@ export async function renderAdmin(el) {
           </ul>
         </a>
         <a class="card admin-card" href="#/projects">
-          <strong>📁 PJ</strong>
+          <strong>${ico("folder")} PJ</strong>
           <ul>
             <li>メンバーでないPJも編集できる（工程・タスク・MTG・議事録）</li>
             <li>PJのアーカイブ（PJの「編集」→ 状態）</li>
@@ -60,7 +61,7 @@ export async function renderAdmin(el) {
           </ul>
         </a>
         <a class="card admin-card" href="#/hearings">
-          <strong>🤝 外部ヒアリング</strong>
+          <strong>${ico("handshake")} 外部ヒアリング</strong>
           <ul>
             <li>承認は、管理者ではなく部門長 → 代表が行う</li>
             <li>部門長・代表は設定ファイル（wrangler.toml）で決まっている</li>
@@ -105,7 +106,7 @@ export async function renderAdmin(el) {
       <section class="section">
         <h2>設定の状態</h2>
         <ul class="settings-list">
-          <li>✅ ログイン：学生チームのDiscordサーバー（${esc(data.settings.guild)}）のメンバー全員</li>
+          <li>${ico("check")} ログイン：学生チームのDiscordサーバー（${esc(data.settings.guild)}）のメンバー全員</li>
           ${ok(data.settings.deptRole, "政策立案部門のロール（外部ヒアリングを見られる人の判定）")}
           ${ok(data.settings.bot, "Bot（DM通知）")}
           ${ok(data.settings.forum, "渉外フォーラム（ヒアリングのスレッド作成）")}
@@ -119,13 +120,13 @@ export async function renderAdmin(el) {
 
   el.insertAdjacentHTML("beforeend", `
     <details class="section" id="accounts">
-      <summary><h2 style="display:inline">🔗 メンバーのアカウント</h2> <small class="muted">Discord ↔ Google・Notion</small></summary>
+      <summary><h2 style="display:inline">${ico("link")} メンバーのアカウント</h2> <small class="muted">Discord ↔ Google・Notion</small></summary>
       <div id="accounts-body"><p class="muted">読み込み中…</p></div>
     </details>`);
   el.querySelector("#accounts").addEventListener("toggle", (e) => { if (e.target.open && !e.target.dataset.loaded) loadAccounts(el.querySelector("#accounts-body"), person); e.target.dataset.loaded = "1"; });
   el.insertAdjacentHTML("beforeend", `
     <details class="section" id="discord-hooks">
-      <summary><h2 style="display:inline">📣 Discordの投稿先</h2> <small class="muted">PJごとのウェブフックとスレッド</small></summary>
+      <summary><h2 style="display:inline">${ico("megaphone")} Discordの投稿先</h2> <small class="muted">PJごとのウェブフックとスレッド</small></summary>
       <div id="discord-hooks-body"><p class="muted">読み込み中…</p></div>
     </details>`);
   el.querySelector("#discord-hooks").addEventListener("toggle", (e) => { if (e.target.open && !e.target.dataset.loaded) loadDiscordHooks(el.querySelector("#discord-hooks-body")); e.target.dataset.loaded = "1"; });
@@ -186,7 +187,7 @@ async function bindNotionBackfill(box) {
     box.innerHTML = left ? `<p class="muted small">Notionをつなぐと、これまでの議事録（MTG ${c.meetings}件・定例 ${c.teirei}件）をまとめて入れられます。</p>` : "";
     return;
   }
-  if (!left) { box.innerHTML = `<p class="muted small">✅ これまでの議事録は、すべてNotionに入っています。</p>`; return; }
+  if (!left) { box.innerHTML = `<p class="muted small">${ico("check")} これまでの議事録は、すべてNotionに入っています。</p>`; return; }
   box.innerHTML = `<p class="small">Notionにまだ入っていない議事録：MTG ${c.meetings}件・定例 ${c.teirei}件</p>
     <button type="button" class="primary small" id="backfill-run">これまでの議事録をNotionに入れる</button>`;
   box.querySelector("#backfill-run").addEventListener("click", async (e) => {
@@ -259,7 +260,7 @@ async function loadAccounts(box, person) {
   const options = (sel) => `<option value="">（選ばない）</option>${d.notionUsers.map((n) => `<option value="${esc(n.id)}" ${n.id === sel ? "selected" : ""}>${esc(n.name)}</option>`).join("")}`;
   box.innerHTML = `
     <p class="muted small">Googleアカウントは打ち込み、Notionアカウントは、学生チームのNotionのメンバーと、NotionのPJページ・議事録の「人」の欄に入っている人から選びます（いない人は、NotionのPJページの参加者に一度入れると出てきます）。変えるとすぐ保存されます。見られるのは管理者だけです。</p>
-    ${!d.notion ? `<p class="caution small">⚠ Notion連携（NOTION_TOKEN）がまだなので、Notionアカウントは選べません。</p>` : d.notionError ? `<p class="caution small">⚠ ${esc(d.notionError)}</p>` : ""}
+    ${!d.notion ? `<p class="caution small">${ico("warning")} Notion連携（NOTION_TOKEN）がまだなので、Notionアカウントは選べません。</p>` : d.notionError ? `<p class="caution small">${ico("warning")} ${esc(d.notionError)}</p>` : ""}
     <div class="table-wrap"><table class="accounts">
       <thead><tr><th>Discord</th><th>Googleアカウント</th><th>Notionアカウント</th></tr></thead>
       <tbody>${d.users.map((u) => `<tr data-user="${esc(u.id)}">
@@ -294,8 +295,8 @@ function staffingSection({ projects, users }, person) {
   const option = (v, l) => `<option value="${esc(v)}">${esc(l)}</option>`;
   return `
     <section class="section">
-      <h2>🧩 人事（PJの配属）</h2>
-      ${active.length ? `<details class="add-box staff-move-box"><summary class="button small primary">🔀 異動</summary>
+      <h2>${ico("puzzle")} 人事（PJの配属）</h2>
+      ${active.length ? `<details class="add-box staff-move-box"><summary class="button small primary">${ico("shuffle")} 異動</summary>
       <form class="card form staff-move" id="staff-move">
         <select name="user_id" required aria-label="誰を"><option value="">誰を</option>${logged.map((u) => option(u.id, u.name)).join("")}</select>
         <select name="from_project_id" aria-label="どこから"><option value="">どこから（なし＝追加だけ）</option></select>
@@ -376,11 +377,11 @@ function loginSection({ users, heads, reps, addedReps = [], addedHeads = [] }, p
   ].filter(Boolean).map((t) => `<span class="tag">${t}</span>`).join("");
   return `
     <section class="section">
-      <h2>👥 ログイン状況 <small class="muted">ログイン済み ${logged.length}人</small></h2>
+      <h2>${ico("users")} ログイン状況 <small class="muted">ログイン済み ${logged.length}人</small></h2>
       ${logged.length ? `<ul class="list">${logged.map((u) => `
         <li class="list-item">${person(u)}<div class="meta">${tags(u)}<span class="muted small">最終ログイン ${fmtDateTime(jstDateTime(u.last_login))}</span></div></li>`).join("")}</ul>`
         : `<p class="muted">まだ誰もログインしていません。</p>`}
-      ${missingFixed.length ? `<p class="caution small">⚠ まだログインしていない：${missingFixed.map((u) => esc(u.name)).join("、")}（部門長・代表の設定）</p>` : ""}
+      ${missingFixed.length ? `<p class="caution small">${ico("warning")} まだログインしていない：${missingFixed.map((u) => esc(u.name)).join("、")}（部門長・代表の設定）</p>` : ""}
       ${notYet.length ? `<details class="section" style="margin-top:12px"><summary class="small">希望PJアンケートで投票しただけで、まだログインしていない人（${notYet.length}人）</summary>
         <p class="staff-members" style="margin-top:8px">${notYet.map(person).join("")}</p></details>` : ""}
       <p class="muted small">「部門ロール」は、ログインした時点で政策立案部門のロールを持っていた人です（外部ヒアリングを見られる）。</p>
@@ -393,7 +394,7 @@ function errorSection(errors) {
   const recent = errors.filter((e) => e.created_at >= day).length;
   return `
     <details class="section error-logs">
-      <summary><strong>⚠️ エラーの記録</strong> <small class="muted">${errors.length ? `直近24時間 ${recent}件・新しい順に${errors.length}件` : "まだありません"}</small></summary>
+      <summary><strong>${ico("warning")} エラーの記録</strong> <small class="muted">${errors.length ? `直近24時間 ${recent}件・新しい順に${errors.length}件` : "まだありません"}</small></summary>
       ${errors.length ? `<ul class="list">${errors.map((e) => `
         <li class="list-item error-log">
           <span><span class="tag">${e.source === "client" ? "画面" : "サーバー"}</span> <strong>${esc(e.message)}</strong>

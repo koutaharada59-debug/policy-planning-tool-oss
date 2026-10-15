@@ -6,6 +6,7 @@
 //
 // 書き方：行の頭で「# 」「- 」「[] 」などを打つと変わる。「/」でメニュー。文字を選ぶと太字・リンクなどのバー。
 import { esc, embedUrl, toast } from "./lib.js";
+import { ico, EMOJI_ICON } from "./icons.js";
 
 const TYPES = {
   p: { label: "本文", md: "" },
@@ -66,7 +67,7 @@ function embedHtml(url) {
   try { host = new URL(url).hostname.replace(/^www\./, ""); } catch { /* そのまま */ }
   const yt = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([\w-]{6,})/);
   const frame = yt ? `https://www.youtube.com/embed/${yt[1]}` : embedUrl(url);
-  return `<a class="rb-card" href="${esc(url)}" target="_blank" rel="noopener" contenteditable="false"><span class="rb-card-icon">🔗</span><span><strong>${esc(host || url)}</strong><small>${esc(url)}</small></span></a>${frame ? `<iframe class="rb-frame" src="${esc(frame)}" loading="lazy" allowfullscreen></iframe>` : ""}`;
+  return `<a class="rb-card" href="${esc(url)}" target="_blank" rel="noopener" contenteditable="false"><span class="rb-card-icon">${ico("link")}</span><span><strong>${esc(host || url)}</strong><small>${esc(url)}</small></span></a>${frame ? `<iframe class="rb-frame" src="${esc(frame)}" loading="lazy" allowfullscreen></iframe>` : ""}`;
 }
 function blockHtml([type, text, checked, indent = 0], editable) {
   // 番号付きリストは、3つ目に書いた番号が入る（1以外から始まるときに使う）
@@ -452,7 +453,7 @@ function attach(ta) {
     closeSlash();
     const menu = document.createElement("div");
     menu.className = "rb-slash";
-    menu.innerHTML = SLASH.map(([t, icon, label]) => `<button type="button" data-t="${t}"><span class="rb-slash-icon">${icon}</span>${label}</button>`).join("");
+    menu.innerHTML = SLASH.map(([t, icon, label]) => `<button type="button" data-t="${t}"><span class="rb-slash-icon">${EMOJI_ICON[icon.replace("\uFE0F", "")] ? ico(EMOJI_ICON[icon.replace("\uFE0F", "")]) : icon}</span>${label}</button>`).join("");
     document.body.append(menu);
     const r = getSelection().getRangeAt(0).getBoundingClientRect();
     menu.style.left = `${Math.min(r.left + scrollX, scrollX + innerWidth - 260)}px`;
@@ -513,7 +514,7 @@ function attach(ta) {
       bar.className = "rb-bar";
       bar.innerHTML = `<button type="button" data-a="bold" title="太字"><b>B</b></button><button type="button" data-a="italic" title="斜体"><i>I</i></button>
         <button type="button" data-a="strikeThrough" title="取り消し線"><s>S</s></button><button type="button" data-a="code" title="コード">&lt;/&gt;</button>
-        <button type="button" data-a="link" title="リンク">🔗</button><span class="rb-bar-sep"></span>
+        <button type="button" data-a="link" title="リンク">${ico("link")}</button><span class="rb-bar-sep"></span>
         <button type="button" data-a="h1" title="見出し（大）">大</button><button type="button" data-a="h2" title="見出し（中）">中</button><button type="button" data-a="h3" title="見出し（小）">小</button><button type="button" data-a="p" title="本文">本文</button>`;
       document.body.append(bar);
       bar.addEventListener("mousedown", (e) => {

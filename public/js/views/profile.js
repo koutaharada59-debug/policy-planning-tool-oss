@@ -1,6 +1,7 @@
 // プロフィール：担当しているタスクと、参加しているPJ
 // 自分（#/me）はタスクをその場で完了にでき、ほかのメンバー（#/members/ID）は見るだけ
 import { api, esc, avatar, busy, dueBadge, state, stageStepper, TASK_STATUS } from "../lib.js";
+import { ico } from "../icons.js";
 
 export async function renderProfile(el, userId = null) {
   const self = !userId || userId === state.me.id;
@@ -34,7 +35,7 @@ export async function renderProfile(el, userId = null) {
       <a href="#profile-projects"><strong>${active.length}</strong><small>参加中のPJ</small></a>
     </div>
 
-    <h2 id="profile-tasks">✅ 担当中のタスク</h2>
+    <h2 id="profile-tasks">${ico("check")} 担当中のタスク</h2>
     ${open.length ? `<ul class="list">${open.map((t) => `
       <li class="list-item">
         ${self ? `<label class="check"><input type="checkbox" data-task="${t.id}">
@@ -44,12 +45,12 @@ export async function renderProfile(el, userId = null) {
       </li>`).join("")}</ul>` : `<div class="empty"><p>担当中のタスクはありません。</p></div>`}
     ${self ? `<p class="profile-more"><a href="#/my-tasks">タスクを追加する・完了したタスクを見る ›</a></p>` : ""}
 
-    <h2 id="profile-projects">📁 参加中のPJ</h2>
+    <h2 id="profile-projects">${ico("folder")} 参加中のPJ</h2>
     ${active.length ? `<div class="card-grid">${active.map(card).join("")}</div>` : `<div class="empty"><p>参加中のPJはありません。</p></div>`}
     ${done.length ? `<details class="fold profile-done"><summary>完了したPJ（${done.length}）</summary>
       <div class="card-grid">${done.map(card).join("")}</div></details>` : ""}
 
-    ${self && others.length ? `<details class="fold profile-done profile-members"><summary>👥 ほかのメンバーを見る（${others.length}人）</summary>
+    ${self && others.length ? `<details class="fold profile-done profile-members"><summary>${ico("users")} ほかのメンバーを見る（${others.length}人）</summary>
       <ul class="member-list">${others.map((u) => `<li><a href="#/members/${encodeURIComponent(u.id)}">${avatar(u)}<span>${esc(u.name)}</span></a></li>`).join("")}</ul>
     </details>` : ""}
     ${self ? `<p class="profile-logout"><a class="button small" href="/auth/logout">ログアウト</a></p>` : ""}`;

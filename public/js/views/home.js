@@ -1,6 +1,7 @@
 // ホーム：やりたいことを選ぶ（ミーティング・確認・発表・定例）
 import { api, esc, state, todayStr } from "../lib.js";
 import { homeSurveys } from "./surveys.js";
+import { ico } from "../icons.js";
 
 export async function renderHome(el) {
   el.innerHTML = `
@@ -9,27 +10,27 @@ export async function renderHome(el) {
     </div>
     <div class="choices">
       <a class="choice" href="#/start">
-        <span class="choice-icon">🗣️</span>
+        <span class="choice-icon">${ico("talk")}</span>
         <strong>ミーティングを始める</strong>
         <span class="choice-badge" id="badge-start" hidden></span>
       </a>
       <a class="choice" href="#/check">
-        <span class="choice-icon">🔍</span>
+        <span class="choice-icon">${ico("search")}</span>
         <strong>確認する</strong>
         <span class="choice-badge" id="badge-check" hidden></span>
       </a>
       <a class="choice" href="#/present">
-        <span class="choice-icon">🎤</span>
+        <span class="choice-icon">${ico("mic")}</span>
         <strong>発表する</strong>
       </a>
       <a class="choice" href="#/teirei">
-        <span class="choice-icon">🏛️</span>
+        <span class="choice-icon">${ico("landmark")}</span>
         <strong>定例</strong>
         <span class="choice-badge" id="badge-teirei" hidden></span>
       </a>
     </div>
     <div id="home-surveys"></div>
-    ${state.me.isAdmin ? `<p class="home-admin"><a class="button small" href="#/admin">🛠️ 管理者メニュー</a></p>` : ""}`;
+    ${state.me.isAdmin ? `<p class="home-admin"><a class="button small" href="#/admin">${ico("tools")} 管理者メニュー</a></p>` : ""}`;
   // 管理者が出したアンケート（PJ決めアンケートなど）
   homeSurveys(el.querySelector("#home-surveys")).catch(() => {});
 

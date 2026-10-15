@@ -1,5 +1,6 @@
 // PJ一覧と、PJの作成・編集フォーム
 import { api, esc, state, avatar, dueBadge, fmtDateTime, fmtDate, busy, formData, toast, confirmDialog, WEEK, addDays, nextMonday, stageStepper, guardForm, markSaved, bindMemberFilter, viewSwitch, bindViewSwitch } from "../lib.js";
+import { ico } from "../icons.js";
 
 // 「政策の種を出す」：受付中のPJ決めを開いて、投稿欄を出す（受付中がなければ「次のPJ決め」ができる）
 export function openSeedBox(button) {
@@ -25,7 +26,7 @@ export async function renderProjects(el) {
           ${[["mine", "参加中"], ["active", "進行中すべて（部門）"], ["done", "完了"], ["all", "すべて"]].map(([k, l]) =>
             `<button role="tab" aria-selected="${filter === k}" data-filter="${k}">${l}</button>`).join("")}
         </div>
-        <span class="row-left">${state.me.isAdmin ? `<a class="button" href="#/schedule">🗓 期日を設定する</a>` : ""}<button type="button" class="button" data-seed-box>🌱 政策の種を出す</button>
+        <span class="row-left">${state.me.isAdmin ? `<a class="button" href="#/schedule">${ico("calendar")} 期日を設定する</a>` : ""}<button type="button" class="button" data-seed-box>${ico("sprout")} 政策の種を出す</button>
           <a class="button primary" href="#/projects/new">＋ PJを作る</a></span>
       </div>
       ${list.length ? `<div class="card-grid">${list.map((p) => `
@@ -75,19 +76,19 @@ export async function renderProjectForm(el, id) {
       </label>
       <fieldset class="doc-urls">
         <legend>Googleドキュメント（任意・あとから登録できます）</legend>
-        <label>🔎 リサーチドキュメント <small class="muted">調べたことをメンバーがタブを分けて書き残す。議事録の画面に表示されます</small>
+        <label>${ico("search")} リサーチドキュメント <small class="muted">調べたことをメンバーがタブを分けて書き残す。議事録の画面に表示されます</small>
           <input name="memo_doc_url" type="url" value="${esc(p.memo_doc_url)}" placeholder="https://docs.google.com/document/...">
         </label>
-        <label>📊 課題共有の資料 <small class="muted">政調MTGの課題共有で使うもの。「発表する」で課題共有を選ぶと表示されます</small>
+        <label>${ico("chart")} 課題共有の資料 <small class="muted">政調MTGの課題共有で使うもの。「発表する」で課題共有を選ぶと表示されます</small>
           <input name="share_doc_url" type="url" value="${esc(p.share_doc_url)}" placeholder="https://docs.google.com/...">
         </label>
-        <label>📄 政調用の本文 <small class="muted">政策提言として形を整えたもの</small>
+        <label>${ico("doc")} 政調用の本文 <small class="muted">政策提言として形を整えたもの</small>
           <input name="doc_url" type="url" value="${esc(p.doc_url)}" placeholder="https://docs.google.com/document/...">
         </label>
-        <label>🎤 政調用の台本
+        <label>${ico("mic")} 政調用の台本
           <input name="script_doc_url" type="url" value="${esc(p.script_doc_url)}" placeholder="https://docs.google.com/document/...">
         </label>
-        <label>💬 DiscordのチャンネルID <small class="muted">PJ画面の「💬 Discord」ボタンで開くチャンネル（リンクを貼ってもOK）。アンケートの投稿先は、管理者メニュー「📣 Discordの投稿先」で登録します</small>
+        <label>${ico("chat")} DiscordのチャンネルID <small class="muted">PJ画面の「${ico("chat")} Discord」ボタンで開くチャンネル（リンクを貼ってもOK）。アンケートの投稿先は、管理者メニュー「${ico("megaphone")} Discordの投稿先」で登録します</small>
           <input name="discord_channel_id" inputmode="numeric" value="${esc(p.discord_channel_id || "")}" placeholder="例：1559189147137081484">
         </label>
       </fieldset>

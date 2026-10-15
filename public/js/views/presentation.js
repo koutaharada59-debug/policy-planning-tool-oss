@@ -1,5 +1,6 @@
 // フェーズ3：発表・提出タブ（発表準備／政調からのフィードバック／最終提出）
 import { api, esc, state, busy, toast, formData, memberOptions, fmtDate, fmtDateTime, dueBadge, gcalEventUrl, gcalLink, membersFirst, confirmDialog, guardForm, markSaved } from "../lib.js";
+import { ico } from "../icons.js";
 
 export const FB_STATUS = { todo: "未対応", doing: "対応中", done: "反映済み" };
 const ROLE_LABELS = [
@@ -22,7 +23,7 @@ export async function renderPresentationTab(body, projectId) {
   const chip = (ok, label) => `<span class="prep-chip ${ok ? "ok" : ""}">${ok ? "✓" : "・"} ${label}</span>`;
 
   body.innerHTML = `
-    <p class="cross-links"><a class="button small primary" href="#/present/${projectId}">🎤 発表する（本番・タイマー・記録）へ</a></p>
+    <p class="cross-links"><a class="button small primary" href="#/present/${projectId}">${ico("mic")} 発表する（本番・タイマー・記録）へ</a></p>
     <section class="card present-summary">
       <div class="row">
         <div><span class="muted small">政調での最終発表</span>
@@ -141,8 +142,8 @@ export async function renderPresentationTab(body, projectId) {
         <label>提出した改訂版のURL<input type="url" name="final_url" value="${esc(prep.final_url)}" ${ro}></label>
       </div>
       <label>メモ<textarea name="final_memo" rows="2" maxlength="500" ${ro}>${esc(prep.final_memo)}</textarea></label>
-      ${prep.final_status !== "done" ? "" : data.project.status === "done" ? `<p class="notice small">🎉 最終提出が済み、PJは完了しています。</p>`
-        : data.project.completion_requested_at ? `<p class="notice small">⏳ 最終提出が済み、部門長・副部門長の承認待ちです。</p>`
+      ${prep.final_status !== "done" ? "" : data.project.status === "done" ? `<p class="notice small">${ico("party")} 最終提出が済み、PJは完了しています。</p>`
+        : data.project.completion_requested_at ? `<p class="notice small">${ico("hourglass")} 最終提出が済み、部門長・副部門長の承認待ちです。</p>`
         : `<p class="caution small">まだ部門長・副部門長に完了の承認を依頼していません。「最終提出を保存」を押すと依頼します。</p>`}
       ${canEdit ? `<div class="form-actions"><button class="primary">最終提出を保存</button></div>` : ""}
     </form>`;

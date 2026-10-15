@@ -2,6 +2,7 @@
 import { api, esc, state, fmtDate, fmtDateTime, jstDateTime, addDays, hashQuery, confirmDialog, busy, toast, formData, pjPicker, pickItem, timerHtml, bindTimer, guardForm, markSaved, mergeText, autoSave } from "../lib.js";
 import { enhanceRich, richHtml } from "../rich.js";
 import { FIXED, parseLayout, secTools, customSection, addSectionBox, bindLayout, layoutValue } from "../teirei-layout.js";
+import { ico, iconText } from "../icons.js";
 const richView = (md) => `<div class="rich-view">${richHtml(md)}</div>`;
 
 const EVENTS = { "": "なし", news: "ニュース勉強会", exchange: "意見交換会" };
@@ -27,25 +28,25 @@ export async function renderTeireiHome(el) {
   const todays = meetings.find((m) => m.held_on === today);
   const admin = state.me.isAdmin;
   el.innerHTML = `
-    <div class="page-heading"><h1>🏛️ 定例</h1></div>
+    <div class="page-heading"><h1>${ico("landmark")} 定例</h1></div>
     <div class="choices ${admin ? "two" : todays?.is_open ? "" : "two"}">
       <a class="choice" href="#/teirei/minutes">
-        <span class="choice-icon">📄</span>
+        <span class="choice-icon">${ico("doc")}</span>
         <strong>定例の議事録</strong>
       </a>
       <a class="choice" href="#/report">
-        <span class="choice-icon">📝</span>
+        <span class="choice-icon">${ico("note")}</span>
         <strong>進捗を書く</strong>
       </a>
       ${admin ? `<button type="button" class="choice" data-panel="notice">
-        <span class="choice-icon">📢</span>
+        <span class="choice-icon">${ico("megaphone")}</span>
         <strong>事務連絡を書く<small class="choice-role">部門長・副部門長</small></strong>
       </button>
       <button type="button" class="choice" data-panel="teirei">
-        <span class="choice-icon">🏛️</span>
+        <span class="choice-icon">${ico("landmark")}</span>
         <strong>定例<small class="choice-role">部門長・副部門長</small></strong>
       </button>` : todays?.is_open ? `<a class="choice" href="#/teirei/${todays.id}">
-        <span class="choice-icon">▶️</span>
+        <span class="choice-icon">${ico("play")}</span>
         <strong>今日の定例を開く</strong>
       </a>` : ""}
     </div>
@@ -63,9 +64,9 @@ export async function renderTeireiHome(el) {
 
   // 定例：始める／予定する
   const teireiPanel = () => show("teirei", `
-    ${todays?.is_open ? `<a class="button primary" href="#/teirei/${todays.id}">▶ 今日の定例を開く</a>` : ""}
-    <button type="button" class="${todays?.is_open ? "" : "primary"}" data-act="start">▶ 定例を始める</button>
-    <a class="button" href="#/teirei/schedule">🗓 定例を予定する</a>`);
+    ${todays?.is_open ? `<a class="button primary" href="#/teirei/${todays.id}">${ico("play")} 今日の定例を開く</a>` : ""}
+    <button type="button" class="${todays?.is_open ? "" : "primary"}" data-act="start">${ico("play")} 定例を始める</button>
+    <a class="button" href="#/teirei/schedule">${ico("calendar")} 定例を予定する</a>`);
 
   // 定例を始める：予定から直近3回の日時を出す。押すとその日時の定例（議事録）を作る
   const startPanel = async () => {
@@ -76,11 +77,11 @@ export async function renderTeireiHome(el) {
       ${upcoming.length ? `<ul class="planned-list">${upcoming.map((x, i) => `
         <li><div><strong>${slotLabel(x.starts_at)}</strong>${x.starts_at.startsWith(today) ? `<span class="tag">今日</span>` : ""}${stateTag(x.meeting)}</div>
           ${!x.meeting ? `<button type="button" class="${i === 0 ? "primary" : ""}" data-start="${x.starts_at}">この日時の定例を始める</button>`
-            : x.meeting.ended_at && x.meeting.held_on === today ? `<span class="row-left"><a class="button" href="#/teirei/${x.meeting.id}">議事録を開く</a><button type="button" data-reopen="${x.meeting.id}">↩ 再開する</button></span>`
+            : x.meeting.ended_at && x.meeting.held_on === today ? `<span class="row-left"><a class="button" href="#/teirei/${x.meeting.id}">議事録を開く</a><button type="button" data-reopen="${x.meeting.id}">${ico("undo")} 再開する</button></span>`
             : `<a class="button ${x.meeting.ended_at ? "" : "primary"}" href="#/teirei/${x.meeting.id}">${x.meeting.ended_at ? "議事録を開く" : "開く"}</a>`}</li>`).join("")}</ul>`
         : `<p class="muted small">定例の予定がありません。「定例を予定する」から登録できます。</p>`}
       ${todays && !todayInList ? `<p class="small">今日の定例（予定外）：${stateTag(todays)}
-          <a href="#/teirei/${todays.id}">開く</a>${todays.ended_at ? ` <button type="button" class="link-btn" data-reopen="${todays.id}">↩ 再開する</button>` : ""}</p>`
+          <a href="#/teirei/${todays.id}">開く</a>${todays.ended_at ? ` <button type="button" class="link-btn" data-reopen="${todays.id}">${ico("undo")} 再開する</button>` : ""}</p>`
         : !todays && !todayInList ? `<button type="button" class="link-btn" data-adhoc>予定外で今日の定例を始める</button>` : ""}
       <div class="form-actions"><button type="button" data-back>← 戻る</button></div>`);
     panel.querySelectorAll("[data-start]").forEach((b) => b.addEventListener("click", () =>
@@ -121,7 +122,7 @@ export async function renderTeireiMinutes(el) {
   const { meetings } = await api("/api/dept-meetings");
   el.innerHTML = `
     <nav class="breadcrumb"><a href="#/teirei">定例</a> / 定例の議事録</nav>
-    <div class="page-heading left"><h1>📄 定例の議事録</h1></div>
+    <div class="page-heading left"><h1>${ico("doc")} 定例の議事録</h1></div>
     ${meetings.length ? `<ul class="list">${meetings.map((m) => `
       <li class="list-item"><a href="#/teirei/${m.id}">${meetingLabel(m)}</a>
         <div class="meta">${m.is_open ? `<span class="due is-soon">進行中</span>` : ""}
@@ -137,7 +138,7 @@ export async function renderTeirei(el, id) {
   // 枠の並び順と、部門長・副部門長が足した枠
   const layout = parseLayout(m.layout);
   const textSec = (k, empty) => `<section class="card" data-sec="${k}">
-        <div class="section-head"><h2>${FIXED[k]}</h2><span class="row-left">${secTools(k, canEdit)}</span></div>
+        <div class="section-head"><h2>${iconText(FIXED[k])}</h2><span class="row-left">${secTools(k, canEdit)}</span></div>
         ${canEdit ? `<textarea name="${k}" data-rich rows="${k === "notice" ? 5 : 3}" maxlength="30000" aria-label="${FIXED[k]}">${esc(m[k])}</textarea>`
           : m[k] ? richView(m[k]) : `<p class="muted">${empty}</p>`}
       </section>`;
@@ -146,7 +147,7 @@ export async function renderTeirei(el, id) {
     news: () => textSec("news", "なし"),
     exchange: () => textSec("exchange", "なし"),
     reports: () => `<section class="card" data-sec="reports">
-        <div class="section-head"><h2>${FIXED.reports}</h2><span class="row-left">${m.is_open ? `<button type="button" class="small" id="reload">最新にする</button>` : ""}${secTools("reports", canEdit)}</span></div>
+        <div class="section-head"><h2>${iconText(FIXED.reports)}</h2><span class="row-left">${m.is_open ? `<button type="button" class="small" id="reload">最新にする</button>` : ""}${secTools("reports", canEdit)}</span></div>
         ${reports.length || missing.length ? `<div class="report-toggles">
           ${reports.map((r) => `
             <details class="report-toggle">
@@ -168,7 +169,7 @@ export async function renderTeirei(el, id) {
   el.innerHTML = `
     <nav class="breadcrumb"><a href="#/teirei">定例</a> / <a href="#/teirei/minutes">定例の議事録</a> / ${fmtDate(m.held_on)}</nav>
     ${m.is_open ? timerHtml(`teirei-${m.id}`, { bar: true }) : ""}
-    <div class="page-heading left"><h1>🏛️ ${meetingLabel(m)} ${stateTag(m)}</h1>
+    <div class="page-heading left"><h1>${ico("landmark")} ${meetingLabel(m)} ${stateTag(m)}</h1>
       ${m.updated_by_name ? `<p>最終更新：${esc(m.updated_by_name)}・${fmtDateTime(jstDateTime(m.updated_at))}</p>` : ""}</div>
 
     <form class="minutes" id="teirei-form">
@@ -176,7 +177,7 @@ export async function renderTeirei(el, id) {
       ${canEdit ? addSectionBox() : ""}</div>
 
       ${m.memo ? `<section class="card">
-        <div class="section-head"><h2>📝 メモ</h2></div>
+        <div class="section-head"><h2>${ico("note")} メモ</h2></div>
         ${canEdit ? `<textarea name="memo" data-rich rows="4" maxlength="50000" aria-label="メモ">${esc(m.memo)}</textarea>` : `<div class="rich-view">${richHtml(m.memo)}</div>`}
       </section>` : ""}
 
@@ -184,7 +185,7 @@ export async function renderTeirei(el, id) {
         ${canEdit ? `<span class="muted small auto-status" id="auto-status">自動で保存されます</span>` : ""}
         ${canEdit ? `<button type="submit" data-save>保存する</button>
           ${m.is_open ? `<button type="submit" class="primary" data-end>定例を終わる</button>`
-            : m.is_today ? `<button type="button" data-reopen>↩ 定例を再開する</button>` : ""}` : ""}
+            : m.is_today ? `<button type="button" data-reopen>${ico("undo")} 定例を再開する</button>` : ""}` : ""}
       </div>
     </form>`;
   enhanceRich(el);
@@ -259,7 +260,7 @@ export async function renderReportList(el) {
   const { projects, todayMeetingId } = await api("/api/dept-reports");
   el.innerHTML = `
     <nav class="breadcrumb"><a href="#/teirei">定例</a> / 進捗を書く</nav>
-    <div class="page-heading left"><h1>📝 どのPJの進捗を書きますか？</h1>
+    <div class="page-heading left"><h1>${ico("note")} どのPJの進捗を書きますか？</h1>
       <p>${todayMeetingId ? "今日の定例" : "次の定例"}に向けて書きます</p></div>
     ${pjPicker(projects, (p) => pickItem({ href: `#/report/${p.id}`, name: p.name,
       note: p.written_at ? `<span class="tag">記入済み</span>` : "" }))}`;
@@ -272,7 +273,7 @@ export async function renderReport(el, projectId) {
   let version = report.version;
   el.innerHTML = `
     <nav class="breadcrumb"><a href="#/teirei">定例</a> / <a href="#/report">進捗を書く</a> / ${esc(p.name)}</nav>
-    <div class="page-heading left"><h1>📝 ${esc(p.name)}</h1>
+    <div class="page-heading left"><h1>${ico("note")} ${esc(p.name)}</h1>
       <p>${meeting ? `${fmtDate(meeting.held_on)}の定例` : "次の定例"}で共有する進捗です。いまの工程：${stageLabel(p)}・<a href="#/projects/${p.id}">PJ画面へ</a></p></div>
     <form class="card form" id="report">
       ${FIELDS.map(([k, label]) => `<div class="field"><div class="section-head"><strong>${label}</strong></div><textarea name="${k}" data-rich rows="4" maxlength="20000" aria-label="${label}">${esc(report[k])}</textarea></div>`).join("")}
@@ -323,12 +324,12 @@ export async function renderTeireiNotice(el) {
     : "次の定例に入ります（「定例を始める」を押すと、その定例の議事録に移ります）";
   el.innerHTML = `
     <nav class="breadcrumb"><a href="#/teirei">定例</a> / 事務連絡を書く</nav>
-    <div class="page-heading left"><h1>📢 ${d.day ? `${fmtDate(d.day)}の定例の` : ""}事務連絡</h1><p>${where}</p></div>
+    <div class="page-heading left"><h1>${ico("megaphone")} ${d.day ? `${fmtDate(d.day)}の定例の` : ""}事務連絡</h1><p>${where}</p></div>
     <form class="minutes" id="notice-form">
       <div id="secs">${layout.order.map((k) => k === "reports"
-        ? `<section class="card" data-sec="reports"><div class="section-head"><h2>${FIXED.reports}</h2>${secTools("reports", true)}</div>
+        ? `<section class="card" data-sec="reports"><div class="section-head"><h2>${iconText(FIXED.reports)}</h2>${secTools("reports", true)}</div>
             <p class="muted small">各PJが「進捗を書く」で書いたものが、PJごとのトグルで自動で入ります。</p></section>`
-        : FIXED[k] ? `<section class="card" data-sec="${k}"><div class="section-head"><h2>${FIXED[k]}</h2>${secTools(k, true)}</div>
+        : FIXED[k] ? `<section class="card" data-sec="${k}"><div class="section-head"><h2>${iconText(FIXED[k])}</h2>${secTools(k, true)}</div>
             <textarea name="${k}" data-rich rows="${k === "notice" ? 6 : 3}" maxlength="30000" aria-label="${FIXED[k]}">${esc(d[k])}</textarea></section>`
         : customSection(k, layout.custom[k], true, richView)).join("")}
         ${addSectionBox()}</div>
@@ -377,7 +378,7 @@ export async function renderTeireiSchedule(el) {
   const { today, schedules, upcoming } = await api("/api/dept-schedules");
   el.innerHTML = `
     <nav class="breadcrumb"><a href="#/teirei">定例</a> / 定例を予定する</nav>
-    <div class="page-heading left"><h1>🗓 定例を予定する</h1></div>
+    <div class="page-heading left"><h1>${ico("calendar")} 定例を予定する</h1></div>
     <form class="card form" id="schedule-form">
       <div class="grid-2">
         <label>曜日<select name="weekday">${WEEK_JA.map((w, i) => `<option value="${i}" ${i === 1 ? "selected" : ""}>${w}曜日</option>`).join("")}</select></label>

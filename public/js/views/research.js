@@ -1,7 +1,8 @@
 // フェーズ2：因果の樹形図・施策・資料
 import { api, esc, state, busy, toast, formData, memberOptions, hashQuery, copyText, confirmDialog } from "../lib.js";
+import { ico } from "../icons.js";
 
-const RULES = `<p class="caution small">⚠ 数字は一次出典を確認したものだけ。AIが書いた文章は引用しない。</p>`;
+const RULES = `<p class="caution small">${ico("warning")} 数字は一次出典を確認したものだけ。AIが書いた文章は引用しない。</p>`;
 const KIND_LABEL = { issue: "課題", cause: "原因" };
 
 // 改行を残して表示する
@@ -10,7 +11,7 @@ function para(text) {
 }
 
 function sourceBadge(s) {
-  return s.primary_checked ? "" : `<span class="unverified" title="一次出典が未確認です">⚠ 未確認</span>`;
+  return s.primary_checked ? "" : `<span class="unverified" title="一次出典が未確認です">${ico("warning")} 未確認</span>`;
 }
 
 // ================= 樹形図 =================
@@ -39,7 +40,7 @@ export async function renderTreeTab(body, projectId, reload) {
           <div class="tree-meta">
             ${n.owner_name ? `<span>担当：${esc(n.owner_name)}</span>` : ""}
             <span class="${n.evidence ? "" : "warn"}">${n.evidence ? "数字の根拠あり" : "数字の根拠なし"}</span>
-            <span>出典 ${srcs.length}件${unverified ? `<span class="unverified">⚠ 未確認 ${unverified}</span>` : ""}</span>
+            <span>出典 ${srcs.length}件${unverified ? `<span class="unverified">${ico("warning")} 未確認 ${unverified}</span>` : ""}</span>
             ${ms.length ? `<a href="#/projects/${projectId}?tab=measures">施策 ${ms.length}件</a>` : ""}
           </div>
           <div class="tree-detail" ${openIds.has(n.id) ? "" : "hidden"}>
@@ -69,7 +70,7 @@ export async function renderTreeTab(body, projectId, reload) {
 
   const roots = children.root || [];
   body.innerHTML = `
-    <details class="help-fold"><summary>ℹ 樹形図の見方</summary>
+    <details class="help-fold"><summary>${ico("info")} 樹形図の見方</summary>
       <p class="small">いちばん上が「課題」、その下に「なぜそうなるのか」の<strong>原因</strong>をつなぎます。
       <strong>下の段（子）が原因、上の段（親）がその結果</strong>です（原因 → 結果）。調べるほど下へ枝分かれします。</p>
     </details>
@@ -196,14 +197,14 @@ export async function renderMeasuresTab(body, projectId, reload) {
         <dl class="fields">${MEASURE_FIELDS.map(([k, label]) => m[k] ? `<dt>${label}</dt><dd class="pre">${esc(m[k])}</dd>` : "").join("")}</dl>
       </details>
       <div class="card-actions">
-        <button class="link-btn" data-copy="${m.id}">📋 ドキュメント用にコピー</button>
+        <button class="link-btn" data-copy="${m.id}">${ico("clipboard")} ドキュメント用にコピー</button>
         ${ro ? "" : `<button class="link-btn" data-edit="${m.id}">編集</button><button class="link-btn danger" data-del="${m.id}">削除</button>`}
       </div>
       <div class="measure-form"></div>
     </article>`;
 
   body.innerHTML = `
-    <details class="help-fold"><summary>ℹ 施策の書き方</summary>
+    <details class="help-fold"><summary>${ico("info")} 施策の書き方</summary>
       <p class="small">施策は、樹形図の課題・原因に紐づけて「どの課題から生じた施策か」が分かるようにします。型：現状・課題・参考事例・施策の内容（何をするか・導入フロー・予算感）・FAQ。</p>
     </details>
     ${RULES}
@@ -288,14 +289,14 @@ export async function renderSourcesView(el, { projectId = null, canAdd = true } 
 
   el.innerHTML = `
     ${projectId ? "" : `<nav class="breadcrumb"><a href="#/check">確認する</a> / 資料</nav>
-      <div class="page-heading"><h1>📚 資料</h1></div>`}
+      <div class="page-heading"><h1>${ico("books")} 資料</h1></div>`}
     ${RULES}
     ${canAdd ? `<details class="card" id="add-box"><summary><strong>＋ 資料を登録する</strong></summary>${sourceForm({ project_id: projectId }, projects, kinds, !projectId)}</details>` : ""}
     <div class="filters">
       ${projectId ? "" : `<select data-filter="project"><option value="">すべてのPJ</option><option value="none">部門共通</option>
         ${projects.map((p) => `<option value="${p.id}">${esc(p.name)}</option>`).join("")}</select>`}
       <select data-filter="kind"><option value="">すべての種類</option>${Object.entries(kinds).map(([k, l]) => `<option value="${k}">${l}</option>`).join("")}</select>
-      <select data-filter="checked"><option value="">確認状態：すべて</option><option value="0">⚠ 一次出典が未確認</option><option value="1">確認済み</option></select>
+      <select data-filter="checked"><option value="">確認状態：すべて</option><option value="0">一次出典が未確認</option><option value="1">確認済み</option></select>
       <input type="search" data-filter="q" placeholder="タイトル・出典・要点で探す">
     </div>
     <div id="source-list"></div>`;

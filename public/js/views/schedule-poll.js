@@ -1,6 +1,7 @@
 // 日程調整アンケート：候補の日時を並べて作る／○△× で答える／いちばん集まった日時に決める
 import { api, esc, shareButton, avatar, busy, toast, confirmDialog, fmtDateTime, state, addDays, celebrate } from "../lib.js";
 import { sendPollImage } from "../poll-image.js";
+import { ico } from "../icons.js";
 
 const MARK = { yes: "○", maybe: "△", no: "×" };
 const LABEL = { yes: "行ける", maybe: "たぶん", no: "無理" };
@@ -14,7 +15,7 @@ export async function renderSchedulePollNew(el, projectId) {
   const initial = [1, 2, 3, 4, 5].map((d) => `${addDays(today, d)}T${time}`);
   el.innerHTML = `
     <nav class="breadcrumb"><a href="#/projects/${p.id}">${esc(p.name)}</a> / 日程調整アンケート</nav>
-    <div class="page-heading left"><h1>🗓 日程調整アンケートを作る</h1>
+    <div class="page-heading left"><h1>${ico("calendar")} 日程調整アンケートを作る</h1>
       <p>次回MTGの候補の日時を並べると、PJのメンバーが ○△× で答えます。いちばん集まった日時に、ボタン1つで決められます。</p></div>
     <form class="card form" id="poll-form">
       <div class="field"><strong>候補の日時</strong>
@@ -69,7 +70,7 @@ export async function renderSchedulePoll(el, id) {
 
   el.innerHTML = `
     <nav class="breadcrumb"><a href="#/projects/${p.id}">${esc(p.name)}</a> / 日程調整アンケート</nav>
-    <div class="page-heading left"><h1>🗓 次回MTGの日程調整</h1>
+    <div class="page-heading left"><h1>${ico("calendar")} 次回MTGの日程調整</h1>
       <p>${closed ? (poll.meeting_id ? `決まりました。<a href="#/meetings/${poll.meeting_id}">次回MTGを開く</a>` : "締め切りました。") : "行ける日時に ○、たぶん行けるなら △、無理なら × を押してください。"}
         <span class="muted small">回答 ${answered.size} / ${members.length}人</span> ${shareButton("p", poll.id)}</p>
       ${poll.note ? `<p class="survey-desc">${esc(poll.note)}</p>` : ""}</div>
@@ -139,6 +140,6 @@ export async function renderSchedulePoll(el, id) {
 export async function schedulePollLinks(box, projectId, canEdit) {
   const { polls } = await api(`/api/projects/${projectId}/schedule-polls`);
   box.innerHTML = `${polls.map((x) => `<a class="survey-btn ${x.mine ? "is-done" : ""}" href="#/schedule-polls/${x.id}">
-      <span class="survey-icon">🗓</span><strong>日程調整アンケート</strong><span class="small">${x.mine ? `✓ 回答済み（${x.answered}人）` : "回答する ›"}</span></a>`).join("")}
-    ${canEdit && !polls.length ? `<a class="button small" href="#/projects/${projectId}/schedule-poll">🗓 日程が決まらないときは、日程調整アンケートを作る</a>` : ""}`;
+      <span class="survey-icon">${ico("calendar")}</span><strong>日程調整アンケート</strong><span class="small">${x.mine ? `✓ 回答済み（${x.answered}人）` : "回答する ›"}</span></a>`).join("")}
+    ${canEdit && !polls.length ? `<a class="button small" href="#/projects/${projectId}/schedule-poll">${ico("calendar")} 日程が決まらないときは、日程調整アンケートを作る</a>` : ""}`;
 }

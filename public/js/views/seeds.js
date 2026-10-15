@@ -2,9 +2,10 @@
 import { api, esc, shareButton, state, avatar, fmtDate, fmtDateTime, jstDateTime, busy, toast, formData, hashQuery, nextMonday, confirmDialog, bindMemberFilter, guardForm, markSaved, viewSwitch, bindViewSwitch } from "../lib.js";
 
 import { openSeedBox } from "./projects.js";
+import { ico } from "../icons.js";
 
 const CATEGORIES = { news: "ニュース勉強会", seicho: "政調ピックアップ", bucho: "部門長セレクト" };
-const AI_CAUTION = `<p class="caution">⚠ AIで調べた情報は、必ず一次出典を確認してください。出典のない数字は使わない。AIが生成した文章を、自分のソースとして引用しない。</p>`;
+const AI_CAUTION = `<p class="caution">${ico("warning")} AIで調べた情報は、必ず一次出典を確認してください。出典のない数字は使わない。AIが生成した文章を、自分のソースとして引用しない。</p>`;
 
 // #/seeds：最新の募集回を開く（なければ一覧）
 export async function renderRounds(el) {
@@ -82,7 +83,7 @@ export async function renderRound(el, id) {
       <p class="small">投票 ${data.respondents}人・<a href="#/seeds?all=1">ほかのPJ決めを見る</a> ${shareButton("r", round.id)}</p>
     </div>
     ${linked ? `<div class="notice survey-link">
-      <span>🔗 ${round.closed ? "種と投票は<strong>希望PJアンケート</strong>から取り込みました" : "<strong>希望PJアンケートと連動</strong>中（投票はアンケートで）"}</span>
+      <span>${ico("link")} ${round.closed ? "種と投票は<strong>希望PJアンケート</strong>から取り込みました" : "<strong>希望PJアンケートと連動</strong>中（投票はアンケートで）"}</span>
       ${!round.closed && data.surveyUrl ? `<a class="button small primary" href="${esc(data.surveyUrl)}" target="_blank" rel="noopener">希望PJアンケートを開く</a>` : ""}</div>` : ""}
     <div class="tabs" role="tablist">
       ${tabs.map(([k, l]) => `<a role="tab" class="tab" aria-selected="${tab === k}" href="#/seeds/${id}?tab=${k}">${l}</a>`).join("")}
@@ -148,7 +149,7 @@ function renderSeeds(body, data, reload) {
             `<option value="${k}" ${filter === k ? "selected" : ""}>${l}</option>`).join("")}
         </select>
         ${canPost ? `<button type="button" class="primary small" data-open-post>＋ 種を投稿</button>`
-          : `<button type="button" class="primary small" data-seed-box>🌱 次のPJ決めに種を出す</button>`}
+          : `<button type="button" class="primary small" data-seed-box>${ico("sprout")} 次のPJ決めに種を出す</button>`}
       </div>
       ${canPost ? `<div class="card seed-post" hidden>${seedForm()}</div>` : ""}
       ${seeds.some((s) => s.project) ? `<p class="muted small">PJになった種（${seeds.filter((s) => s.project).length}件）は、ここには出しません。「開票・PJ化」タブか、各PJの画面で見られます。</p>` : ""}
@@ -159,10 +160,10 @@ function renderSeeds(body, data, reload) {
           <div class="row"><span class="row-left">${categoryChips(s.categories)}${s.tag ? `<span class="tag">${esc(s.tag)}</span>` : ""}</span>
             <span class="row-left">${rank ? `<span class="status-now">第${rank}希望</span>` : data.myTied.includes(s.id) ? `<span class="status-now">希望</span>` : ""}
               <details class="card-menu"><summary aria-label="その他の操作">⋯</summary><div class="card-menu-panel">
-                <button type="button" data-notes="${s.id}">📝 リサーチメモ（${s.notes}）</button>
-                ${s.manageable ? `<button type="button" data-edit="${s.id}">✏️ 編集</button><button type="button" class="danger-text" data-del="${s.id}">🗑 削除</button>` : ""}
-                ${state.me.isAdmin && !s.project ? `<button type="button" data-promote="${s.id}">✅ 正式なPJにする</button>` : ""}
-                ${state.me.isAdmin && s.project ? `<button type="button" class="danger-text" data-undo-promote="${s.id}">↩ 正式なPJを取り消す</button>` : ""}
+                <button type="button" data-notes="${s.id}">${ico("note")} リサーチメモ（${s.notes}）</button>
+                ${s.manageable ? `<button type="button" data-edit="${s.id}">${ico("edit")} 編集</button><button type="button" class="danger-text" data-del="${s.id}">${ico("trash")} 削除</button>` : ""}
+                ${state.me.isAdmin && !s.project ? `<button type="button" data-promote="${s.id}">${ico("check")} 正式なPJにする</button>` : ""}
+                ${state.me.isAdmin && s.project ? `<button type="button" class="danger-text" data-undo-promote="${s.id}">${ico("undo")} 正式なPJを取り消す</button>` : ""}
                 ${s.author ? `<p class="muted small">投稿：${esc(s.author)}</p>` : ""}
               </div></details></span></div>
           <h3><span class="seed-icon">${esc(s.icon)}</span>${esc(s.title)}</h3>
@@ -170,7 +171,7 @@ function renderSeeds(body, data, reload) {
           ${s.project ? `<a class="next-step" href="#/projects/${s.project.id}"><span>PJになりました</span>${esc(s.project.name)} →</a>` : ""}
           <div class="seed-foot">
             <span class="row-left"><span class="muted small">希望 ${s.voterCount}人${s.firstChoices ? `（第1希望 ${s.firstChoices}）` : ""}</span>
-              <button type="button" class="link-btn" data-comments="${s.id}">💬 コメント${s.comments ? `（${s.comments}）` : ""}</button></span>
+              <button type="button" class="link-btn" data-comments="${s.id}">${ico("chat")} コメント${s.comments ? `（${s.comments}）` : ""}</button></span>
             ${round.closed || round.source === "survey" ? "" : `<button class="cta-sm ${rank ? "is-on" : ""}" data-toggle="${s.id}">${rank ? "✓ 選択中" : "関わりたい"}</button>`}
           </div>
           <div class="make-form"></div><div class="undo-box"></div>
@@ -257,7 +258,7 @@ function renderSeeds(body, data, reload) {
 async function renderComments(box, seedId, button) {
   box.innerHTML = `<p class="muted small">読み込み中…</p>`;
   const { comments } = await api(`/api/seeds/${seedId}/comments`);
-  button.textContent = `💬 コメント${comments.length ? `（${comments.length}）` : ""}`;
+  button.innerHTML = `${ico("chat")} コメント${comments.length ? `（${comments.length}）` : ""}`;
   box.innerHTML = `
     ${comments.length ? `<ul class="note-list">${comments.map((c) => `
       <li>${avatar(c)}<div><p class="pre">${esc(c.body)}</p>
@@ -284,7 +285,7 @@ async function renderNotes(box, seedId) {
   box.innerHTML = `<p class="muted small">読み込み中…</p>`;
   const { notes } = await api(`/api/seeds/${seedId}/notes`);
   box.innerHTML = `
-    <p class="caution small">⚠ AIで調べた情報は、必ず一次出典を確認する</p>
+    <p class="caution small">${ico("warning")} AIで調べた情報は、必ず一次出典を確認する</p>
     ${notes.length ? `<ul class="note-list">${notes.map((n) => `
       <li>${avatar(n)}<div><p>${esc(n.body)}</p>
         ${n.url ? `<a class="small" href="${esc(n.url)}" target="_blank" rel="noopener">${esc(n.url)}</a>` : ""}
@@ -367,7 +368,7 @@ async function renderResults(body, data, reload) {
         <section class="card winner">
           <div class="row"><span class="status-now">${i + 1}位</span>
             ${project ? `<span class="row-left"><a class="button small" href="#/projects/${project.id}">PJを見る →</a>
-                ${state.me.isAdmin ? `<button type="button" class="small danger-outline" data-undo="${sid}">↩ 取り消す</button>` : ""}</span>`
+                ${state.me.isAdmin ? `<button type="button" class="small danger-outline" data-undo="${sid}">${ico("undo")} 取り消す</button>` : ""}</span>`
               : state.me.isAdmin ? `<span class="row-left"><label class="pick-check"><input type="checkbox" data-pick-seed="${sid}" checked> まとめてPJにする</label>
                 <button class="small" data-make="${sid}">このPJだけ作る</button></span>` : ""}</div>
           <h3>${esc(title(sid))}</h3>
@@ -546,7 +547,7 @@ export async function renderStaffing(el, roundId) {
 
   el.innerHTML = `
     <nav class="breadcrumb"><a href="#/seeds?all=1">PJ決め</a> / <a href="${back}">${esc(data.round.title)}</a> / 人事を決める</nav>
-    <div class="page-heading left"><h1>🧩 人事を決める（${picked.length}件のPJ）</h1>
+    <div class="page-heading left"><h1>${ico("puzzle")} 人事を決める（${picked.length}件のPJ）</h1>
       <p>数字は、その人がそのPJを第何希望にしたか。最初は、本人の希望順位がいちばん高いPJに入れてあります。</p></div>
     <form id="staffing-form">
       <div class="table-wrap staff-matrix-wrap" id="matrix"></div>
@@ -603,7 +604,7 @@ export async function renderStaffing(el, roundId) {
     const multi = people.filter((u) => (assign.get(u.id)?.size || 0) > 1);
     el.querySelector("#staff-warn").innerHTML = [
       none.length ? `<span class="muted">どのPJにも入っていない人：${none.map((u) => esc(u.name)).join("、")}</span>` : "",
-      out.length ? `<span class="warn">⚠ 希望していないPJに入れている人：${out.map((u) => esc(u.name)).join("、")}</span>` : "",
+      out.length ? `<span class="warn">${ico("warning")} 希望していないPJに入れている人：${out.map((u) => esc(u.name)).join("、")}</span>` : "",
       multi.length ? `<span class="warn">2つ以上のPJに入っている人：${multi.map((u) => esc(u.name)).join("、")}</span>` : "",
     ].filter(Boolean).join("<br>");
     // 追加できる人（まだ行にない人）

@@ -1,5 +1,6 @@
 // 期日を設定する（管理者だけ）：工程の目安日程（部門の基本）を変える。PJごとに手で変えた期限はそのまま
 import { api, esc, state, busy, toast, confirmDialog, fmtDateTime, jstDateTime } from "../lib.js";
+import { ico } from "../icons.js";
 
 const week = (day) => Math.floor(day / 7) + 1;
 const span = (a, b) => (week(a) === week(b) ? `${week(a)}週目` : `${week(a)}〜${week(b)}週目`);
@@ -15,7 +16,7 @@ export async function renderSchedule(el) {
 
   el.innerHTML = `
     <nav class="breadcrumb"><a href="#/projects">PJ</a> / 期日を設定する</nav>
-    <div class="page-heading left"><h1>🗓 期日を設定する</h1>
+    <div class="page-heading left"><h1>${ico("calendar")} 期日を設定する</h1>
       <p>工程ごとの目安の日程（部門の基本）です。<strong>1日目＝PJの開始日</strong>（1週目の初日）として数えます。
         PJごとに手で変えた期限は、そのまま残ります。</p></div>
     <form class="card form" id="schedule-form">

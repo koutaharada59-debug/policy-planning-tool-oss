@@ -2,6 +2,7 @@
 import {
   api, esc, state, fmtDate, todayStr, addDays, WEEK, gcalEventUrl, gcalAllDayUrl, gcalLink, gcalChoice, weeklyRrule, doneTasksToggle, bindDoneTasksToggle, TASK_STATUS,
 } from "../lib.js";
+import { ico, iconText } from "../icons.js";
 
 // 画面を開いているあいだだけ覚えておく（ブラウザには保存しない）
 // スマホでは、文字が切れずに読める「スケジュール」（一覧）から始める
@@ -320,8 +321,8 @@ function showDetail(e) {
       <div class="form-actions">
         ${gcalChoice(e.gcal, e.gcalSeries)}
         <span class="row-left">
-          ${e.view ? `<a class="button" href="${e.view}" data-go>📄 議事録を見る</a>` : ""}
-          <a class="button primary" href="${e.href}" data-go>${esc(e.open)}</a>
+          ${e.view ? `<a class="button" href="${e.view}" data-go>${ico("doc")} 議事録を見る</a>` : ""}
+          <a class="button primary" href="${e.href}" data-go>${iconText(e.open)}</a>
         </span>
       </div>
     </div>`;

@@ -7,6 +7,7 @@ import { renderPresentationTab } from "./presentation.js";
 import { renderProjectRecords } from "./search.js";
 import { roundsTable } from "./seeds.js";
 import { schedulePollLinks } from "./schedule-poll.js";
+import { ico } from "../icons.js";
 
 export async function renderProject(el, id) {
   const data = await api(`/api/projects/${id}`);
@@ -31,25 +32,25 @@ export async function renderProject(el, id) {
         ${p.description ? `<p class="desc fold">${esc(p.description)}</p>` : ""}
         <div class="people-stack">${data.members.map((m) => avatar(m)).join("")}<span class="more">${data.members.map((m) => `<a href="#/members/${encodeURIComponent(m.id)}">${esc(m.name)}</a>${m.id === p.pm_id ? '<span class="pm-tag">PM</span>' : ""}`).join("、")}</span></div>
         ${data.origin ? `<details class="pj-origin" data-origin-seed="${data.origin.seed_id}" data-origin-round="${data.origin.round_id}">
-          <summary class="muted small">🌱 ${esc(data.origin.round_title)} から生まれたPJ（どうやって選ばれたか）</summary>
+          <summary class="muted small">${ico("sprout")} ${esc(data.origin.round_title)} から生まれたPJ（どうやって選ばれたか）</summary>
           <div class="pj-origin-body"><p class="loading small">読み込み中…</p></div></details>` : ""}
       </div>
       <div class="pj-header-actions">
-        ${p.memo_doc_url ? `<a class="button small" href="${esc(p.memo_doc_url)}" target="_blank" rel="noopener">🔎 リサーチドキュメント</a>` : ""}
-        ${p.share_doc_url ? `<a class="button small" href="${esc(p.share_doc_url)}" target="_blank" rel="noopener">📊 課題共有</a>` : ""}
-        ${p.doc_url ? `<a class="button small" href="${esc(p.doc_url)}" target="_blank" rel="noopener">📄 政調用の本文</a>` : ""}
-        ${p.script_doc_url ? `<a class="button small" href="${esc(p.script_doc_url)}" target="_blank" rel="noopener">🎤 台本</a>` : ""}
-        ${p.discord_channel_id && state.guildId ? `<a class="button small" href="https://discord.com/channels/${esc(state.guildId)}/${esc(p.discord_channel_id)}" target="_blank" rel="noopener">💬 Discord</a>` : ""}
+        ${p.memo_doc_url ? `<a class="button small" href="${esc(p.memo_doc_url)}" target="_blank" rel="noopener">${ico("search")} リサーチドキュメント</a>` : ""}
+        ${p.share_doc_url ? `<a class="button small" href="${esc(p.share_doc_url)}" target="_blank" rel="noopener">${ico("chart")} 課題共有</a>` : ""}
+        ${p.doc_url ? `<a class="button small" href="${esc(p.doc_url)}" target="_blank" rel="noopener">${ico("doc")} 政調用の本文</a>` : ""}
+        ${p.script_doc_url ? `<a class="button small" href="${esc(p.script_doc_url)}" target="_blank" rel="noopener">${ico("mic")} 台本</a>` : ""}
+        ${p.discord_channel_id && state.guildId ? `<a class="button small" href="https://discord.com/channels/${esc(state.guildId)}/${esc(p.discord_channel_id)}" target="_blank" rel="noopener">${ico("chat")} Discord</a>` : ""}
         ${canEdit ? `<a class="button small" href="#/projects/${p.id}/edit">編集</a>` : ""}
-        ${state.me.canSeeHearings ? `<a class="button small" href="#/hearings/new?project=${p.id}">🤝 ヒアリング申請</a>` : ""}
+        ${state.me.canSeeHearings ? `<a class="button small" href="#/hearings/new?project=${p.id}">${ico("handshake")} ヒアリング申請</a>` : ""}
       </div>
     </div>
     ${canEdit ? "" : `<p class="notice">閲覧のみです。編集できるのはPJメンバーと管理者です。</p>`}
     ${completionBanner(p, canEdit)}
     ${p.status === "active" ? `<nav class="pj-quick" aria-label="このPJでよく使う操作">
-      ${canEdit ? `<a class="button small primary" href="#/start?project=${p.id}">▶ <span>MTG<span class="hide-sm">を始める</span></span></a>` : ""}
-      <a class="button small" href="#/present/${p.id}">🎤 <span>発表<span class="hide-sm">する</span></span></a>
-      ${canEdit ? `<a class="button small" href="#/report/${p.id}">📝 <span><span class="hide-sm">定例の</span>進捗<span class="hide-sm">を書く</span></span></a>` : ""}
+      ${canEdit ? `<a class="button small primary" href="#/start?project=${p.id}">${ico("play")} <span>MTG<span class="hide-sm">を始める</span></span></a>` : ""}
+      <a class="button small" href="#/present/${p.id}">${ico("mic")} <span>発表<span class="hide-sm">する</span></span></a>
+      ${canEdit ? `<a class="button small" href="#/report/${p.id}">${ico("note")} <span><span class="hide-sm">定例の</span>進捗<span class="hide-sm">を書く</span></span></a>` : ""}
     </nav>` : ""}
     ${stageStepper(p, data.stages, { progress: hint ? hint.from : stageProgress })}
     <div class="tabs" role="tablist">
@@ -145,7 +146,7 @@ function renderStages(body, data, ro, reload) {
   const meetingsOfStage = (no) => heldMeetings.filter((m) => stageOfDate(m.starts_at.slice(0, 10)) === no)
     .sort((a, b) => a.starts_at.localeCompare(b.starts_at));
   const meetingLink = (c) => c.meeting_id
-    ? `<a class="minute-link" href="#/meetings/${c.meeting_id}">📝 ${fmtDateTime(c.meeting_starts_at)} のMTG${c.meeting_has_minutes ? "" : "（議事録なし）"}</a>`
+    ? `<a class="minute-link" href="#/meetings/${c.meeting_id}">${ico("note")} ${fmtDateTime(c.meeting_starts_at)} のMTG${c.meeting_has_minutes ? "" : "（議事録なし）"}</a>`
     : `<span class="muted small">議事録なし</span>`;
 
   const stageCard = (s) => {
@@ -165,8 +166,8 @@ function renderStages(body, data, ro, reload) {
           ${isCurrent ? `<span class="status-now">いまここ</span>` : ""}
         </summary>
         <p class="stage-summary">${esc(s.summary)}</p>
-        ${["final_prep", "presentation", "final"].includes(s.role) ? `<p><a class="button small" href="#/projects/${p.id}?tab=present">🎤 ${s.role === "final" ? "フィードバックと最終提出" : "発表準備（役割分担・リハーサルなど）"}を「発表の準備・提出」タブで管理する</a></p>` : ""}
-        ${["research", "share_prep", "measures", "final_prep"].includes(s.role) ? `<p class="caution">⚠ AIで調べた情報は必ず一次出典を確認する。出典のない数字は使わない。</p>` : ""}
+        ${["final_prep", "presentation", "final"].includes(s.role) ? `<p><a class="button small" href="#/projects/${p.id}?tab=present">${ico("mic")} ${s.role === "final" ? "フィードバックと最終提出" : "発表準備（役割分担・リハーサルなど）"}を「発表の準備・提出」タブで管理する</a></p>` : ""}
+        ${["research", "share_prep", "measures", "final_prep"].includes(s.role) ? `<p class="caution">${ico("warning")} AIで調べた情報は必ず一次出典を確認する。出典のない数字は使わない。</p>` : ""}
         <ul class="checklist">
           ${items.map((c) => `
             <li class="${c.skipped_at ? "is-skipped" : ""}">
@@ -183,7 +184,7 @@ function renderStages(body, data, ro, reload) {
             </li>`).join("")}
         </ul>
         ${ms.length ? `<div class="stage-minutes"><h4>この工程のMTG・議事録</h4><ul>${ms.map((m) => `
-          <li><a class="minute-link" href="#/meetings/${m.id}">📝 ${fmtDateTime(m.starts_at)} のMTG${m.minute_id ? "" : "（議事録まだ）"}</a></li>`).join("")}</ul></div>` : ""}
+          <li><a class="minute-link" href="#/meetings/${m.id}">${ico("note")} ${fmtDateTime(m.starts_at)} のMTG${m.minute_id ? "" : "（議事録まだ）"}</a></li>`).join("")}</ul></div>` : ""}
         ${ro ? "" : `
           <form class="inline-form" data-add-check="${s.no}">
             <input name="label" maxlength="120" placeholder="このPJ独自の項目を追加" required>
@@ -195,7 +196,7 @@ function renderStages(body, data, ro, reload) {
               ${row.due_manual ? `<button class="link-btn" data-due-reset="${s.no}">自動に戻す</button>` : `<span class="muted small">（自動）</span>`}
             </label>
             ${isCurrent && !isLast ? `<button class="primary small" data-stage="${s.no + 1}">この工程を完了して「${esc(type.stages[s.no + 1].name)}」へ</button>` : ""}
-            ${isCurrent && isLast && p.status === "active" && !p.completion_requested_at ? `<button type="button" class="primary small" data-completion="request">🎉 部門長に完了の承認を依頼する</button>` : ""}
+            ${isCurrent && isLast && p.status === "active" && !p.completion_requested_at ? `<button type="button" class="primary small" data-completion="request">${ico("party")} 部門長に完了の承認を依頼する</button>` : ""}
             ${!isCurrent ? `<button class="small" data-stage="${s.no}">この工程を「いまここ」にする</button>` : ""}
           </div>`}
       </details>`;
@@ -298,7 +299,7 @@ function renderTasks(body, data, ro, reload) {
           </div>
           <div class="meta">
             ${t.stage_no !== null ? `<span class="tag">工程${t.stage_no}</span>` : ""}
-            ${t.assignee_name ? `<span>${idsOf(t).length > 1 ? "👥" : avatar({ name: t.assignee_name, avatar: t.assignee_avatar })} ${esc(t.assignee_name)}</span>` : `<span class="muted">担当なし</span>`}
+            ${t.assignee_name ? `<span>${idsOf(t).length > 1 ? ico("users") : avatar({ name: t.assignee_name, avatar: t.assignee_avatar })} ${esc(t.assignee_name)}</span>` : `<span class="muted">担当なし</span>`}
             ${dueBadge(t.due_date, t.status === "done")}
             ${t.due_date ? gcalLink(gcalAllDayUrl({ title: `【期限】${t.title}（${p.name}）`, date: t.due_date }), "") : ""}
             ${ro ? "" : `<button class="link-btn" data-edit="${t.id}">編集</button><button class="link-btn danger" data-del="${t.id}">削除</button>`}
@@ -382,7 +383,7 @@ function meetingPanel(data, ro) {
   const nextOne = upcoming.find((m) => !m.cancelled);
   return `
     <details class="card meeting-panel" data-key="meetings">
-      <summary class="section-head"><h2>🗓 ミーティング</h2>
+      <summary class="section-head"><h2>${ico("calendar")} ミーティング</h2>
         <span class="small">${nextOne ? `次回 <strong>${fmtDateTime(nextOne.starts_at)}</strong>`
           : p.meeting_mode === "adhoc" ? `<strong class="warn">次回未定</strong>` : `<span class="muted">予定なし</span>`}
           <span class="muted fold-hint">▼</span></span></summary>
@@ -397,7 +398,7 @@ function meetingPanel(data, ro) {
         <input name="place" maxlength="200" placeholder="場所・URL（任意）" value="${esc(p.meeting_place)}">
         <button class="primary small">追加</button>
       </form>`}
-      <p class="small"><a href="#/projects/${p.id}?tab=records">📚 このPJの記録（議事録・定例の進捗・発表）を見る</a></p>
+      <p class="small"><a href="#/projects/${p.id}?tab=records">${ico("books")} このPJの記録（議事録・定例の進捗・発表）を見る</a></p>
       <h3 class="small">これからのMTG</h3>
       ${upcoming.length ? `<ul class="list">${shown.map(row).join("")}</ul>
         ${rest.length ? `<details><summary class="small">ほか${rest.length}件を表示</summary><ul class="list">${rest.map(row).join("")}</ul></details>` : ""}`
@@ -436,14 +437,14 @@ function completionBanner(p, canEdit) {
   const nameOf = (id) => state.users.find((u) => u.id === id)?.name || "";
   const when = (ms) => fmtDate(jstDateTime(ms));
   if (p.status === "done") {
-    return `<div class="notice completion is-done"><span>🎉 <strong>このPJは完了しました</strong>
+    return `<div class="notice completion is-done"><span>${ico("party")} <strong>このPJは完了しました</strong>
       ${p.completed_at ? `<small class="muted">（${when(p.completed_at)}${p.completed_by ? `・承認：${esc(nameOf(p.completed_by))}` : ""}）</small>` : ""}</span>
       ${state.me.isAdmin ? `<button type="button" class="small" data-completion="reopen">進行中に戻す</button>` : ""}</div>`;
   }
   if (p.status === "active" && p.completion_requested_at) {
-    return `<div class="notice completion is-waiting"><span>⏳ <strong>最終提出が済み、部門長の承認待ちです</strong>
+    return `<div class="notice completion is-waiting"><span>${ico("hourglass")} <strong>最終提出が済み、部門長の承認待ちです</strong>
       <small class="muted">（${when(p.completion_requested_at)}${p.completion_requested_by ? `・依頼：${esc(nameOf(p.completion_requested_by))}` : ""}）</small></span>
-      <span class="row-left">${state.me.isAdmin ? `<button type="button" class="primary small" data-completion="approve">✅ 承認してPJを完了にする</button>
+      <span class="row-left">${state.me.isAdmin ? `<button type="button" class="primary small" data-completion="approve">${ico("check")} 承認してPJを完了にする</button>
         <button type="button" class="small" data-completion="reject">差し戻す</button>`
         : canEdit ? `<button type="button" class="link-btn" data-completion="cancel">依頼を取り下げる</button>` : ""}</span></div>`;
   }

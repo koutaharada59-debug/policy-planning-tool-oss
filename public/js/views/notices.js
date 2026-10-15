@@ -1,12 +1,13 @@
 // 「確認する」の2画面：お知らせ／自分のタスク
 import { api, esc, busy, dueBadge, fmtDateTime, jstDateTime, TASK_STATUS, state, doneTasksToggle, bindDoneTasksToggle, toast, formData } from "../lib.js";
+import { ico } from "../icons.js";
 
 export async function renderNotices(el) {
   const { notices } = await api("/api/notices");
   el.innerHTML = `
     <nav class="breadcrumb"><a href="#/check">確認する</a> / お知らせ</nav>
-    <div class="page-heading left"><h1>🔔 お知らせ</h1>
-      <p><a class="button small" href="#/my-tasks">✅ 自分のタスクを見る</a></p></div>
+    <div class="page-heading left"><h1>${ico("bell")} お知らせ</h1>
+      <p><a class="button small" href="#/my-tasks">${ico("check")} 自分のタスクを見る</a></p></div>
     ${notices.length ? `<ul class="list notices">${notices.map((n) => `
       <li class="list-item ${n.read_at ? "" : "is-unread"}">
         ${n.link ? `<a class="notice-link" href="${esc(n.link)}">` : "<span>"}${n.read_at ? "" : `<span class="unread-dot" aria-label="未読"></span>`}${esc(n.body.split("\n")[0])}
@@ -36,7 +37,7 @@ export async function renderMyTasks(el) {
     </li>`;
   el.innerHTML = `
     <nav class="breadcrumb"><a href="#/check">確認する</a> / 自分のタスク</nav>
-    <div class="page-heading left"><h1>✅ 自分のタスク</h1></div>
+    <div class="page-heading left"><h1>${ico("check")} 自分のタスク</h1></div>
     ${targets.length ? `<details class="add-box" ${addOpen ? "open" : ""}><summary class="button small">＋ タスクを追加</summary>
     <form class="card form task-form my-task-form" id="my-task-form">
       <input name="title" maxlength="120" placeholder="自分のタスクを追加（例：先行事例を3件集める）" required aria-label="タスク名">

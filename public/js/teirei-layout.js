@@ -2,6 +2,7 @@
 // 並び順と足した枠（題名と中身）は layout（JSON）に入れる：{ order: ["notice", "reports", "news", "exchange", "c1ab"], custom: { c1ab: { title, body } } }
 import { esc, confirmDialog } from "./lib.js";
 import { enhanceRich } from "./rich.js";
+import { iconText } from "./icons.js";
 
 export const FIXED = { notice: "📢 事務連絡", reports: "📊 各PJの進捗共有", news: "📰 ニュース勉強会", exchange: "💬 意見交換会" };
 const DEFAULT_ORDER = Object.keys(FIXED);
@@ -30,7 +31,7 @@ export function secTools(key, canEdit) {
 // 足した枠のHTML（中身は Notion のように書ける欄）
 export function customSection(id, c, canEdit, viewHtml) {
   return `<section class="card" data-sec="${id}">
-    <div class="section-head"><h2>${esc(c.title)}</h2>${secTools(id, canEdit)}</div>
+    <div class="section-head"><h2>${iconText(c.title)}</h2>${secTools(id, canEdit)}</div>
     ${canEdit ? `<textarea name="sec_${id}" data-rich rows="3" maxlength="5000" aria-label="${esc(c.title)}">${esc(c.body)}</textarea>`
       : c.body ? viewHtml(c.body) : `<p class="muted">なし</p>`}
   </section>`;

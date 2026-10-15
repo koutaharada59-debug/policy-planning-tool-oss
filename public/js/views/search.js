@@ -1,6 +1,7 @@
 // 議事録を探す：PJのMTGの議事録・定例の議事録・発表の記録を、言葉・PJ・期間・種類で探す
 // 何も入れていないときは、最近の記録を新しい順に出す（開いてすぐ使えるように）
 import { api, esc, fmtDate, hashQuery, addDays } from "../lib.js";
+import { ico, iconText } from "../icons.js";
 
 const KINDS = [["all", "すべて"], ["meeting", "📝 MTGの議事録"], ["teirei", "🏛️ 定例の議事録"], ["present", "🎤 発表の記録"]];
 // 種類ごとに、まだ1件もないときの説明
@@ -9,7 +10,7 @@ const NONE = {
   teirei: "定例の議事録は、まだありません。定例の画面で「定例を始める」と、事務連絡・メモ・各PJの進捗がここに残ります。",
   present: "発表の記録は、まだありません。",
 };
-const ICON = { meeting: "📝", teirei: "🏛️", present: "🎤" };
+const ICON = { meeting: ico("note"), teirei: ico("landmark"), present: ico("mic") };
 
 // 期間のすぐ選べるボタン（週は日曜はじまり。カレンダーと同じ）
 const today = () => new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 10);
@@ -31,7 +32,7 @@ export async function renderMinutesSearch(el) {
   const { projects } = await api("/api/projects");
   el.innerHTML = `
     <nav class="breadcrumb"><a href="#/check">確認する</a> / 議事録を探す</nav>
-    <div class="page-heading left"><h1>🔎 議事録を探す</h1>
+    <div class="page-heading left"><h1>${ico("search")} 議事録を探す</h1>
       <p class="muted small">MTGの議事録・定例の議事録・発表の記録から探します。言葉を空白で区切ると、すべて含むものだけ。</p></div>
     <form class="search-form" id="search-form" role="search">
       <input type="search" name="q" value="${esc(q0.get("q") || "")}" placeholder="言葉で探す（例：ヒアリング　出典）" aria-label="探す言葉" autofocus>
@@ -79,7 +80,7 @@ export async function renderMinutesSearch(el) {
     const counts = Object.fromEntries(KINDS.map(([k]) => [k, k === "all" ? results.length : results.filter((r) => r.kind === k).length]));
     // 種類はいつも全部出す（0件の種類も選べる。選ぶと「まだありません」と出る）
     el.querySelector("#kind-chips").innerHTML = KINDS.map(([k, l]) =>
-      `<button type="button" role="tab" class="chip-btn ${kind === k ? "is-on" : ""}" data-kind="${k}" aria-selected="${kind === k}" >${l} <small>${counts[k]}</small></button>`).join("");
+      `<button type="button" role="tab" class="chip-btn ${kind === k ? "is-on" : ""}" data-kind="${k}" aria-selected="${kind === k}" >${iconText(l)} <small>${counts[k]}</small></button>`).join("");
     const shown = results.filter((r) => kind === "all" || r.kind === kind);
     list.innerHTML = shown.length ? shown.map((r) => hitItem(r, words)).join("")
       : kind !== "all" ? `<li class="empty"><p>${NONE[kind]}</p></li>` : "";
@@ -162,8 +163,8 @@ export async function renderProjectRecords(body, projectId) {
     let month = "";
     body.innerHTML = `
       <div class="board-tools">
-        <span class="chip-row">${KINDS.map(([k, l]) => `<button type="button" class="chip-btn ${kind === k ? "is-on" : ""}" data-kind="${k}">${l} <small>${counts[k]}</small></button>`).join("")}</span>
-        <a class="button small" href="#/minutes-search?project=${projectId}">🔎 言葉で探す</a>
+        <span class="chip-row">${KINDS.map(([k, l]) => `<button type="button" class="chip-btn ${kind === k ? "is-on" : ""}" data-kind="${k}">${iconText(l)} <small>${counts[k]}</small></button>`).join("")}</span>
+        <a class="button small" href="#/minutes-search?project=${projectId}">${ico("search")} 言葉で探す</a>
       </div>
       ${shown.length ? `<ul class="list search-results">${shown.map((r) => {
         const m = r.at.slice(0, 7);

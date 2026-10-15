@@ -1,5 +1,6 @@
 // ミーティングを始める：PJを選ぶ → 「予定していたMTG」か「臨時のMTG」かを選ぶ → 議事録を開く
 import { api, esc, fmtDateTime, busy, toast, jstDateTime, todayStr, pjPicker, pickItem, hashQuery } from "../lib.js";
+import { ico } from "../icons.js";
 
 export async function renderStart(el) {
   const { projects } = await api("/api/meeting-start");
@@ -7,7 +8,7 @@ export async function renderStart(el) {
   const from = hashQuery().get("project") ? "project" : "home";
 
   el.innerHTML = `
-    <div class="page-heading left"><h1>🗣️ どのPJのMTGですか？</h1></div>
+    <div class="page-heading left"><h1>${ico("talk")} どのPJのMTGですか？</h1></div>
     ${pjPicker(projects, (p) => pickItem({ attrs: `data-now="${p.id}"`, name: p.name, after: `<div class="pick-slot" data-slot></div>` }))}`;
 
   // PJを押すと、その下に「予定していたMTG／臨時のMTG」が出る（もう一度押すと閉じる）
@@ -31,9 +32,9 @@ export async function renderStart(el) {
     // 1) 予定していたMTGか、臨時のMTGかを選ぶ
     const choose = () => {
       show(`<div class="confirm-start">
-        <button class="primary" data-kind="planned">📅 予定していたMTG</button>
-        <button data-kind="adhoc">⚡ 臨時のMTG</button>
-        ${p.recent.length ? `<button data-kind="resume">↩ 前回の続き（再開）</button>` : ""}
+        <button class="primary" data-kind="planned">${ico("calendar")} 予定していたMTG</button>
+        <button data-kind="adhoc">${ico("bolt")} 臨時のMTG</button>
+        ${p.recent.length ? `<button data-kind="resume">${ico("undo")} 前回の続き（再開）</button>` : ""}
       </div>`);
       slot.querySelector('[data-kind="resume"]')?.addEventListener("click", resume);
       slot.querySelector('[data-kind="planned"]').addEventListener("click", planned);

@@ -1,12 +1,13 @@
 // 発表する：PJを選ぶ → 発表用のタイマー・概要・ドキュメント・発表の記録（メモとフィードバック）・発表時の注意点を映す
 import { api, esc, state, avatar, fmtDate, fmtDateTime, jstDateTime, embedUrl, busy, toast, stageNoOf, pjPicker, pickItem, bindFold, ratioColor, fmtClock, copyForNotion, confirmDialog } from "../lib.js";
 import { rolesSummary, FB_STATUS } from "./presentation.js";
+import { ico, iconText } from "../icons.js";
 
 export async function renderPresentList(el) {
   const { projects } = await api("/api/projects");
   const list = projects.filter((p) => p.status !== "archived");
   el.innerHTML = `
-    <div class="page-heading left"><h1>🎤 どのPJを発表しますか？</h1></div>
+    <div class="page-heading left"><h1>${ico("mic")} どのPJを発表しますか？</h1></div>
     ${pjPicker(list, (p) => pickItem({ href: `#/present/${p.id}`, name: p.name, note: p.status === "done" ? "完了" : "" }), { empty: "まだPJがありません。" })}`;
 }
 
@@ -39,8 +40,8 @@ export async function renderPresent(el, id) {
   el.innerHTML = `
     <nav class="breadcrumb"><a href="#/">ホーム</a> / <a href="#/present">発表する</a> / ${esc(p.name)}</nav>
     <p class="row-left cross-links">
-      <a class="button small" href="#/projects/${p.id}">📁 PJ画面へ</a>
-      <a class="button small" href="#/projects/${p.id}?tab=present">🗂 発表の準備・提出へ</a>
+      <a class="button small" href="#/projects/${p.id}">${ico("folder")} PJ画面へ</a>
+      <a class="button small" href="#/projects/${p.id}?tab=present">${ico("archive")} 発表の準備・提出へ</a>
     </p>
     <div class="present" id="present">
       ${timerHtml()}
@@ -57,8 +58,8 @@ export async function renderPresent(el, id) {
         <div class="people-stack">${members.map((m) => avatar(m)).join("")}<span class="more">${members.map((m) => esc(m.name)).join("、")}</span></div>
         ${rolesSummary(prep, state.users)}
         ${prep.slide_url || prep.abstract_url ? `<div class="row-left" style="margin-top:10px">
-          ${prep.slide_url ? `<a class="button small primary" href="${esc(prep.slide_url)}" target="_blank" rel="noopener">🖼 発表資料を開く</a>` : ""}
-          ${prep.abstract_url ? `<a class="button small" href="${esc(prep.abstract_url)}" target="_blank" rel="noopener">📝 アブストラクト</a>` : ""}</div>` : ""}
+          ${prep.slide_url ? `<a class="button small primary" href="${esc(prep.slide_url)}" target="_blank" rel="noopener">${ico("image")} 発表資料を開く</a>` : ""}
+          ${prep.abstract_url ? `<a class="button small" href="${esc(prep.abstract_url)}" target="_blank" rel="noopener">${ico("note")} アブストラクト</a>` : ""}</div>` : ""}
       </header>
 
       ${latest ? `<section class="card">
@@ -68,9 +69,9 @@ export async function renderPresent(el, id) {
       <section class="card">
         <div class="section-head"><h2>ドキュメント</h2>
           ${docs.length > 1 ? `<span class="seg" role="tablist">${docs.map(([k, label], i) =>
-            `<button type="button" class="small ${i ? "" : "primary"}" data-doc="${k}" aria-selected="${!i}">${label}</button>`).join("")}</span>` : ""}</div>
+            `<button type="button" class="small ${i ? "" : "primary"}" data-doc="${k}" aria-selected="${!i}">${iconText(label)}</button>`).join("")}</span>` : ""}</div>
         ${docs.length ? docs.map(([k, label, url], i) => `<div class="doc-view" data-doc-view="${k}" ${i ? "hidden" : ""}>
-          <p class="row-left"><strong>${label}</strong><a class="button small" href="${esc(url)}" target="_blank" rel="noopener">新しいタブで開く</a></p>
+          <p class="row-left"><strong>${iconText(label)}</strong><a class="button small" href="${esc(url)}" target="_blank" rel="noopener">新しいタブで開く</a></p>
           ${embedUrl(url) ? `<div class="doc-frame"><iframe src="${esc(embedUrl(url))}" title="${label}" loading="lazy" allowfullscreen></iframe></div>`
             : `<p class="muted">このリンクは埋め込み表示できません。「新しいタブで開く」から開いてください。</p>`}</div>`).join("")
           + `<p class="muted small">表示されないときは、ドキュメントの共有設定を確認するか「新しいタブで開く」を使ってください。</p>`
@@ -79,15 +80,15 @@ export async function renderPresent(el, id) {
 
       <section class="card present-notes" id="record">
         <div class="notes-col">
-          <div class="section-head"><h2>📝 発表の記録 <span class="live-badge" id="memo-badge"></span></h2>
-            <button type="button" class="small" id="copy-record">📋 Notion用にコピー</button></div>
+          <div class="section-head"><h2>${ico("note")} 発表の記録 <span class="live-badge" id="memo-badge"></span></h2>
+            <button type="button" class="small" id="copy-record">${ico("clipboard")} Notion用にコピー</button></div>
           <p class="muted small" id="record-info"></p>
           <textarea id="record-memo" rows="9" maxlength="10000"
             placeholder="発表中・質疑応答で気づいたことをメモ（自動で保存・みんなで同時に書けます）"></textarea>
           <p class="muted small"><span id="record-viewers"></span> <span id="record-status"></span></p>
         </div>
         <div class="notes-col">
-          <div class="section-head"><h2>💬 フィードバック</h2>
+          <div class="section-head"><h2>${ico("chat")} フィードバック</h2>
             <a class="link small" href="#/projects/${p.id}?tab=present">反映状況を管理する</a></div>
           <form class="form" id="fb-quick">
             <textarea name="content" rows="2" maxlength="500" required placeholder="政調からの指摘（1件ずつ）"></textarea>
@@ -105,7 +106,7 @@ export async function renderPresent(el, id) {
 
       ${tips.length ? `<section class="card">
         <h2>発表時の注意点</h2>
-        <ul class="checklist">${tips.map((c) => `<li><span class="check"><span>${c.done_at ? "✅" : c.skipped_at ? "➖" : "⬜"}</span><span class="${c.skipped_at ? "skipped-label" : ""}">${esc(c.label)}</span></span></li>`).join("")}</ul>
+        <ul class="checklist">${tips.map((c) => `<li><span class="check"><span>${ico(c.done_at ? "check" : c.skipped_at ? "minus" : "square")}</span><span class="${c.skipped_at ? "skipped-label" : ""}">${esc(c.label)}</span></span></li>`).join("")}</ul>
         <a class="link small" href="#/projects/${p.id}?tab=present">発表準備（役割分担・リハーサル）を開く</a>
       </section>` : ""}
     </div>`;
@@ -189,7 +190,7 @@ function bindRecord(el, p, records, showDoc) {
     box.style.setProperty("--pt-color", ratioColor(times[k] / (c[`${k}_target`] * 60000)));
     box.classList.toggle("is-running", ph === "present" || ph === "fb");
     const main = box.querySelector(".pt-main");
-    main.textContent = { idle: "▶ 発表スタート", present: "✅ 発表終わり", fb: "✅ フィードバック終わり", done: "✓ 記録しました" }[ph];
+    main.innerHTML = { idle: `${ico("play")} 発表スタート`, present: `${ico("check")} 発表終わり`, fb: `${ico("check")} フィードバック終わり`, done: "✓ 記録しました" }[ph];
     main.disabled = ph === "done";
     box.querySelector(".pt-new").hidden = !rec;
     el.querySelector("#record-info").textContent = rec
@@ -212,7 +213,7 @@ function bindRecord(el, p, records, showDoc) {
       <ul class="list past-list">${past.map((r) => `
         <li class="list-item"><span><strong>${fmtDateTime(jstDateTime(r.created_at))}</strong> ${esc(kindLabel(r))}
           <small class="muted">発表 ${fmtClock(spent(r.present_start, r.present_end))}・FB ${fmtClock(spent(r.fb_start, r.fb_end))}${r.feedback.length ? `・フィードバック ${r.feedback.length}件` : ""}</small></span>
-          <div class="meta"><button type="button" class="small" data-copy-past="${r.id}">📋 コピー</button></div>
+          <div class="meta"><button type="button" class="small" data-copy-past="${r.id}">${ico("clipboard")} コピー</button></div>
           ${r.memo ? `<details class="past-memo"><summary class="small">メモを見る</summary><p class="pre small">${esc(r.memo)}</p></details>` : ""}</li>`).join("")}</ul>`;
     box2.querySelectorAll("[data-copy-past]").forEach((b) => b.addEventListener("click", () =>
       copyForNotion(recordMarkdown(p, past.find((r) => r.id === Number(b.dataset.copyPast))))));
@@ -334,8 +335,8 @@ function bindRecord(el, p, records, showDoc) {
       }
       live.editor = r.editors.find((x) => x.field === "memo")?.name || null;
       memo.readOnly = Boolean(live.editor);
-      el.querySelector("#memo-badge").textContent = live.editor ? `✏️ ${live.editor}さんが入力中` : "";
-      el.querySelector("#record-viewers").textContent = r.viewers.length ? `👥 ${r.viewers.join("、")}さんも開いています` : "";
+      el.querySelector("#memo-badge").innerHTML = live.editor ? `${ico("edit")} ${esc(live.editor)}さんが入力中` : "";
+      el.querySelector("#record-viewers").innerHTML = r.viewers.length ? `${ico("users")} ${esc(r.viewers.join("、"))}さんも開いています` : "";
       drawAll();
     } catch { /* 通信が途切れても、次でやり直す */ } finally {
       live.busy = false;
