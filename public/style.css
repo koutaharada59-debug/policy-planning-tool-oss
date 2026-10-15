@@ -1516,3 +1516,7 @@ h1 .ico,h2 .ico,h3 .ico{color:var(--green)}
   .typing body .toast,html.typing body:has(.form-actions.sticky) .toast{bottom:76px}
 }
 .confirm-start .button small,.confirm-start button small{font-weight:600;opacity:.8}
+
+/* 画面の切り替えでは動かさない（読み込みのあとにカードが下から出る動き・タブの切り替えのふわっとも、なし） */
+#app.entering .page-heading,#app.entering .card,#app.entering .choice,#app.entering .list-item,#app.entering .timeline > li{animation:none}
+#tab-body.tab-in{animation:none}

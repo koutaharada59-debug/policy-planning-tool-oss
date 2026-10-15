@@ -107,7 +107,10 @@ const loadingScreen = () => `<div class="loading loading-screen" role="status" a
 // ふわっと切り替えるか（ビュー遷移に対応したブラウザで、動きを減らす設定にしていないとき）
 // 切り替えの動きが始まらない画面（アプリ内ブラウザなど）では、一度わかったら、それからは動きを付けない（待たせない）
 let vtBroken = false;
-const smoothSwitch = () => !vtBroken && Boolean(document.startViewTransition) && !matchMedia("(prefers-reduced-motion: reduce)").matches;
+// 画面を切り替えるときの動き（ふわっと・横すべり）は付けない（2026-10-15、すぐ切り替わる方が使いやすいため）。
+// 付け直すときは、ここを document.startViewTransition があるときだけ true にする
+const SWITCH_MOTION = false;
+const smoothSwitch = () => SWITCH_MOTION && !vtBroken && Boolean(document.startViewTransition) && !matchMedia("(prefers-reduced-motion: reduce)").matches;
 
 async function boot() {
   const session = await api("/api/session");
