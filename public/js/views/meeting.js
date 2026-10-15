@@ -1,6 +1,6 @@
 // 議事録：前回の宿題（自動引き継ぎ）／話し合うこと／概要／キーワード／次回までにやること
 // 詳細なフィードバックはGoogleドキュメントに残す運用なので、入力欄は短くしている
-import { api, esc, state, fmtDateTime, fmtDate, busy, toast, memberOptions, dueBadge, addDays, embedUrl, membersFirst, copyForNotion, copyButton, bindCopyButtons, hashQuery, timerHtml, bindTimer, clearTimer, syncTimerStart, confirmDialog, guardPending, putUnsent, settleUnsent, restoreUnsent, setSaveAlert, saveAlertText, reportSaveTrouble, celebrateProgress, setProgressHint, skipButton, bindSkipButtons, assigneePicker, idsOf, forgetUnsaved } from "../lib.js";
+import { api, esc, state, fmtDateTime, fmtDate, busy, toast, memberOptions, dueBadge, addDays, embedUrl, membersFirst, copyForNotion, copyButton, bindCopyButtons, hashQuery, timerHtml, bindTimer, clearTimer, syncTimerStart, confirmDialog, guardPending, putUnsent, settleUnsent, restoreUnsent, setSaveAlert, saveAlertText, reportSaveTrouble, celebrateProgress, setProgressHint, skipButton, bindSkipButtons, assigneePicker, idsOf, forgetUnsaved, confirmTaskDone, doneEffect } from "../lib.js";
 import { enhanceRich } from "../rich.js";
 import { schedulePollLinks } from "./schedule-poll.js";
 import { ico, iconText } from "../icons.js";
@@ -51,7 +51,7 @@ export async function renderMeeting(el, id) {
         <div class="section-head"><h2>前回MTGで決まった宿題</h2>${previous?.homework.length ? copyButton("homework") : ""}</div>
         ${previous ? `<p class="muted small">${fmtDateTime(previous.starts_at)} のMTGの「次回までにやること」</p>
           ${previous.homework.length ? `<ul class="checklist">${previous.homework.map((t) => `
-            <li><label class="check"><input type="checkbox" data-hw="${t.id}" ${t.status === "done" ? "checked" : ""} ${ro}>
+            <li><label class="check"><input type="checkbox" data-hw="${t.id}" data-title="${esc(t.title)}" ${t.status === "done" ? "checked" : ""} ${ro}>
               <span>${esc(t.title)}<small>${esc(t.assignee_name || "担当なし")}${t.due_date ? `・${fmtDate(t.due_date)}` : ""}</small></span></label>
               ${t.status !== "done" ? dueBadge(t.due_date) : ""}</li>`).join("")}</ul>`
             : `<p class="muted">前回の宿題はありません。</p>`}`
@@ -205,9 +205,13 @@ export async function renderMeeting(el, id) {
   });
   counters();
 
-  el.querySelectorAll("[data-hw]").forEach((cb) => cb.addEventListener("change", () =>
+  el.querySelectorAll("[data-hw]").forEach((cb) => cb.addEventListener("change", async () => {
+    // 完了にするときだけ確かめる（外すときはそのまま）
+    if (cb.checked && !await confirmTaskDone(cb.dataset.title)) { cb.checked = false; return; }
+    if (cb.checked) doneEffect(cb);
     busy(cb, () => api(`/api/tasks/${cb.dataset.hw}`, { method: "PATCH", body: { status: cb.checked ? "done" : "todo" } }))
-      .catch(() => (cb.checked = !cb.checked))));
+      .catch(() => (cb.checked = !cb.checked));
+  }));
 
   // 工程のチェック：ここで入れると、このMTGに結び付く（PJの工程画面から議事録を開ける）
   el.querySelectorAll("[data-stage-check]").forEach((cb) => cb.addEventListener("change", async () => {

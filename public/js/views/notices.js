@@ -1,5 +1,5 @@
 // 「確認する」の2画面：お知らせ／自分のタスク
-import { api, esc, busy, dueBadge, fmtDateTime, jstDateTime, TASK_STATUS, state, doneTasksToggle, bindDoneTasksToggle, toast, formData } from "../lib.js";
+import { api, esc, busy, dueBadge, fmtDateTime, jstDateTime, TASK_STATUS, state, doneTasksToggle, bindDoneTasksToggle, toast, formData, confirmTaskDone, doneEffect } from "../lib.js";
 import { ico } from "../icons.js";
 
 export async function renderNotices(el) {
@@ -31,7 +31,7 @@ export async function renderMyTasks(el) {
     .sort((a, b) => b.isMine - a.isMine);
   const row = (t) => `
     <li class="list-item ${t.status === "done" ? "is-done" : ""}">
-      <label class="check"><input type="checkbox" data-task="${t.id}" ${t.status === "done" ? "checked" : ""}>
+      <label class="check"><input type="checkbox" data-task="${t.id}" data-title="${esc(t.title)}" ${t.status === "done" ? "checked" : ""}>
         <span>${esc(t.title)}<small>${TASK_STATUS[t.status]}</small></span></label>
       <div class="meta"><a href="#/projects/${t.project_id}?tab=tasks">${esc(t.project_name)}</a>${dueBadge(t.due_date, t.status === "done")}</div>
     </li>`;
@@ -59,7 +59,10 @@ export async function renderMyTasks(el) {
     busy(e.submitter, () => api(`/api/projects/${pid}/tasks`, { method: "POST", body: { ...body, assignee_id: state.me.id } }))
       .then(() => { toast("タスクを追加しました"); renderMyTasks(el); }).catch(() => {});
   });
-  el.querySelectorAll("[data-task]").forEach((cb) => cb.addEventListener("change", () =>
+  el.querySelectorAll("[data-task]").forEach((cb) => cb.addEventListener("change", async () => {
+    if (cb.checked && !await confirmTaskDone(cb.dataset.title)) { cb.checked = false; return; }
+    if (cb.checked) doneEffect(cb);
     busy(cb, () => api(`/api/tasks/${cb.dataset.task}`, { method: "PATCH", body: { status: cb.checked ? "done" : "todo" } }))
-      .then(() => renderMyTasks(el)).catch(() => (cb.checked = !cb.checked))));
+      .then(() => renderMyTasks(el)).catch(() => (cb.checked = !cb.checked));
+  }));
 }

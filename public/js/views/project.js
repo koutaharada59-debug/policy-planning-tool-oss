@@ -1,7 +1,5 @@
 // PJ詳細：工程ナビ（チェックリスト・期限）／タスク／MTG
-import {
-  api, esc, state, avatar, dueBadge, fmtDate, fmtDateTime, busy, toast, formData, memberOptions, TASK_STATUS,
-  gcalEventUrl, gcalAllDayUrl, gcalLink, gcalChoice, weeklyRrule, hashQuery, WEEK, membersFirst, jstDateTime, stageStepper, bindFold, keepView, celebrate, takeProgressHint, doneTasksToggle, bindDoneTasksToggle, confirmDialog, skipButton, bindSkipButtons, assigneePicker, idsOf, pickerIds } from "../lib.js";
+import { api, esc, state, avatar, dueBadge, fmtDate, fmtDateTime, busy, toast, formData, memberOptions, TASK_STATUS, gcalEventUrl, gcalAllDayUrl, gcalLink, gcalChoice, weeklyRrule, hashQuery, WEEK, membersFirst, jstDateTime, stageStepper, bindFold, keepView, celebrate, takeProgressHint, doneTasksToggle, bindDoneTasksToggle, confirmDialog, skipButton, bindSkipButtons, assigneePicker, idsOf, pickerIds, confirmTaskDone } from "../lib.js";
 import { renderTreeTab, renderMeasuresTab, renderSourcesView } from "./research.js";
 import { renderPresentationTab } from "./presentation.js";
 import { renderProjectRecords } from "./search.js";
@@ -322,8 +320,9 @@ function renderTasks(body, data, ro, reload) {
       busy(button, () => api(`/api/projects/${p.id}/tasks`, { method: "POST", body: f }))
         .then(reload).catch(() => {});
     });
-    body.querySelectorAll("[data-status]").forEach((s) => s.addEventListener("change", () => {
+    body.querySelectorAll("[data-status]").forEach((s) => s.addEventListener("change", async () => {
       const t = tasks.find((x) => x.id === Number(s.dataset.status));
+      if (s.value === "done" && !await confirmTaskDone(t.title)) { s.value = t.status; return; }
       busy(s, () => api(`/api/tasks/${t.id}`, { method: "PATCH", body: { status: s.value, version: t.version } }))
         .then(reload).catch(() => reload());
     }));

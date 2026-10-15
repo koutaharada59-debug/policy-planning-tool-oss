@@ -1058,3 +1058,22 @@ document.addEventListener("click", async (e) => {
     else toast(err.message || "リンクを作れませんでした", "error");
   }
 });
+
+// ---------- タスクを完了にする前の確認（押しまちがいで完了にしないように） ----------
+export function confirmTaskDone(title) {
+  return confirmDialog(`${title ? `「${title}」を` : "このタスクを"}完了にしますか？`, { ok: "完了にする" });
+}
+
+// やったことにチェックを入れたときに、その場ではじけて「+1」（タスクは、確認で「完了にする」を押したあとに呼ぶ）
+export function doneEffect(cb) {
+  burst(cb);
+  plusOne(cb);
+  const row = cb.closest(".list-item, li, label");
+  if (row) { row.classList.remove("just-done"); void row.offsetWidth; row.classList.add("just-done"); }
+  // 自分のタスク・マイページで、担当中のタスクを全部済ませたら、大きくお祝い
+  if (cb.matches("[data-task]") && /^#\/(my-tasks|me)/.test(location.hash)) {
+    const all = document.querySelectorAll("#app [data-task]");
+    const left = document.querySelectorAll("#app [data-task]:not(:checked)").length;
+    if (all.length >= 1 && left === 0) setTimeout(() => celebrate("担当中のタスクを全部済ませました！", "おつかれさまでした 🎉"), 350);
+  }
+}

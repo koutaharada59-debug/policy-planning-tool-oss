@@ -1,6 +1,6 @@
 // プロフィール：担当しているタスクと、参加しているPJ
 // 自分（#/me）はタスクをその場で完了にでき、ほかのメンバー（#/members/ID）は見るだけ
-import { api, esc, avatar, busy, dueBadge, state, stageStepper, TASK_STATUS } from "../lib.js";
+import { api, esc, avatar, busy, dueBadge, state, stageStepper, TASK_STATUS, confirmTaskDone, doneEffect } from "../lib.js";
 import { ico } from "../icons.js";
 
 export async function renderProfile(el, userId = null) {
@@ -38,7 +38,7 @@ export async function renderProfile(el, userId = null) {
     <h2 id="profile-tasks">${ico("check")} 担当中のタスク</h2>
     ${open.length ? `<ul class="list">${open.map((t) => `
       <li class="list-item">
-        ${self ? `<label class="check"><input type="checkbox" data-task="${t.id}">
+        ${self ? `<label class="check"><input type="checkbox" data-task="${t.id}" data-title="${esc(t.title)}">
           <span>${esc(t.title)}<small>${TASK_STATUS[t.status]}</small></span></label>`
           : `<span>${esc(t.title)} <small class="muted">${TASK_STATUS[t.status]}</small></span>`}
         <div class="meta"><a href="#/projects/${t.project_id}?tab=tasks">${esc(t.project_name)}</a>${dueBadge(t.due_date)}</div>
@@ -59,7 +59,10 @@ export async function renderProfile(el, userId = null) {
     e.preventDefault();
     el.querySelector(a.getAttribute("href"))?.scrollIntoView({ behavior: "smooth", block: "start" });
   }));
-  el.querySelectorAll("[data-task]").forEach((cb) => cb.addEventListener("change", () =>
+  el.querySelectorAll("[data-task]").forEach((cb) => cb.addEventListener("change", async () => {
+    if (cb.checked && !await confirmTaskDone(cb.dataset.title)) { cb.checked = false; return; }
+    if (cb.checked) doneEffect(cb);
     busy(cb, () => api(`/api/tasks/${cb.dataset.task}`, { method: "PATCH", body: { status: cb.checked ? "done" : "todo" } }))
-      .then(() => renderProfile(el)).catch(() => (cb.checked = !cb.checked))));
+      .then(() => renderProfile(el)).catch(() => (cb.checked = !cb.checked));
+  }));
 }
