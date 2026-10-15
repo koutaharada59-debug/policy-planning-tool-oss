@@ -28,3 +28,21 @@ test("長い段落も切り捨てずにNotionへ送る", async () => {
   const blocks = JSON.stringify(minutesBlocks({ summary: text }));
   assert.equal((blocks.match(/あ/g) || []).length, 4500);
 });
+
+test("100行を超える議事録も切らずにNotionへ送る", async () => {
+  const { minutesBlocks } = await import("../src/notion.js");
+  const summary = Array.from({ length: 150 }, (_, i) => `行${i + 1}`).join("\n");
+  const blocks = minutesBlocks({ summary });
+  const text = JSON.stringify(blocks);
+  assert.ok(text.includes("行1\"") && text.includes("行150\""));
+  assert.ok(blocks.length > 150);
+});
+
+test("長い文章を分けるとき、絵文字を途中で切らない", async () => {
+  const { minutesBlocks } = await import("../src/notion.js");
+  const summary = "あ".repeat(1899) + "😀" + "い".repeat(10);
+  const blocks = minutesBlocks({ summary });
+  const parts = blocks.flatMap((b) => b[b.type]?.rich_text || []).map((t) => t.text.content);
+  for (const p of parts) assert.ok(!/[\uD800-\uDBFF]$/.test(p) && !/^[\uDC00-\uDFFF]/.test(p), "絵文字が分かれている");
+  assert.ok(parts.join("").includes("😀"));
+});

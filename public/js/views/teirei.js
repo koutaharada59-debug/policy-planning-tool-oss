@@ -241,7 +241,7 @@ export async function renderTeirei(el, id) {
     return res;
   });
   // 書くのが止まったら、自動で保存する
-  const auto = canEdit ? autoSave(form, () => saveNow(false, true), { status: el.querySelector("#auto-status"), key: `teirei:${id}` }) : null;
+  const auto = canEdit ? autoSave(form, () => saveNow(false, true), { status: el.querySelector("#auto-status"), key: `teirei:${id}`, label: "定例の議事録" }) : null;
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
     const end = "end" in e.submitter.dataset;
@@ -303,7 +303,7 @@ export async function renderReport(el, projectId) {
       return api(`/api/projects/${projectId}/dept-report`, { method: "PUT", body: { ...formData(form), version } });
     });
   const saveNow = () => send().then((res) => { base = formData(form); version = res.version; return res; });
-  const auto = autoSave(form, saveNow, { status: el.querySelector("#auto-status"), key: `report:${projectId}:${meeting?.id || "next"}` });
+  const auto = autoSave(form, saveNow, { status: el.querySelector("#auto-status"), key: `report:${projectId}:${meeting?.id || "next"}`, label: "進捗" });
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
     if (auto.pending()) await auto.flush();
@@ -364,7 +364,7 @@ export async function renderTeireiNotice(el) {
       return api("/api/dept-notice", { method: "PUT", body: body() });
     })
     .then((res) => { version = res.version; base = { notice: f.notice.value, news: f.news.value, exchange: f.exchange.value }; return res; });
-  const auto = autoSave(noticeForm, saveNow, { status: el.querySelector("#auto-status"), key: `notice:${d.target}:${d.day || ""}` });
+  const auto = autoSave(noticeForm, saveNow, { status: el.querySelector("#auto-status"), key: `notice:${d.target}:${d.day || ""}`, label: "事務連絡" });
   noticeForm.addEventListener("submit", async (e) => {
     e.preventDefault();
     if (auto.pending()) await auto.flush();

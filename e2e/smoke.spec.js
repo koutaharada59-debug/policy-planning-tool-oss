@@ -139,20 +139,86 @@ test("議事録は、送れないまま閉じても開き直すと戻る", async
   await expect(page.locator("#minutes-form")).toBeVisible();
   const meetingUrl = page.url();
 
-  await page.route("**/api/meetings/*/minutes", (route) => (route.request().method() === "PUT" ? route.abort() : route.continue()));
+  // 電波がない（閉じるときの送り切りも届かない）
   await page.waitForTimeout(500);
+  await page.context().setOffline(true);
   await page.locator('.rich-editor[data-field="summary"]').click();
   await page.keyboard.type("閉じる前に書いた行");
   await expect(page.locator("#live-status")).toContainText("まだ保存できていません", { timeout: 10_000 });
+  await expect(page.locator("#save-alert")).toContainText("まだ保存できていません");
 
-  // 強制終了の代わりに、確認を出さずに別のページを開き直す
+  // 強制終了の代わりに、確認を出さずに閉じる。電波が戻ってから開き直す
   const again = await page.context().newPage();
   await page.close({ runBeforeUnload: false });
+  await again.context().setOffline(false);
   await again.goto(meetingUrl);
   await expect(again.locator("#live-status")).toContainText("自動で保存しました", { timeout: 15_000 });
   await again.goto("/#/");
   await again.goto(meetingUrl);
   await expect(again.locator('.rich-editor[data-field="summary"]')).toContainText("閉じる前に書いた行");
+});
+
+// 2つの画面（2人）が同じMTGの議事録に同時に書く：概要もやることも、どちらの分も消えない
+test("議事録は、2人が同時に書いても両方残る", async ({ browser }) => {
+  const a = await (await browser.newContext()).newPage();
+  const b = await (await browser.newContext()).newPage();
+  await login(a);
+  await login(b);
+  const name = `同時テストPJ ${stamp}`;
+  await a.goto("/#/projects/new");
+  await a.fill("#pj-form [name=name]", name);
+  await a.check("#pj-form [name=meeting_mode][value=adhoc]");
+  await a.getByRole("button", { name: "作成する" }).click();
+  await a.locator(".pj-quick").getByRole("link", { name: /MTG/ }).click();
+  await a.getByRole("button", { name: /臨時のMTG/ }).click();
+  await a.getByRole("button", { name: "この内容で始める" }).click();
+  await expect(a.locator("#minutes-form")).toBeVisible();
+  const url = a.url();
+  await b.goto(url);
+  await expect(b.locator("#minutes-form")).toBeVisible();
+  await a.waitForTimeout(800);
+
+  // 同時に、概要に別々の行を書く
+  await a.locator('.rich-editor[data-field="summary"]').click();
+  await b.locator('.rich-editor[data-field="summary"]').click();
+  await Promise.all([a.keyboard.type("Aさんが書いた行"), b.keyboard.type("Bさんが書いた行")]);
+  // 同時に、やることを1つずつ足す
+  await Promise.all([a.locator("#add-todo").click(), b.locator("#add-todo").click()]);
+  await Promise.all([a.keyboard.type("Aさんのやること"), b.keyboard.type("Bさんのやること")]);
+  await expect(a.locator("#live-status")).toContainText("自動で保存しました", { timeout: 15_000 });
+  await expect(b.locator("#live-status")).toContainText("自動で保存しました", { timeout: 15_000 });
+  await a.waitForTimeout(1500);
+
+  // 開き直すと、どちらの分もある
+  await a.goto("/#/");
+  await a.goto(url);
+  const summary = a.locator('.rich-editor[data-field="summary"]');
+  await expect(summary).toContainText("Aさんが書いた行");
+  await expect(summary).toContainText("Bさんが書いた行");
+  const titles = await a.locator("#todos [data-k=title]").evaluateAll((els) => els.map((e) => e.value));
+  expect(titles).toEqual(expect.arrayContaining(["Aさんのやること", "Bさんのやること"]));
+});
+
+// Shift+Enter の改行も、保存すると行が分かれたまま残る
+test("議事録の Shift+Enter の改行が残る", async ({ page }) => {
+  await login(page);
+  const name = `改行テストPJ ${stamp}`;
+  await page.goto("/#/projects/new");
+  await page.fill("#pj-form [name=name]", name);
+  await page.check("#pj-form [name=meeting_mode][value=adhoc]");
+  await page.getByRole("button", { name: "作成する" }).click();
+  await page.locator(".pj-quick").getByRole("link", { name: /MTG/ }).click();
+  await page.getByRole("button", { name: /臨時のMTG/ }).click();
+  await page.getByRole("button", { name: "この内容で始める" }).click();
+  await expect(page.locator("#minutes-form")).toBeVisible();
+  await page.waitForTimeout(500);
+  await page.locator('.rich-editor[data-field="summary"]').click();
+  await page.keyboard.type("一行目");
+  await page.keyboard.press("Shift+Enter");
+  await page.keyboard.type("二行目");
+  await expect(page.locator("#live-status")).toContainText("自動で保存しました", { timeout: 10_000 });
+  const value = await page.locator("textarea[name=summary]").evaluate((t) => t.value);
+  expect(value).toBe("一行目\n二行目");
 });
 
 test("🔔でお知らせの枠が開く（ページは移らない）", async ({ page }) => {

@@ -17,7 +17,17 @@ export function notionPageId(url) {
 }
 
 // Notionは1つの文字のかたまりが2000字まで。長い文章は切り捨てずに、1900字ずつに分けて送る
-const chunks = (s) => { const out = []; for (let i = 0; i < s.length; i += 1900) out.push(s.slice(i, i + 1900)); return out; };
+// 絵文字など2つ分の文字を途中で切らないよう、1文字ずつ数えて分ける
+const chunks = (s) => {
+  const out = [];
+  let cur = "";
+  for (const ch of s) {
+    if (cur.length + ch.length > 1900) { out.push(cur); cur = ""; }
+    cur += ch;
+  }
+  if (cur || !out.length) out.push(cur);
+  return out;
+};
 const rich = (text) => chunks(String(text)).slice(0, 100).map((content) => ({ type: "text", text: { content } }));
 // **太字** *斜体* ~~取り消し~~ `コード` [文字](URL) とURLを、Notionの書式つき文字にする（リンクはNotionでもクリックで開ける）
 const INLINE = /\*\*([^*]+)\*\*|~~([^~]+)~~|`([^`]+)`|\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)|(https?:\/\/[^\s<>"']+)|(?<![*])\*([^*\s][^*]*)\*/g;
@@ -60,7 +70,7 @@ function mdBlock(line) {
   if ((m = line.match(/^\s*(?:[-*]\s)?\[( |x|X)\]\s?(.*)$/))) return block("to_do", m[2], { checked: m[1].toLowerCase() === "x" });
   // 「- 」「* 」（後ろに空白）と「・」が箇条書き。行頭の **太字** は箇条書きにしない
   if ((m = line.match(/^\s*(?:[-*]\s|・\s?)(.*)$/))) return block("bulleted_list_item", m[1]);
-  if ((m = line.match(/^\s*\d+[.)]\s+(.*)$/))) return block("numbered_list_item", m[1]);
+  if ((m = line.match(/^\s*\d{1,3}[.)]\s+(.*)$/))) return block("numbered_list_item", m[1]);
   if ((m = line.match(/^>\s?(.*)$/))) return block("quote", m[1]);
   if (/^-{3,}$/.test(line.trim())) return { object: "block", type: "divider", divider: {} };
   if (/^https?:\/\/\S+$/.test(line.trim())) return { object: "block", type: "bookmark", bookmark: { url: line.trim() } };
@@ -77,7 +87,9 @@ function nest(text) {
     const b = mdBlock(raw.trim());
     while (stack.length && stack[stack.length - 1].indent >= indent) stack.pop();
     const parent = stack[stack.length - 1];
-    if (parent && CAN_NEST.includes(parent.block.type)) (parent.block[parent.block.type].children ||= []).push(b);
+    // 1つのブロックの中身は100個まで（超えた分は、消さずに外に出す）
+    const kids = parent && CAN_NEST.includes(parent.block.type) ? (parent.block[parent.block.type].children ||= []) : null;
+    if (kids && kids.length < 100) kids.push(b);
     else out.push(b);
     stack.push({ indent, block: b });
   }
@@ -98,12 +110,19 @@ export function minutesBlocks({ homework = [], agenda = "", summary = "", todos 
   blocks.push(heading("次回までにやること"));
   blocks.push(...(todos.length ? todos.map((t) => todo(`${t.title}（${t.assignee_name || "担当未定"}${t.due_date ? `・${t.due_date.slice(5).replace("-", "/")}まで` : ""}）`, t.status === "done")) : [para("（なし）")]));
   if (appUrl) blocks.push(para(`政策立案ツールの議事録：${appUrl}`));
-  return blocks.slice(0, 100);
+  return blocks; // 100個を超えても切らない（送るときに100個ずつに分ける）
 }
 
 const headers = (env) => ({ Authorization: `Bearer ${env.NOTION_TOKEN}`, "Notion-Version": VERSION, "Content-Type": "application/json" });
 async function call(env, path, method, body) {
-  const res = await fetch(`${API}${path}`, { method, headers: headers(env), body: body ? JSON.stringify(body) : undefined });
+  let res;
+  // 混んでいる（429）・一時的な不調（5xx）のときは、少し待って3回までやり直す
+  for (let attempt = 0; ; attempt++) {
+    res = await fetch(`${API}${path}`, { method, headers: headers(env), body: body ? JSON.stringify(body) : undefined });
+    if (!(res.status === 429 || res.status >= 500) || attempt >= 3) break;
+    const wait = Math.min(10, Number(res.headers.get("Retry-After")) || attempt + 1);
+    await new Promise((r) => setTimeout(r, wait * 1000));
+  }
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
     console.error("notion api failed", method, path.replace(/[0-9a-f-]{32,36}/g, "…"), res.status, data.code);
@@ -142,15 +161,27 @@ export async function replaceNotionPage(env, pageUrl, title, children) {
   const id = notionPageId(pageUrl);
   if (!id) return;
   await call(env, `/pages/${id}`, "PATCH", { properties: { title: { title: rich(title) } } });
+  const old = (await listChildren(env, id)).map((b) => b.id);
+  // 先に新しい中身を足してから、古い中身を消す（途中で失敗しても、ページが空にならないように）
+  await appendBlocks(env, id, children);
+  for (const b of old) await call(env, `/blocks/${b}`, "DELETE");
+}
+
+// ページの中身をすべて読む
+async function listChildren(env, id) {
   let cursor;
-  const old = [];
+  const all = [];
   do {
     const r = await call(env, `/blocks/${id}/children?page_size=100${cursor ? `&start_cursor=${cursor}` : ""}`, "GET");
-    old.push(...r.results.map((b) => b.id));
+    all.push(...r.results);
     cursor = r.has_more ? r.next_cursor : null;
   } while (cursor);
-  for (const b of old) await call(env, `/blocks/${b}`, "DELETE");
-  await call(env, `/blocks/${id}/children`, "PATCH", { children: children.slice(0, 100) });
+  return all;
+}
+
+// ページの最後に足す（Notionは1回に100個までなので、分けて送る）
+async function appendBlocks(env, id, blocks) {
+  for (let i = 0; i < blocks.length; i += 100) await call(env, `/blocks/${id}/children`, "PATCH", { children: blocks.slice(i, i + 100) });
 }
 
 // ---------- メンバー（Notionのワークスペースに入っている人） ----------
@@ -231,7 +262,8 @@ export async function createTeireiPage(env, { title, date, children }) {
     else if (p.type === "relation" && env.NOTION_DEPT_PAGE) props[name] = { relation: [{ id: env.NOTION_DEPT_PAGE }] };
   }
   delete props.__date;
-  const page = await call(env, "/pages", "POST", { parent: { database_id: env.NOTION_TEIREI_DB }, properties: props, children });
+  const page = await call(env, "/pages", "POST", { parent: { database_id: env.NOTION_TEIREI_DB }, properties: props, children: children.slice(0, 100) });
+  await appendBlocks(env, page.id, children.slice(100));
   return page.url;
 }
 
@@ -257,7 +289,7 @@ export function teireiBlocks({ notice, reports, missing, news, exchange, memo, l
   }
   if (lines(memo).length) blocks.push(...section("📝 メモ", memo));
   if (appUrl) blocks.push(para(`政策立案ツールの議事録：${appUrl}`));
-  return blocks.slice(0, 100);
+  return blocks; // 100個を超えても切らない（送るときに100個ずつに分ける）
 }
 
 function reportBlocks(reports, missing) {
@@ -282,21 +314,14 @@ const MARK = "🔄 政策立案ツールの議事録（ここから下は、ツ�
 export async function replaceToolSection(env, pageUrl, children) {
   const id = notionPageId(pageUrl);
   if (!id) return;
-  let cursor;
-  const all = [];
-  do {
-    const r = await call(env, `/blocks/${id}/children?page_size=100${cursor ? `&start_cursor=${cursor}` : ""}`, "GET");
-    all.push(...r.results);
-    cursor = r.has_more ? r.next_cursor : null;
-  } while (cursor);
+  const all = await listChildren(env, id);
   const at = all.findIndex((b) => b.type === "heading_2" && b.heading_2.rich_text.map((t) => t.plain_text).join("") === MARK);
-  if (at >= 0) {
-    // 前回足した区切り線（見出しのすぐ上）と、見出しから下を消す
-    const from = at > 0 && all[at - 1].type === "divider" ? at - 1 : at;
-    for (const b of all.slice(from)) await call(env, `/blocks/${b.id}`, "DELETE");
-  }
+  // 前回足した区切り線（見出しのすぐ上）と、見出しから下が古い分
+  const old = at >= 0 ? all.slice(at > 0 && all[at - 1].type === "divider" ? at - 1 : at) : [];
   const head = [{ object: "block", type: "divider", divider: {} }, { object: "block", type: "heading_2", heading_2: { rich_text: rich(MARK) } }];
-  await call(env, `/blocks/${id}/children`, "PATCH", { children: [...head, ...children].slice(0, 100) });
+  // 先に新しい分を足してから、古い分を消す（途中で失敗しても、空にならないように）
+  await appendBlocks(env, id, [...head, ...children]);
+  for (const b of old) await call(env, `/blocks/${b.id}`, "DELETE");
 }
 
 // parentUrl のページの最後（見出し「議事録」の下）に、新しいページを作る。作ったページのURLを返す
@@ -306,7 +331,7 @@ export async function createNotionPage(env, parentUrl, title, children) {
   const res = await fetch(`${API}/pages`, {
     method: "POST",
     headers: { Authorization: `Bearer ${env.NOTION_TOKEN}`, "Notion-Version": VERSION, "Content-Type": "application/json" },
-    body: JSON.stringify({ parent: { page_id: parent }, properties: { title: { title: rich(title) } }, children }),
+    body: JSON.stringify({ parent: { page_id: parent }, properties: { title: { title: rich(title) } }, children: children.slice(0, 100) }),
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
@@ -317,5 +342,7 @@ export async function createNotionPage(env, parentUrl, title, children) {
     if (res.status === 401) throw new HttpError(500, "Notionのトークンが正しくありません。管理者に連絡してください");
     throw new HttpError(502, "Notionにページを作れませんでした。少し待ってからもう一度試してください");
   }
+  // 100個を超えた分は、作ったページの最後に足す
+  await appendBlocks(env, data.id, children.slice(100));
   return data.url;
 }

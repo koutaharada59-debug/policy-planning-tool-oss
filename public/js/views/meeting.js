@@ -1,6 +1,6 @@
 // 議事録：前回の宿題（自動引き継ぎ）／話し合うこと／概要／キーワード／次回までにやること
 // 詳細なフィードバックはGoogleドキュメントに残す運用なので、入力欄は短くしている
-import { api, esc, state, fmtDateTime, fmtDate, busy, toast, memberOptions, dueBadge, addDays, embedUrl, membersFirst, copyForNotion, copyButton, bindCopyButtons, hashQuery, timerHtml, bindTimer, clearTimer, syncTimerStart, confirmDialog, guardPending, putUnsent, dropUnsent, restoreUnsent, celebrateProgress, setProgressHint, skipButton, bindSkipButtons, assigneePicker, idsOf, forgetUnsaved } from "../lib.js";
+import { api, esc, state, fmtDateTime, fmtDate, busy, toast, memberOptions, dueBadge, addDays, embedUrl, membersFirst, copyForNotion, copyButton, bindCopyButtons, hashQuery, timerHtml, bindTimer, clearTimer, syncTimerStart, confirmDialog, guardPending, putUnsent, settleUnsent, restoreUnsent, setSaveAlert, saveAlertText, celebrateProgress, setProgressHint, skipButton, bindSkipButtons, assigneePicker, idsOf, forgetUnsaved } from "../lib.js";
 import { enhanceRich } from "../rich.js";
 import { schedulePollLinks } from "./schedule-poll.js";
 
@@ -18,7 +18,9 @@ export async function renderMeeting(el, id) {
   // touched：項目ごとに、最後に書いた・保存した時刻（それより前に問い合わせた古い内容で、画面を上書きしないため）
   const unsentKey = `meeting:${m.id}`; // 端末への一時保存の名前（lib.js の putUnsent）
   const live = { focus: null, dirty: new Set(), chain: {}, timers: {}, locked: {}, busy: false, inflight: new Set(),
-    base: { agenda: minute?.agenda || "", summary: minute?.summary || "" }, touched: {}, retries: {}, restore: new Set() };
+    base: { agenda: minute?.agenda || "", summary: minute?.summary || "" }, touched: {}, retries: {}, restore: new Set(),
+    // サーバーにあると分かっている「次回までにやること」のタスク（消すのは、この中から一覧で外したものだけ）
+    knownTodoIds: new Set(data.todos.map((t) => t.id)) };
   // key：画面の行の目印（自動保存で新しく作ったタスクの id を、どの行のものか受け取るため）
   const newKey = () => Math.random().toString(36).slice(2, 10);
   // 担当は複数人（assignee_ids）。notified：もう「担当になりました」を知らせた人
@@ -111,23 +113,33 @@ export async function renderMeeting(el, id) {
   // 下書き：次回の日程・MTGの進め方は、選ぶたびに残す（画面を移っても消えない。決まるのは「保存する」「決める」のとき）
   if (canEdit && !viewOnly) {
     let draftTimer = null;
+    let draftPending = false;
+    let draftTries = 0;
     const draftNow = () => {
+      draftTimer = null;
       const fm = el.querySelector(".first-meeting");
       const draft = {
         next_starts_at: form.next_starts_at?.value || "", next_place: form.next_place?.value || "",
         ...(fm ? { plan: { mode: fm.querySelector("[name=fm-mode]:checked")?.value, weekdays: [...fm.querySelectorAll("[name=fm-wd]:checked")].map((c) => c.value),
           time: fm.querySelector("#fm-time")?.value, interval: Number(fm.querySelector("#fm-interval")?.value) } } : {}),
       };
+      draftPending = true;
       api(`/api/meetings/${m.id}/draft`, { method: "PUT", body: { draft } }).then(() => {
+        draftPending = false;
+        draftTries = 0;
         const st = el.querySelector("#draft-status");
         if (st && draft.next_starts_at && !data.nextMeeting) st.textContent = "✓ 残しました。「保存する」か「MTGを終える」で決まり、メンバーに届きます。";
-      }).catch(() => {});
+      }).catch(() => {
+        // 送れなかったら、少し待ってやり直す（あいだに選び直していたら、その内容で送る）
+        if (++draftTries <= 100) { clearTimeout(draftTimer); draftTimer = setTimeout(draftNow, Math.min(10000, 2000 * draftTries)); }
+      });
     };
     const isDraftField = (t) => t.matches?.("[name=next_starts_at],[name=next_place],[name=fm-mode],[name=fm-wd],#fm-time,#fm-interval");
     const onDraft = (e) => { if (!isDraftField(e.target)) return; clearTimeout(draftTimer); draftTimer = setTimeout(draftNow, 800); };
     el.addEventListener("input", onDraft);
     el.addEventListener("change", onDraft);
     window.addEventListener("hashchange", () => { if (draftTimer) { clearTimeout(draftTimer); draftNow(); } }, { once: true });
+    guardPending(form, () => Boolean(draftTimer) || draftPending, () => { if (draftTimer) { clearTimeout(draftTimer); draftNow(); } });
   }
   // 次回の日程が決められないとき：日程調整アンケート
   const spBox = el.querySelector("#sp-links");
@@ -137,7 +149,7 @@ export async function renderMeeting(el, id) {
   const defaultDue = () => (data.nextMeeting ? data.nextMeeting.starts_at.slice(0, 10) : addDays(m.starts_at.slice(0, 10), 7));
 
   const drawTodos = () => {
-    const ro = baseRo || (live.locked.todos ? "disabled" : "");
+    const ro = baseRo;
     el.querySelector("#add-todo")?.toggleAttribute("disabled", Boolean(ro));
     todoBox.innerHTML = todos.length ? todos.map((t, i) => `
       <div class="todo-row" data-i="${i}">
@@ -154,6 +166,7 @@ export async function renderMeeting(el, id) {
     const row = e.target.closest("[data-i]");
     if (row && e.target.dataset.k) {
       todos[row.dataset.i][e.target.dataset.k] = e.target.value;
+      todos[row.dataset.i].changed = true;
       markDirty("todos");
     }
   });
@@ -162,6 +175,7 @@ export async function renderMeeting(el, id) {
     const row = e.target.closest("[data-i]");
     if (!row) return;
     todos[row.dataset.i].assignee_ids = e.detail;
+    todos[row.dataset.i].changed = true;
     markDirty("todos");
   });
   todoBox.addEventListener("click", (e) => {
@@ -226,21 +240,23 @@ export async function renderMeeting(el, id) {
     return f && canWrite(f) ? f : null;
   };
   const valueOf = (f) => (f === "todos"
-    ? { todos: todos.map(({ key, id, title, assignee_ids, due_date }) => ({ key, id, title, assignee_ids, due_date })) }
+    ? { todos: todos.map(({ key, id, title, assignee_ids, due_date, changed }) => ({ key, id, title, assignee_ids, due_date, changed: !id || Boolean(changed) })),
+      known_ids: [...live.knownTodoIds] }
     : { [f]: form[f].value });
+  const FIELD_LABEL = { agenda: "今回話し合うこと", summary: "話し合いの概要", todos: "次回までにやること" };
   const status = (text) => { const x = el.querySelector("#live-status"); if (x) { x.textContent = text; x.classList.toggle("save-warn", text.startsWith("⚠")); } };
 
   function markDirty(f) {
     if (!canWrite(f)) return;
     live.dirty.add(f);
     live.touched[f] = Date.now();
-    if (f !== "todos") putUnsent(unsentKey, { agenda: form.agenda.value, summary: form.summary.value }, { ...live.base });
+    if (f !== "todos") putUnsent(unsentKey, { [f]: form[f].value }, { [f]: live.base[f] });
     status("入力中…");
     clearTimeout(live.timers[f]);
     live.timers[f] = setTimeout(() => saveField(f).catch(() => {}), 1000);
   }
   // 1項目ずつ、順番に保存する（前の保存が終わってから次を送る）
-  function saveField(f) {
+  function saveField(f, { keepalive = false } = {}) {
     clearTimeout(live.timers[f]);
     // 前の保存が失敗していても、次の保存は必ず送る（失敗したままつなぐと、それ以降の保存がすべて止まってしまう）
     live.chain[f] = (live.chain[f] || Promise.resolve()).catch(() => {}).then(async () => {
@@ -250,23 +266,36 @@ export async function renderMeeting(el, id) {
       try {
         const sent = valueOf(f);
         const body = f === "todos" ? sent : { ...sent, base: { [f]: live.base[f] }, restore: live.restore.delete(f) || undefined };
-        const res = await api(`/api/meetings/${m.id}/minutes`, { method: "PUT", body });
+        const rowSig = (t) => JSON.stringify([t.title, t.assignee_ids, t.due_date]);
+        const sentRows = f === "todos" ? new Map(sent.todos.map((t) => [t.key, rowSig(t)])) : null;
+        const res = await api(`/api/meetings/${m.id}/minutes`, { method: "PUT", body, keepalive });
         live.touched[f] = Date.now();
-        // 送った内容が今の欄と同じなら、端末の一時保存は要らない
-        if (f !== "todos" && !live.dirty.has("agenda") && !live.dirty.has("summary") && !live.inflight.has(f === "agenda" ? "summary" : "agenda")
-          && form[f].value === (res.merged?.[f] ?? sent[f])) dropUnsent(unsentKey);
         if (live.retries[f]) { live.retries[f] = 0; if (!form.isConnected) toast("✓ MTGの議事録を保存できました"); }
+        if (!Object.values(live.retries).some((n) => n > 0)) setSaveAlert(alertId, null);
         if (f !== "todos") {
-          live.base[f] = res.merged?.[f] ?? sent[f];
-          // ほかの人の内容と合わせた：書き足していなければ画面にも映す（書き足していれば、次の保存で合わさる）
-          if (res.merged?.[f] !== undefined) {
-            if (form[f].value === sent[f]) { form[f].value = res.merged[f]; flash(f); }
-            toast("ほかの人が同じ欄を書き換えていたので、両方の内容を残しました");
+          const saved = res.merged?.[f] ?? sent[f];
+          if (form[f].value === sent[f]) {
+            live.base[f] = saved;
+            // ほかの人の内容と合わせた：書き足していなければ画面にも映す
+            if (res.merged?.[f] !== undefined) { form[f].value = saved; flash(f); }
+          } else {
+            // 送ったあとにも書き足している：合わせた分は次の保存でもう一度合わさるよう、送った内容を基準にしておく
+            live.base[f] = sent[f];
           }
+          if (res.merged?.[f] !== undefined) toast("ほかの人が同じ欄を書き換えていたので、両方の内容を残しました");
+          // 端末の一時保存：保存できた内容と同じなら外す（書き足していれば残す）
+          settleUnsent(unsentKey, f, [saved, sent[f]]);
+        } else {
+          // 消したタスクは、もうサーバーにない。送ったときから変えていない行は「書き換えた」の印を外す
+          const sentIds = new Set(sent.todos.map((t) => t.id).filter(Boolean));
+          for (const id of sent.known_ids) if (!sentIds.has(id)) live.knownTodoIds.delete(id);
+          for (const t of todos) if (sentRows.get(t.key) === rowSig(t)) t.changed = false;
         }
+        // 新しく作ったタスクは、知っているものに入れる
         for (const [key, tid] of Object.entries(res.ids || {})) {
           const t = todos.find((x) => x.key === key);
           if (t) t.id = tid;
+          live.knownTodoIds.add(tid);
         }
         // ほかの欄がまだ保存できていないときは「保存しました」と出さない（1つの表示をみんなで使っているので、失敗が隠れないように）
         const failing = Object.keys(live.retries).filter((x) => live.retries[x] > 0);
@@ -278,7 +307,7 @@ export async function renderMeeting(el, id) {
         // 保存できるまで、少し待って自動でやり直す（画面を移っても続ける）
         live.retries[f] = (live.retries[f] || 0) + 1;
         status(`⚠ まだ保存できていません（${err.message}）。自動でやり直しています…`);
-        if (!form.isConnected && live.retries[f] === 1) toast(`⚠ MTGの議事録をまだ保存できていません：${err.message}。自動でやり直しています`);
+        setSaveAlert(alertId, saveAlertText(`MTGの議事録（${FIELD_LABEL[f]}）`, err));
         if (live.retries[f] <= 200) live.timers[f] = setTimeout(() => saveField(f).catch(() => {}), Math.min(10000, 2000 * live.retries[f]));
         throw err;
       } finally {
@@ -287,16 +316,19 @@ export async function renderMeeting(el, id) {
     });
     return live.chain[f];
   }
-  const flushAll = () => Promise.all(["agenda", "summary", "todos"].map((f) => saveField(f)));
+  const alertId = `meeting-${m.id}`;
+  const flushAll = (opts) => Promise.all(["agenda", "summary", "todos"].map((f) => saveField(f, opts)));
   // ほかの画面へ移るとき：書きかけをすぐ保存する（保存は画面を移っても続く。失敗したら知らせる）
   const pending = () => live.dirty.size > 0 || live.inflight.size > 0;
   window.addEventListener("hashchange", () => { if (live.dirty.size) flushAll().catch(() => {}); }, { once: true });
-  document.addEventListener("visibilitychange", () => { if (document.hidden && form.isConnected && live.dirty.size) flushAll().catch(() => {}); });
+  // アプリを切り替える・画面を閉じるときは、ページが閉じても送り切るようにして保存する
+  document.addEventListener("visibilitychange", () => { if (document.hidden && form.isConnected && live.dirty.size) flushAll({ keepalive: true }).catch(() => {}); });
+  window.addEventListener("pagehide", () => { if (form.isConnected && live.dirty.size) flushAll({ keepalive: true }).catch(() => {}); });
   // タブを閉じる・再読み込みするときは、保存が終わっていなければ確かめる
   const onUnload = (e) => {
     if (!form.isConnected) { window.removeEventListener("beforeunload", onUnload); return; }
     if (!pending()) return;
-    flushAll().catch(() => {});
+    flushAll({ keepalive: true }).catch(() => {});
     e.preventDefault();
     e.returnValue = "";
   };
@@ -356,12 +388,6 @@ export async function renderMeeting(el, id) {
   };
 
   function apply(r, askedAt = 0) {
-    if (r.blocked && live.focus === "todos") {
-      toast(`${r.blocked}さんが入力中です。書き終わるまで待ってください`);
-      document.activeElement?.blur();
-      live.focus = null;
-    }
-    const before = live.locked.todos;
     live.locked = Object.fromEntries(r.editors.map((e) => [e.field, e.name || "ほかの人"]));
     for (const f of ["agenda", "summary"]) {
       const v = r.minute?.[f] ?? "";
@@ -373,22 +399,24 @@ export async function renderMeeting(el, id) {
       }
       if (canWrite(f)) form[f].readOnly = false; // 文章の欄はロックしない（同時に書いたら両方残す）
     }
-    if (!mine("todos")) {
+    // 問い合わせたあとに自分が書いた・保存した「やること」は、古い内容なので映さない
+    if (!mine("todos") && (live.touched.todos || 0) < askedAt) {
+      live.knownTodoIds = new Set(r.todos.map((t) => t.id));
       const next = r.todos.map((t) => ({ ...withIds(t), key: todos.find((x) => x.id === t.id)?.key || newKey() }));
       const drafts = todos.filter((t) => !t.id && !t.title.trim());
       if (!sameTodos(next, todos.filter((t) => t.id || t.title.trim()))) {
         todos = [...next, ...drafts];
         drawTodos();
         flash("todos");
-      } else if (before !== live.locked.todos) drawTodos();
-    } else if (before !== live.locked.todos) drawTodos();
+      }
+    }
     for (const h of r.homework) {
       const cb = el.querySelector(`[data-hw="${h.id}"]`);
       if (cb && !cb.disabled) cb.checked = h.status === "done";
     }
     el.querySelectorAll("[data-badge]").forEach((b) => {
       const who = live.locked[b.dataset.badge];
-      b.textContent = who ? (b.dataset.badge === "todos" ? `✏️ ${who}さんが入力中` : `✏️ ${who}さんも書いています（両方残ります）`) : "";
+      b.textContent = who ? `✏️ ${who}さんも書いています（両方残ります）` : "";
     });
     const v = el.querySelector("#live-viewers");
     if (v) v.textContent = r.viewers.length ? `👥 ${r.viewers.join("、")}さんも開いています` : "";
@@ -414,7 +442,6 @@ export async function renderMeeting(el, id) {
   form.addEventListener("focusin", (e) => {
     const f = fieldOf(e.target);
     if (!f || f === live.focus) return;
-    if (f === "todos" && live.locked[f]) { toast(`${live.locked[f]}さんが入力中です`); return; }
     live.focus = f;
     beat();
   });

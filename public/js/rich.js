@@ -5,7 +5,7 @@
 //   **太字** / *斜体* / ~~取り消し~~ / `コード` / [文字](URL) / URLだけの行はリンクのカード（Googleドキュメント・YouTubeなどは埋め込み）
 //
 // 書き方：行の頭で「# 」「- 」「[] 」などを打つと変わる。「/」でメニュー。文字を選ぶと太字・リンクなどのバー。
-import { esc, embedUrl } from "./lib.js";
+import { esc, embedUrl, toast } from "./lib.js";
 
 const TYPES = {
   p: { label: "本文", md: "" },
@@ -55,7 +55,7 @@ function parseBody(line) {
   if ((r = m(/^\s*(?:[-*]\s)?\[( |x|X)\]\s?(.*)$/))) return ["todo", r[2], r[1].toLowerCase() === "x"];
   // 「- 」「* 」（後ろに空白）と「・」が箇条書き。行頭の **太字** は箇条書きにしない
   if ((r = m(/^\s*(?:[-*]\s|・\s?)(.*)$/)) || (r = m(/^\s*-$/))) return ["ul", r[1] || ""];
-  if ((r = m(/^\s*\d+[.)]\s+(.*)$/))) return ["ol", r[1]];
+  if ((r = m(/^\s*(\d{1,3})[.)]\s+(.*)$/))) return ["ol", r[2], r[1]];
   if ((r = m(/^>\s?(.*)$/))) return ["quote", r[1]];
   if (/^-{3,}$/.test(line.trim())) return ["hr", ""];
   if (/^https?:\/\/\S+$/.test(line.trim())) return ["embed", line.trim()];
@@ -69,7 +69,9 @@ function embedHtml(url) {
   return `<a class="rb-card" href="${esc(url)}" target="_blank" rel="noopener" contenteditable="false"><span class="rb-card-icon">🔗</span><span><strong>${esc(host || url)}</strong><small>${esc(url)}</small></span></a>${frame ? `<iframe class="rb-frame" src="${esc(frame)}" loading="lazy" allowfullscreen></iframe>` : ""}`;
 }
 function blockHtml([type, text, checked, indent = 0], editable) {
-  const attrs = `class="rb rb-${type}" data-type="${type}"${indent ? ` data-indent="${indent}"` : ""}${type === "toggle" && editable ? ' data-open="1"' : ""}`;
+  // 番号付きリストは、3つ目に書いた番号が入る（1以外から始まるときに使う）
+  const start = type === "ol" && Number(checked) > 1 ? ` data-start="${Number(checked)}"` : "";
+  const attrs = `class="rb rb-${type}" data-type="${type}"${start}${indent ? ` data-indent="${indent}"` : ""}${type === "toggle" && editable ? ' data-open="1"' : ""}`;
   if (type === "hr") return `<div ${attrs} contenteditable="false"><hr></div>`;
   if (type === "embed") return `<div ${attrs} data-url="${esc(text)}" contenteditable="false">${embedHtml(text)}</div>`;
   if (type === "callout") return `<div ${attrs}><span class="rb-icon" contenteditable="false">💡</span><span class="rb-text">${inlineHtml(text) || "<br>"}</span></div>`;
@@ -84,7 +86,7 @@ export function richHtml(md, { editable = false } = {}) {
   let hideBelow = null;
   return lines.map((l) => {
     const b = parseLine(l);
-    n = b[0] === "ol" ? n + 1 : 0;
+    n = b[0] === "ol" ? (n ? n + 1 : Number(b[2]) || 1) : 0;
     let html = blockHtml(b, editable).replace('class="rb rb-ol"', `class="rb rb-ol" data-n="${n}"`);
     // 閉じたトグルの中身は隠す（編集中はトグルを開いておく）
     const ind = b[3] || 0;
@@ -115,15 +117,19 @@ document.addEventListener("mousedown", (e) => {
 });
 
 // ---------- 編集用HTML → Markdown ----------
+const DECOR = ["rb-check", "rb-icon", "rb-tog"];
 function inlineMd(node) {
   let out = "";
   for (const c of node.childNodes) {
-    if (c.nodeType === 3) { out += c.nodeValue.replace(/ /g, " "); continue; }
-    if (c.nodeType !== 1 || c.classList?.contains("rb-check")) continue;
+    if (c.nodeType === 3) { out += c.nodeValue.replace(/\u00a0/g, " "); continue; }
+    if (c.nodeType !== 1 || DECOR.some((k) => c.classList?.contains(k))) continue;
     const t = c.tagName;
+    // 行の中の改行（Shift+Enter など）。行の最後の改行（空の行の目印）は数えない
+    if (t === "BR") { if (c.nextSibling) out += "\n"; continue; }
     const inner = inlineMd(c);
-    if (t === "BR") continue;
     if (!inner) continue;
+    // ブラウザが行の中に段落を入れたとき（貼り付けなど）は、その前で改行する
+    if (/^(DIV|P|LI|H[1-6]|BLOCKQUOTE)$/.test(t) && out && !out.endsWith("\n")) out += "\n";
     if (t === "B" || t === "STRONG" || (t === "SPAN" && /bold|[6-9]00/.test(c.style.fontWeight))) out += `**${inner}**`;
     else if (t === "I" || t === "EM") out += `*${inner}*`;
     else if (t === "S" || t === "STRIKE" || t === "DEL") out += `~~${inner}~~`;
@@ -135,14 +141,19 @@ function inlineMd(node) {
 }
 function toMarkdown(editor) {
   const lines = [];
-  for (const b of editor.children) {
+  for (const b of editor.childNodes) {
+    // 行の外に直接入った文字（日本語の変換中など）も落とさない
+    if (b.nodeType === 3) { if (b.nodeValue.trim()) lines.push(...b.nodeValue.replace(/\u00a0/g, " ").split("\n")); continue; }
+    if (b.nodeType !== 1) continue;
     const type = b.dataset?.type || "p";
-    const pad = "  ".repeat(Number(b.dataset.indent || 0));
+    const pad = "  ".repeat(Number(b.dataset?.indent || 0));
     if (type === "hr") { lines.push(pad + "---"); continue; }
     if (type === "embed") { lines.push(pad + (b.dataset.url || "")); continue; }
-    const text = inlineMd(b.querySelector(".rb-text") || b).replace(/\n/g, " ");
-    const prefix = type === "todo" ? (b.dataset.checked ? "[x] " : "[ ] ") : TYPES[type]?.md || "";
-    lines.push(pad + prefix + text);
+    // 行の文字は、.rb-text の外にあっても読む（ブラウザがカーソルを外に置いて打ったときも消えないように）
+    const parts = inlineMd(b).replace(/\n+$/, "").split("\n");
+    const prefix = type === "todo" ? (b.dataset.checked ? "[x] " : "[ ] ") : type === "ol" ? `${b.dataset.n || 1}. ` : TYPES[type]?.md || "";
+    lines.push(pad + prefix + parts[0]);
+    for (const rest of parts.slice(1)) lines.push(pad + rest);
   }
   // 末尾の空行は持たない
   while (lines.length && !lines[lines.length - 1].trim()) lines.pop();
@@ -167,11 +178,47 @@ function attach(ta) {
   ta.tabIndex = -1;
 
   const render = (md) => {
+    const keep = ed.contains(document.activeElement) || document.activeElement === ed ? caretPos() : null;
     ed.innerHTML = richHtml(md, { editable: true }) || blockHtml(["p", ""], true);
     if (!ed.lastElementChild || ["hr", "embed"].includes(ed.lastElementChild.dataset.type)) ed.insertAdjacentHTML("beforeend", blockHtml(["p", ""], true));
     renumber();
+    if (keep) restoreCaret(keep);
   };
-  const renumber = () => { let n = 0; for (const b of ed.children) { n = b.dataset.type === "ol" ? n + 1 : 0; if (n) b.dataset.n = n; } };
+  // カーソルの位置（何行目の、何文字目）
+  function caretPos() {
+    const sel = getSelection();
+    if (!sel.rangeCount || !ed.contains(sel.anchorNode)) return null;
+    let b = sel.anchorNode;
+    while (b && b.parentNode !== ed) b = b.parentNode;
+    if (!b) return null;
+    const r = document.createRange();
+    r.selectNodeContents(b);
+    r.setEnd(sel.anchorNode, sel.anchorOffset);
+    return { line: [...ed.children].indexOf(b), offset: r.toString().length };
+  }
+  function restoreCaret({ line, offset }) {
+    const b = ed.children[Math.min(Math.max(line, 0), ed.children.length - 1)];
+    if (!b) return;
+    const walker = document.createTreeWalker(b.querySelector(".rb-text") || b, NodeFilter.SHOW_TEXT);
+    let left = offset;
+    let node = walker.nextNode();
+    let last = null;
+    while (node) {
+      last = node;
+      if (left <= node.length) break;
+      left -= node.length;
+      node = walker.nextNode();
+    }
+    const r = document.createRange();
+    if (node) r.setStart(node, Math.min(left, node.length));
+    else if (last) r.setStart(last, last.length);
+    else { r.selectNodeContents(b.querySelector(".rb-text") || b); r.collapse(false); }
+    r.collapse(true);
+    const sel = getSelection();
+    sel.removeAllRanges();
+    sel.addRange(r);
+  }
+  const renumber = () => { let n = 0; for (const b of ed.children) { n = b.dataset.type === "ol" ? (n ? n + 1 : Number(b.dataset.start) || 1) : 0; if (n) b.dataset.n = n; } };
   const setEditable = () => { ed.contentEditable = String(editable && !ta.readOnly && !ta.disabled); ed.classList.toggle("is-readonly", ed.contentEditable === "false"); };
 
   // 外から（ほかの人の入力が届いたときなど）値が入ったら、描き直す
@@ -228,7 +275,7 @@ function attach(ta) {
   const setIndent = (b, n) => { n = Math.max(0, Math.min(3, n)); if (n) b.dataset.indent = n; else delete b.dataset.indent; applyFold(ed); sync(); };
   const setType = (b, type) => {
     if (!b) return;
-    const text = inlineMd(textEl(b));
+    const text = inlineMd(b);
     const tmp = document.createElement("div");
     tmp.innerHTML = blockHtml([type, text, false, indentOf(b)], true);
     const nb = tmp.firstElementChild;
@@ -241,6 +288,7 @@ function attach(ta) {
 
   // 行の頭の書き方で変える（「# 」「- 」「[] 」など）
   ed.addEventListener("input", (e) => {
+    if (e.isComposing) { sync(); return; }
     wrapStray();
     const b = caretBlock();
     if (b && (b.dataset.type === "p" || !b.dataset.type)) {
@@ -255,12 +303,14 @@ function attach(ta) {
     sync();
   });
 
+  ed.addEventListener("compositionend", () => { wrapStray(); sync(); });
+
   ed.addEventListener("keydown", (e) => {
     if (slash && ["ArrowDown", "ArrowUp", "Enter", "Escape"].includes(e.key)) { e.preventDefault(); slashKey(e.key); return; }
     if (!e.isComposing) wrapStray();
     const b = caretBlock();
     if (!b) return;
-    if (e.key === "Enter" && !e.shiftKey && !e.isComposing) {
+    if (e.key === "Enter" && !e.isComposing && e.keyCode !== 229) {
       e.preventDefault();
       const type = b.dataset.type;
       const s = getSelection();
@@ -300,7 +350,8 @@ function attach(ta) {
       if (!prev) return;
       e.preventDefault();
       if (["hr", "embed"].includes(prev.dataset.type)) { prev.remove(); sync(); return; }
-      const keep = textEl(b).innerHTML.replace(/^<br>$/, "");
+      const keep = [...b.childNodes].filter((c) => !(c.nodeType === 1 && DECOR.some((k) => c.classList.contains(k))))
+        .map((c) => (c.nodeType === 3 ? esc(c.nodeValue) : c.classList?.contains("rb-text") ? c.innerHTML : c.outerHTML)).join("").replace(/^<br>$/, "");
       const pt = textEl(prev);
       if (pt.innerHTML === "<br>") pt.innerHTML = "";
       const marker = document.createElement("span"); pt.append(marker); pt.insertAdjacentHTML("beforeend", keep);
@@ -340,8 +391,12 @@ function attach(ta) {
 
   // 貼り付け：書式は持ち込まず、行ごとにブロックにする。文字を選んでURLを貼るとリンク
   ed.addEventListener("paste", (e) => {
-    const text = (e.clipboardData || window.clipboardData).getData("text/plain");
-    if (!text) return;
+    const cd = e.clipboardData || window.clipboardData;
+    const text = cd.getData("text/plain");
+    if (!text) {
+      if (cd.files?.length || [...(cd.items || [])].some((i) => i.kind === "file")) { e.preventDefault(); noFiles(); }
+      return;
+    }
     e.preventDefault();
     const s = getSelection();
     if (/^https?:\/\/\S+$/.test(text.trim()) && !s.isCollapsed) { document.execCommand("createLink", false, text.trim()); ed.querySelectorAll("a:not([target])").forEach((a) => { a.target = "_blank"; a.rel = "noopener"; }); sync(); return; }
@@ -361,6 +416,35 @@ function attach(ta) {
     placeCaret(textEl(last));
     sync();
   });
+
+  // コピー・切り取り：行をまたいで選んだときは、書式（箇条書き・チェックなど）ごとMarkdownで持っていく
+  // （そのまま貼り直せば元どおり。Notionに貼っても書式が付く）。1行の中だけなら、ふつうの文字のまま
+  const selectionMd = () => {
+    const s = getSelection();
+    if (!s.rangeCount || s.isCollapsed || !ed.contains(s.anchorNode)) return null;
+    const box = document.createElement("div");
+    box.append(s.getRangeAt(0).cloneContents());
+    if (![...box.children].some((c) => c.dataset?.type)) return null;
+    return toMarkdown(box);
+  };
+  ed.addEventListener("copy", (e) => {
+    const md = selectionMd();
+    if (md === null || !e.clipboardData) return;
+    e.preventDefault();
+    e.clipboardData.setData("text/plain", md);
+  });
+  ed.addEventListener("cut", (e) => {
+    const md = selectionMd();
+    if (md === null || !e.clipboardData || ed.contentEditable !== "true") return;
+    e.preventDefault();
+    e.clipboardData.setData("text/plain", md);
+    document.execCommand("delete");
+  });
+
+  ed.addEventListener("drop", (e) => {
+    if (e.dataTransfer?.files?.length) { e.preventDefault(); noFiles(); }
+  });
+  const noFiles = () => toast("画像やファイルは、ここには保存できません。Googleドライブなどに置いて、リンクを貼ってください");
 
   // ---------- 「/」のメニュー ----------
   let slash = null;

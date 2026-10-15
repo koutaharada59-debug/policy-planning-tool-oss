@@ -1,4 +1,4 @@
-// 画面共通の小道具。データはすべてサーバーに保存し、ブラウザには何も残さない
+// 画面共通の小道具。データはすべてサーバーに保存する（ブラウザには、まだ送れていない書きかけだけを一時的に置く）
 
 // ログイン中の情報（ユーザー・メンバー一覧・PJの型）。画面間で共有するだけで、ブラウザには保存しない
 export const state = { me: null, users: [], types: {}, showDoneTasks: false };
@@ -15,7 +15,8 @@ export function prefetch(path) {
   prefetched.set(path, { at: Date.now(), promise });
 }
 
-export async function api(path, { method = "GET", body } = {}) {
+// keepalive：画面を閉じる・アプリを切り替えるときの保存。ページが閉じても送り切る（ブラウザの決まりで、64KBまで）
+export async function api(path, { method = "GET", body, keepalive = false } = {}) {
   // 書き込んだら、先読みした古いデータは使わない
   if (method !== "GET") prefetched.clear();
   const hit = method === "GET" && prefetched.get(path);
@@ -24,20 +25,30 @@ export async function api(path, { method = "GET", body } = {}) {
     ? await hit.promise.catch(() => null)
     : null;
   if (res) return handleResponse(res.status, res.ok, res.data);
+  const json = body === undefined ? undefined : JSON.stringify(body);
   const raw = await fetch(path, {
     method,
     headers: { "Content-Type": "application/json" },
-    body: body === undefined ? undefined : JSON.stringify(body),
+    body: json,
     credentials: "same-origin",
+    keepalive: Boolean(keepalive && json && new Blob([json]).size < 60000),
   }).catch(() => { throw new Error("通信できませんでした。電波・接続を確かめてください"); });
   return handleResponse(raw.status, raw.ok, await raw.json().catch(() => ({})));
 }
 
 function handleResponse(status, ok, data) {
   if (status === 401) {
-    location.href = `/?returnTo=${encodeURIComponent(location.pathname + location.hash)}`;
+    const login = `/?returnTo=${encodeURIComponent(location.pathname + location.hash)}`;
+    // 書きかけがあるときは、勝手にログイン画面へ移らない（書きかけは端末に残っているので、ログインし直せば戻る）
+    if (hasUnsaved()) {
+      setSaveAlert("login", `⚠ ログインが切れました。書いた内容はこの端末に残っています。<a href="${esc(login)}">ログインし直す</a>と、続きから保存されます`);
+      throw new Error("ログインが切れました");
+    }
+    location.href = login;
     throw new Error("ログインしてください");
   }
+  // ログインが通った（ログインし直した・一時的なものだった）ら、「ログインが切れました」の帯を消す
+  if (alerts.has("login")) setSaveAlert("login", null);
   if (!ok) throw new Error(data.error || "通信に失敗しました");
   return data;
 }
@@ -821,23 +832,44 @@ export const pickerIds = (root) => (root.querySelector("[data-ap]")?.dataset.ids
 // データの正はサーバー。ここに置くのは「送る前・送れなかった」文章だけで、サーバーに保存できたらすぐ消す。
 // スマホの電源が落ちた・アプリが強制終了した・電波がない、で書きかけが消えないようにするため。
 // value：書きかけ（欄の名前 → 文章）。base：書きはじめる前のサーバーの内容（開き直したとき、ほかの人の内容と合わせるのに使う）
+// 欄ごとに足したり消したりする（ある欄を保存できても、ほかの欄の書きかけは残す）
 const UNSENT_DAYS = 3;
 const unsentKey = (key) => `pp-unsent:${state.me?.id || "-"}:${key}`;
+const readUnsent = (key) => {
+  try { return JSON.parse(localStorage.getItem(unsentKey(key)) || "null"); } catch { return null; }
+};
+const writeUnsent = (key, d) => {
+  try {
+    if (d && Object.keys(d.value || {}).length) localStorage.setItem(unsentKey(key), JSON.stringify(d));
+    else localStorage.removeItem(unsentKey(key));
+  } catch { /* 保存できない端末では何もしない */ }
+};
 export function putUnsent(key, value, base) {
-  try { localStorage.setItem(unsentKey(key), JSON.stringify({ value, base, at: Date.now() })); } catch { /* 保存できない端末では何もしない */ }
+  const old = readUnsent(key) || { value: {}, base: {} };
+  // base は、その欄を書きはじめたときのものを使い続ける（あとから上書きしない）
+  const nextBase = { ...old.base };
+  for (const k of Object.keys(value)) if (!(k in (old.value || {}))) nextBase[k] = base?.[k] ?? "";
+  writeUnsent(key, { value: { ...old.value, ...value }, base: nextBase, at: Date.now() });
 }
 export function getUnsent(key) {
-  try {
-    const d = JSON.parse(localStorage.getItem(unsentKey(key)) || "null");
-    if (d && d.value && Date.now() - d.at < UNSENT_DAYS * 86400000) return d;
-    if (d) localStorage.removeItem(unsentKey(key));
-  } catch { /* 読めなければ、ないものとする */ }
+  const d = readUnsent(key);
+  if (d && d.value && Date.now() - d.at < UNSENT_DAYS * 86400000) return d;
+  if (d) writeUnsent(key, null);
   return null;
 }
+// 保存できた欄を、一時保存から外す。いま端末に置いてある内容が、保存した内容（values のどれか）と同じときだけ
+export function settleUnsent(key, field, values) {
+  const d = readUnsent(key);
+  if (!d || !(field in (d.value || {})) || !values.includes(d.value[field])) return;
+  delete d.value[field];
+  delete d.base?.[field];
+  writeUnsent(key, d);
+}
 export function dropUnsent(key) {
-  try { localStorage.removeItem(unsentKey(key)); } catch { /* 何もしない */ }
+  writeUnsent(key, null);
 }
 // 開いたとき：送れていなかった書きかけがあれば、今のサーバーの内容と合わせて欄に戻す。戻した欄の名前を返す
+// fields にない欄（この画面では書けない欄など）の書きかけは、消さずに残しておく
 export function restoreUnsent(key, fields) {
   const d = getUnsent(key);
   if (!d) return [];
@@ -847,36 +879,62 @@ export function restoreUnsent(key, fields) {
     if (typeof mine !== "string" || !el) continue;
     const text = mergeText(d.base?.[name] ?? "", mine, el.value).text;
     if (text !== el.value) { el.value = text; restored.push(name); }
+    else { delete d.value[name]; delete d.base?.[name]; } // もうサーバーにある
   }
-  if (!restored.length) dropUnsent(key);
+  writeUnsent(key, d);
   return restored;
 }
 const textFields = (form) => Object.fromEntries([...form.querySelectorAll("textarea[name]")].map((t) => [t.name, t]));
 const valuesOf = (fields) => Object.fromEntries(Object.entries(fields).map(([k, t]) => [k, t.value]));
 
+// ---------- 保存できていないときの目立つ帯（画面の下。スクロールしても見える） ----------
+const alerts = new Map();
+export function setSaveAlert(id, message) {
+  if (message) alerts.set(id, message); else alerts.delete(id);
+  let bar = document.getElementById("save-alert");
+  if (!alerts.size) { bar?.remove(); return; }
+  if (!bar) {
+    bar = document.createElement("div");
+    bar.id = "save-alert";
+    bar.className = "save-alert";
+    bar.setAttribute("role", "alert");
+    document.body.append(bar);
+  }
+  bar.innerHTML = [...alerts.values()].map((m) => `<div>${m}</div>`).join("");
+}
+const alertText = (what, err) => `⚠ ${esc(what)}がまだ保存できていません（${esc(err?.message || "通信できません")}）。自動でやり直しています。<b>この画面を閉じないでください</b>`;
+export { alertText as saveAlertText };
+
 // ---------- 自動保存：書くのが止まって少ししたら保存する（1回ずつ順番に）。保存中に書いた分は、次の保存で送る ----------
 // save()：保存して Promise を返す。status：「✓ 自動で保存しました」などを出す要素
 // key：端末への一時保存の名前（あれば、送れていない書きかけを端末にも置き、開き直したときに戻す）
-export function autoSave(form, save, { status, delay = 1500, key = null } = {}) {
+// label：保存できないときの帯に出す名前（例：「定例の議事録」）
+export function autoSave(form, save, { status, delay = 1500, key = null, label = "書いた内容" } = {}) {
   let edits = 0;      // 書いた回数（保存のあとに増えていたら、もう一度保存する）
   let timer = null;
   let running = null;
   let failed = 0;     // 続けて失敗した回数（保存できるまで、少し待って自動でやり直す）
-  const show = (t) => { if (status) status.textContent = t; };
+  const alertId = `auto-${key || Math.random().toString(36).slice(2)}`;
+  const show = (t) => { if (status) { status.textContent = t; status.classList.toggle("save-warn", t.startsWith("⚠")); } };
   const run = async () => {
     clearTimeout(timer);
     if (running) { await running; }
     const at = edits;
     if (!at) return;
     show("保存中…");
+    const sending = valuesOf(textFields(form)); // いま送る内容（保存中に書き足した分は、次の保存で送る）
     running = Promise.resolve().then(save).then(() => {
+      if (failed && !form.isConnected) toast(`✓ ${label}を保存できました`);
       failed = 0;
-      savedValues = valuesOf(textFields(form));
-      if (edits === at) { edits = 0; markSaved(form); if (key) dropUnsent(key); }
+      setSaveAlert(alertId, null);
+      savedValues = sending;
+      if (key) for (const [k, v] of Object.entries(sending)) settleUnsent(key, k, [v]);
+      if (edits === at) { edits = 0; markSaved(form); }
       show(`✓ 自動で保存しました（${new Date().toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}）`);
     }).catch((err) => {
       show(`⚠ まだ保存できていません（${err.message}）。自動でやり直しています…`);
       failed++;
+      setSaveAlert(alertId, alertText(label, err));
       if (failed <= 200) { clearTimeout(timer); timer = setTimeout(run, Math.min(10000, 2000 * failed)); }
     }).finally(() => { running = null; });
     await running;
@@ -893,7 +951,6 @@ export function autoSave(form, save, { status, delay = 1500, key = null } = {}) 
     const restored = restoreUnsent(key, textFields(form));
     if (restored.length) {
       edits++;
-      putUnsent(key, valuesOf(textFields(form)), savedValues);
       show("保存できていなかった書きかけを戻しました。保存します…");
       toast("前に保存できていなかった書きかけを戻しました");
       setTimeout(run, 300);
@@ -902,6 +959,7 @@ export function autoSave(form, save, { status, delay = 1500, key = null } = {}) 
   // 画面を閉じる・ほかのアプリに移るときは、すぐ保存する
   const flush = () => { if (edits) run(); };
   document.addEventListener("visibilitychange", () => { if (document.hidden) flush(); });
+  window.addEventListener("pagehide", flush);
   window.addEventListener("hashchange", flush, { once: true });
   window.addEventListener("online", flush);
   // ほかの画面へ移るときは、保存が終わるのを待つ（保存できなければ確かめる）

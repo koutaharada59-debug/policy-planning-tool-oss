@@ -1,5 +1,5 @@
 // 政策立案ツール — Cloudflare Worker（Discord OAuth + D1）
-import { handleAuth, requireUser, currentUser, isLocal } from "./auth.js";
+import { handleAuth, requireUser, currentUser, isLocal, renewSession } from "./auth.js";
 import { HttpError, json } from "./util.js";
 import { routes as projectRoutes } from "./api/projects.js";
 import { routes as taskRoutes } from "./api/tasks.js";
@@ -74,7 +74,10 @@ async function handleApi(request, env, url, ctx) {
     if (!m) continue;
     const params = Object.fromEntries(Object.entries(m.groups || {}).map(([k, v]) => [k, Number(v)]));
     const result = await handler({ request, env, url, user, params, ctx });
-    return result instanceof Response ? result : json(result);
+    const res = result instanceof Response ? result : json(result);
+    const renewed = await renewSession(request, env, url).catch(() => null);
+    if (renewed) { try { res.headers.append("Set-Cookie", renewed); } catch { /* 書き換えられない返事はそのまま */ } }
+    return res;
   }
   return json({ error: "Not found" }, 404);
 }

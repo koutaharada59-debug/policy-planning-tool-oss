@@ -1447,3 +1447,13 @@ table.accounts input,table.accounts select{width:100%;min-width:180px;margin:0}
 
 /* 議事録がまだ保存できていないときは目立たせる */
 .save-warn{color:#b3261e;font-weight:700;background:#fdecea;border-radius:8px;padding:2px 8px}
+
+/* 保存できていないときの帯（public/js/lib.js の setSaveAlert）。スクロールしても見えるよう、画面の下に固定 */
+.save-alert{position:fixed;left:50%;transform:translateX(-50%);bottom:16px;z-index:90;width:min(640px,calc(100% - 24px));
+  padding:12px 16px;border-radius:14px;background:#b3261e;color:#fff;font-size:14px;line-height:1.6;font-weight:700;box-shadow:0 8px 24px #0000004d}
+.save-alert div + div{margin-top:6px;padding-top:6px;border-top:1px solid #ffffff4d}
+.save-alert a{color:#fff;text-decoration:underline}
+@media (max-width:760px){
+  .save-alert{bottom:calc(80px + env(safe-area-inset-bottom))}
+  .typing .save-alert{bottom:12px}
+}

@@ -294,6 +294,7 @@ async function listRevisions({ env, user, params, url }) {
 }
 
 const MINUTES_MAX = 50000; // 議事録の1つの欄の上限（字）
+const TODOS_MAX = 100; // 「次回までにやること」の上限（件）
 
 // 議事録を保存する。送られてきた項目だけを書き換える（自動保存は1項目ずつ送る）
 async function saveMinutes({ request, env, user, params, ctx }) {
@@ -303,11 +304,8 @@ async function saveMinutes({ request, env, user, params, ctx }) {
   const body = await readJson(request);
   const now = Date.now();
   const sent = LIVE_FIELDS.filter((f) => f in body);
-  for (const f of sent) {
-    // 文章の欄（今回話し合うこと・概要）はロックしない：同時に書いても、下の base で両方を残す。「次回までにやること」だけは1人ずつ
-    const holder = await claimField(env, meeting.id, f, user, now);
-    if (holder && f === "todos") throw new HttpError(409, `${holder.name || "ほかの人"}さんが入力中です。書き終わるまで待ってください`);
-  }
+  // ロックはしない（同時に書いても、文章は下の base で、やることは known_ids で両方残す）。「〇〇さんも書いています」の表示のためだけに記録する
+  for (const f of sent) await claimField(env, meeting.id, f, user, now);
   const cols = [];
   if ("agenda" in body) cols.push(["agenda", longText(body.agenda, MINUTES_MAX, "今回話し合うこと")]);
   if ("summary" in body) cols.push(["summary", longText(body.summary, MINUTES_MAX, "話し合いの概要")]);
@@ -315,27 +313,43 @@ async function saveMinutes({ request, env, user, params, ctx }) {
   // 上書きして消さずに両方を残す。merged：両方を残した項目 → その内容（画面に映し直す）
   const merged = {};
   const base = body.base && typeof body.base === "object" ? body.base : null;
-  const current = cols.length
-    ? await env.DB.prepare("SELECT agenda, summary, updated_by, updated_at FROM minutes WHERE meeting_id = ?").bind(meeting.id).first() : null;
-  if (base && cols.length) {
-    for (const c of cols) {
-      const [name, mine] = c;
-      if (!current || typeof base[name] !== "string") continue;
-      const m = mergeText(String(base[name]), mine, current[name]);
-      if (m.text !== mine) { c[1] = m.text; merged[name] = c[1]; }
+  let minuteId;
+  let current = null;
+  if (cols.length) {
+    // 読んでから書くまでのあいだに、ほかの人の保存が入ることがある。版（version）が読んだときと同じときだけ書き、
+    // 違っていたら読み直して合わせ直す（同時に保存しても、どちらの内容も消えない）
+    const names = cols.map(([c]) => c);
+    for (let attempt = 0; ; attempt++) {
+      current = await env.DB.prepare("SELECT id, agenda, summary, updated_by, updated_at, version FROM minutes WHERE meeting_id = ?").bind(meeting.id).first();
+      const values = cols.map(([name, mine]) => (base && current && typeof base[name] === "string" ? mergeText(String(base[name]), mine, current[name]).text : mine));
+      let done = false;
+      if (!current) {
+        const row = await env.DB.prepare(
+          `INSERT INTO minutes (meeting_id, project_id, ${names.join(", ")}, created_by, updated_by, created_at, updated_at)
+           VALUES (?, ?, ${names.map(() => "?").join(", ")}, ?, ?, ?, ?) ON CONFLICT(meeting_id) DO NOTHING RETURNING id`
+        ).bind(meeting.id, project.id, ...values, user.id, user.id, now, now).first();
+        if (row) { minuteId = row.id; done = true; }
+      } else {
+        const r = await env.DB.prepare(
+          `UPDATE minutes SET ${names.map((c) => `${c} = ?`).join(", ")}, updated_by = ?, updated_at = ?, version = version + 1 WHERE id = ? AND version = ?`
+        ).bind(...values, user.id, now, current.id, current.version).run();
+        if (r.meta.changes === 1) { minuteId = current.id; done = true; }
+      }
+      if (done) {
+        cols.forEach((c, i) => { if (values[i] !== c[1]) merged[c[0]] = values[i]; c[1] = values[i]; });
+        break;
+      }
+      if (attempt >= 6) throw new HttpError(503, "ほかの人の保存と重なりました。自動でもう一度保存します");
     }
+  } else {
+    // 文章を送っていない（やることだけ・お知らせだけ）：議事録がなければ作る
+    const row = await env.DB.prepare(
+      `INSERT INTO minutes (meeting_id, project_id, created_by, updated_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)
+       ON CONFLICT(meeting_id) DO UPDATE SET updated_by = excluded.updated_by, updated_at = excluded.updated_at, version = version + 1
+       RETURNING id`
+    ).bind(meeting.id, project.id, user.id, user.id, now, now).first();
+    minuteId = row.id;
   }
-
-  // 議事録がなければ作り、あれば送られた項目だけを書き換える
-  const names = cols.map(([c]) => c);
-  const row = await env.DB.prepare(
-    `INSERT INTO minutes (meeting_id, project_id, ${names.map((c) => `${c}, `).join("")}created_by, updated_by, created_at, updated_at)
-     VALUES (?, ?, ${names.map(() => "?, ").join("")}?, ?, ?, ?)
-     ON CONFLICT(meeting_id) DO UPDATE SET ${names.map((c) => `${c} = excluded.${c}, `).join("")}
-       updated_by = excluded.updated_by, updated_at = excluded.updated_at, version = version + 1
-     RETURNING id`
-  ).bind(meeting.id, project.id, ...cols.map(([, v]) => v), user.id, user.id, now, now).first();
-  const minuteId = row.id;
   // restore：履歴から戻したとき。戻す前の内容が消えないよう、必ず新しい行にする
   for (const [field, text] of cols) await keepRevision(env, meeting.id, field, text, user.id, now, current, Boolean(body.restore));
 
@@ -343,33 +357,51 @@ async function saveMinutes({ request, env, user, params, ctx }) {
   // key：画面の行の目印。新しく作ったタスクの id を、どの行のものか返す（次の自動保存で同じタスクを二重に作らないため）
   const ids = {};
   if ("todos" in body) {
-    const todos = (Array.isArray(body.todos) ? body.todos : []).slice(0, 30).map((t) => ({
+    const list = Array.isArray(body.todos) ? body.todos : [];
+    if (list.length > TODOS_MAX) throw new HttpError(400, `「次回までにやること」が多すぎます（${TODOS_MAX}件まで）`);
+    const rows = list.map((t) => ({
       key: typeof t.key === "string" ? t.key.slice(0, 40) : "",
       id: t.id ? int(t.id, { label: "タスク" }) : null,
       title: clean(t.title, 120),
       assignee_ids: readAssignees(t),
       due_date: optDate(t.due_date, "期限"),
-    })).filter((t) => t.title);
+      // changed：この画面で書き換えた行（false の行は、ほかの人の変更を古い内容で上書きしないよう書き直さない）
+      changed: t.changed !== false,
+    }));
+    // 題名を消しただけの行（書き直している途中）は、タスクを消さずにそのまま残す
+    const keep = new Set(rows.filter((t) => t.id).map((t) => t.id));
+    const todos = rows.filter((t) => t.title);
     await assertUsers(env, todos.flatMap((t) => t.assignee_ids));
     for (const t of todos) t.assignee_id = t.assignee_ids[0] || null;
-    const { results: current } = await env.DB.prepare("SELECT id, assignee_id FROM tasks WHERE source_minute_id = ?").bind(minuteId).all();
-    const keep = new Set(todos.filter((t) => t.id).map((t) => t.id));
+    const { results: current } = await env.DB.prepare("SELECT id, assignee_id, title, created_by FROM tasks WHERE source_minute_id = ?").bind(minuteId).all();
+    // known_ids：この画面が知っているタスク。消すのは「知っていて、一覧から外した」ものだけ（ほかの人があとから足したタスクは消さない）
+    const known = Array.isArray(body.known_ids) ? new Set(body.known_ids.map(Number)) : null;
     const currentIds = new Set(current.map((r) => r.id));
     const stmts = [];
     for (const r of current) {
-      if (!keep.has(r.id)) stmts.push(env.DB.prepare("DELETE FROM tasks WHERE id = ?").bind(r.id));
+      if (!keep.has(r.id) && (!known || known.has(r.id))) stmts.push(env.DB.prepare("DELETE FROM tasks WHERE id = ?").bind(r.id));
     }
-    for (const t of todos) {
-      if (t.id && currentIds.has(t.id)) {
-        stmts.push(env.DB.prepare(
-          "UPDATE tasks SET title=?, assignee_id=?, due_date=?, updated_at=?, version = version + 1 WHERE id = ?"
-        ).bind(t.title, t.assignee_id, t.due_date, now, t.id));
-      }
+    const update = todos.filter((t) => t.id && currentIds.has(t.id) && t.changed);
+    for (const t of update) {
+      stmts.push(env.DB.prepare(
+        "UPDATE tasks SET title=?, assignee_id=?, due_date=?, updated_at=?, version = version + 1 WHERE id = ?"
+      ).bind(t.title, t.assignee_id, t.due_date, now, t.id));
+      stmts.push(...setAssigneeStatements(env, t.id, t.assignee_ids));
     }
-    for (const t of todos) if (t.id && currentIds.has(t.id)) stmts.push(...setAssigneeStatements(env, t.id, t.assignee_ids));
     if (stmts.length) await env.DB.batch(stmts);
+    // ほかの人が消した行で、この画面では触っていないものは作り直さない（書き換えていた行は、消えないよう作り直す）
+    for (let i = todos.length - 1; i >= 0; i--) if (todos[i].id && !currentIds.has(todos[i].id) && !todos[i].changed) todos.splice(i, 1);
+    // 前に送った新しい行の返事が届かず、送り直してきたとき：同じ人が作った同じ題名の、この画面がまだ知らないタスクがあれば、それを使う（二重に作らない）
+    const unknownRows = known ? current.filter((r) => !keep.has(r.id) && !known.has(r.id) && r.created_by === user.id) : [];
     for (const t of todos) {
       if (t.id && currentIds.has(t.id)) continue;
+      const dup = !t.id && unknownRows.find((r) => r.title === t.title);
+      if (dup) {
+        unknownRows.splice(unknownRows.indexOf(dup), 1);
+        if (t.key) ids[t.key] = dup.id;
+        t.id = dup.id;
+        continue;
+      }
       const created = await env.DB.prepare(
         `INSERT INTO tasks (project_id, stage_no, title, assignee_id, due_date, status, source_minute_id, created_by, created_at, updated_at)
          VALUES (?, ?, ?, ?, ?, 'todo', ?, ?, ?, ?) RETURNING id`

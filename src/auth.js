@@ -122,6 +122,14 @@ export async function currentUser(request, env) {
   return user;
 }
 
+// ログインの延長：使っている人は、残りが7日を切ったら14日に延ばす（会議の途中でログインが切れて保存できなくならないように）
+export async function renewSession(request, env, url) {
+  const session = await verifySession(env, getCookie(request, SESSION_COOKIE));
+  if (!session || session.exp - Date.now() / 1000 > SESSION_TTL / 2) return null;
+  const token = await signSession(env, { uid: session.uid, exp: Math.floor(Date.now() / 1000) + SESSION_TTL });
+  return cookie(SESSION_COOKIE, token, { maxAge: SESSION_TTL, secure: isSecure(url) });
+}
+
 export async function requireUser(request, env) {
   const user = await currentUser(request, env);
   if (!user) throw new HttpError(401, "ログインしてください");
