@@ -87,7 +87,7 @@ export async function renderProjectForm(el, id) {
         <label>🎤 政調用の台本
           <input name="script_doc_url" type="url" value="${esc(p.script_doc_url)}" placeholder="https://docs.google.com/document/...">
         </label>
-        <label>💬 DiscordのチャンネルID <small class="muted">このPJのチャンネル。日程調整アンケートの回答状況をここに投稿します（チャンネルのリンクを貼ってもOK）</small>
+        <label>💬 DiscordのチャンネルID <small class="muted">PJ画面の「💬 Discord」ボタンで開くチャンネル（リンクを貼ってもOK）。アンケートの投稿先は、管理者メニュー「📣 Discordの投稿先」で登録します</small>
           <input name="discord_channel_id" inputmode="numeric" value="${esc(p.discord_channel_id || "")}" placeholder="例：1559189147137081484">
         </label>
       </fieldset>
