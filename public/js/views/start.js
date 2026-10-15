@@ -31,13 +31,17 @@ export async function renderStart(el) {
 
     // 1) 予定していたMTGか、臨時のMTGかを選ぶ
     const choose = () => {
+      const today = todayStr();
+      const todays = p.upcoming.filter((m) => m.starts_at.startsWith(today));
+      const later = p.upcoming.filter((m) => !m.starts_at.startsWith(today));
       show(`<div class="confirm-start">
-        <button class="primary" data-kind="planned">${ico("calendar")} 予定していたMTG</button>
-        <button data-kind="adhoc">${ico("bolt")} 臨時のMTG</button>
+        ${todays.map((m, i) => `<a class="button ${i === 0 ? "primary" : ""}" href="#/meetings/${m.id}?from=${from}&start=1">${ico("play")} 今日 ${m.starts_at.slice(11, 16)} のMTGを始める</a>`).join("")}
+        ${later.length ? `<button ${todays.length ? "" : 'class="primary"'} data-kind="planned">${ico("calendar")} 予定していたMTG <small>（次：${fmtDateTime(later[0].starts_at)}）</small></button>` : ""}
+        <button ${p.upcoming.length ? "" : 'class="primary"'} data-kind="adhoc">${ico("bolt")} 臨時のMTG</button>
         ${p.recent.length ? `<button data-kind="resume">${ico("undo")} 前回の続き（再開）</button>` : ""}
       </div>`);
       slot.querySelector('[data-kind="resume"]')?.addEventListener("click", resume);
-      slot.querySelector('[data-kind="planned"]').addEventListener("click", planned);
+      slot.querySelector('[data-kind="planned"]')?.addEventListener("click", planned);
       slot.querySelector('[data-kind="adhoc"]').addEventListener("click", adhoc);
     };
 

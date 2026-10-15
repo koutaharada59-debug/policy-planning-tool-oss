@@ -1505,3 +1505,14 @@ h1 .ico,h2 .ico,h3 .ico{color:var(--green)}
   .gcal{min-height:30px;padding:5px 10px}
   .check input,.ap-item input{width:22px;height:22px}
 }
+
+/* 動きの調整（2026-10-15）
+   ・お祝いの紙吹雪は、画面全体をふさがない（押せるのはカードだけ。カードを押すと閉じる）
+   ・スマホで下に保存のバーがある画面では、知らせ（トースト）をバーの上に出す（ボタンが隠れないように） */
+.celebrate{pointer-events:none}
+.celebrate-card{pointer-events:auto;cursor:pointer}
+@media (max-width:760px){
+  body:has(.form-actions.sticky) .toast{bottom:calc(140px + env(safe-area-inset-bottom))}
+  .typing body .toast,html.typing body:has(.form-actions.sticky) .toast{bottom:76px}
+}
+.confirm-start .button small,.confirm-start button small{font-weight:600;opacity:.8}

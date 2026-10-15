@@ -221,7 +221,9 @@ export function toast(message, kind = "") {
     burst({ x: r.left + r.width / 2, y: r.top }, { emoji: win[1], count: 10, spread: 120 });
   }
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => (el.className = "toast"), 3200);
+  // 読み終わるまで出しておく（1文字0.08秒＋1.5秒。短くても3秒、長くても9秒。うまくいかなかった知らせは＋2秒）
+  const ms = Math.min(9000, Math.max(3000, 1500 + message.length * 80)) + (kind === "error" ? 2000 : 0);
+  toastTimer = setTimeout(() => (el.className = "toast"), ms);
 }
 
 // 知らせの言葉 → はじける絵文字
@@ -680,7 +682,7 @@ export function celebrate(title, sub = "") {
     return `<span class="confetti" style="left:${left}%;animation-delay:${delay}s;animation-duration:${dur}s">${emoji}</span>`;
   }).join("");
   box.innerHTML = `${bits}<div class="celebrate-card"><strong>${esc(title)}</strong>${sub ? `<small>${esc(sub)}</small>` : ""}</div>`;
-  box.addEventListener("click", () => box.remove());
+  box.querySelector(".celebrate-card").addEventListener("click", () => box.remove());
   document.body.append(box);
   // 真ん中から、絵文字が大きくはじける
   burst({ x: window.innerWidth / 2, y: window.innerHeight / 2 }, { emoji: ["🎉", "✨", "⭐", "🌱"], count: 22, spread: Math.min(320, window.innerWidth / 3) });
