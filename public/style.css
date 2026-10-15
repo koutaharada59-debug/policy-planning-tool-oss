@@ -2,7 +2,7 @@
    ミントのグラデーション / 1px の黒枠 / 角丸カード / ピル型ボタン / 白い追従ヘッダー */
 :root{
   --ink:#272727; --muted:#626862; --line:#222; --soft-line:#e1e7e2;
-  --green:#218573; --green-btn:#2baa90; --green-btn-hover:#238d77; --pale:#d9f4e9; --mint-bg:#e2f6f3;
+  --green:#1c7868; --green-btn:#2baa90; --green-btn-hover:#238d77; --pale:#d9f4e9; --mint-bg:#e2f6f3;
   --done:#fde047; --warn:#a34735; --warn-bg:#fff0eb; --soon:#87661f; --soon-bg:#faf0d9;
   --mint-gradient:linear-gradient(135deg,#64d8c6,#bcecd3);
   --ground:#f6f3ef;
@@ -1491,3 +1491,17 @@ h1 .ico,h2 .ico,h3 .ico{color:var(--green)}
 .survey-icon .ico{width:24px;height:24px}
 .timeline-icon .ico{width:22px;height:22px;color:var(--green)}
 .rb-slash-icon .ico{width:16px;height:16px;vertical-align:0}
+
+/* 見やすさの調整（2026-10-15）
+   ・緑の文字（リンクなど）は、背景がミント・白・地の色のどれでもコントラスト4.5以上になる濃さに（--green）
+   ・白い文字の緑のボタン（関わりたい など）は、ほかの主なボタンと同じミント＋濃い文字に（白い文字では読みにくかった）
+   ・スマホで押しにくかった小さいボタン・チェックボックスを大きく */
+.cta,.cta-sm{background:var(--mint-gradient);color:var(--ink);border:1px solid var(--line)}
+.cta:hover,.cta-sm:hover{background:var(--mint-gradient);filter:brightness(.96)}
+.cta-sm{white-space:nowrap}
+@media (max-width:760px){
+  .breadcrumb .back-btn{min-height:36px;padding:6px 14px;font-size:13px}
+  .copy-btn{min-height:32px;padding:5px 12px;font-size:12px}
+  .gcal{min-height:30px;padding:5px 10px}
+  .check input,.ap-item input{width:22px;height:22px}
+}

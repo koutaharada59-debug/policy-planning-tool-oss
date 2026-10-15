@@ -650,7 +650,7 @@ function firstMeetingCard(data, memberUsers) {
     <li class="fm-step" data-step="${key}"><span class="fm-no">${n}</span>
       <div class="fm-body"><strong>${iconText(title)}</strong>${body}</div><span class="fm-done" aria-label="決まった">✓</span></li>`;
   return `<section class="card first-meeting">
-    <div class="section-head"><h2>${ico("handshake")} 初回MTGで決めること <small class="muted">この5つを決めれば、PJがスタートできます</small></h2></div>
+    <div class="section-head"><h2>${ico("flag")} 初回MTGで決めること <small class="muted">この5つを決めれば、PJがスタートできます</small></h2></div>
     <ol class="fm-steps">
       ${step(1, "pm", "👑 PM（まとめ役）を決める", `
         <div class="row-left"><select id="pm-select" aria-label="PM"><option value="">まだ決めていない</option>
