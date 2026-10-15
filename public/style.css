@@ -1457,3 +1457,23 @@ table.accounts input,table.accounts select{width:100%;min-width:180px;margin:0}
   .save-alert{bottom:calc(80px + env(safe-area-inset-bottom))}
   .typing .save-alert{bottom:12px}
 }
+
+/* メニュー・お知らせのアイコン（線で描いたもの。index.html）。選んでいるタブは、緑の線と薄い面 */
+.nav-ico svg,.bell-ico svg{display:block;width:100%;height:100%;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.nav-ico .f{fill:currentColor;stroke:none;opacity:0;transition:opacity .2s ease}
+.nav-ico .dot{fill:#fff}
+.nav-ico .pt{stroke-width:2.6}
+.main-nav a.is-active .nav-ico .f{opacity:.2}
+.main-nav a.is-active .nav-ico .dot{fill:currentColor}
+.main-nav a{display:inline-flex;align-items:center;gap:6px}
+.nav-ico{display:inline-block;width:18px;height:18px;flex:none}
+.main-nav a.is-active .nav-ico{color:var(--green)}
+.main-nav a .nav-ico{color:#5d6662}
+.bell-ico{display:block;width:21px;height:21px;color:var(--ink)}
+.main-nav .nav-me .nav-ico .avatar{width:100%;height:100%}
+@media (max-width:760px){
+  .nav-ico{display:block;width:24px;height:24px}
+  .main-nav a{flex-direction:column;gap:3px}
+  .main-nav a.is-active{color:var(--green)}
+  .main-nav .nav-me .nav-ico{width:26px;height:26px}
+}
