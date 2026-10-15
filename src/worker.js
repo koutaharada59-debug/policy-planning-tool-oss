@@ -59,7 +59,7 @@ async function handleApi(request, env, url, ctx) {
     const user = await currentUser(request, env);
     // siteLabel：テスト版などで、画面上部に帯を出す
     // version：デプロイごとに変わる。画面は、これが変わったら次の画面移動で読み込み直す（古いプログラムのまま使い続けないように）
-    return json({ user, devLogin: env.DEV_LOGIN === "true" && isLocal(url), siteLabel: env.SITE_LABEL || "", version: env.CF_VERSION?.id || "" });
+    return json({ user, devLogin: env.DEV_LOGIN === "true" && isLocal(url), siteLabel: env.SITE_LABEL || "", guildId: env.DISCORD_GUILD_ID || "", version: env.CF_VERSION?.id || "" });
   }
 
   if (request.method !== "GET") assertSameOrigin(request, url);

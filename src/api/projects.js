@@ -54,6 +54,15 @@ async function listProjects({ env, user }) {
   return { projects };
 }
 
+// PJのDiscordのチャンネル（日程調整アンケートなどを投稿する先）。数字のID、またはチャンネルのリンクを受け付ける。空なら未設定
+function discordChannel(value) {
+  const v = String(value ?? "").trim();
+  if (!v) return "";
+  const m = v.match(/(\d{17,20})\/?$/);
+  if (!m) throw new HttpError(400, "DiscordのチャンネルIDは、数字（またはチャンネルのリンク）を入れてください");
+  return m[1];
+}
+
 function projectFields(body) {
   const meetingMode = oneOf(body.meeting_mode, ["regular", "adhoc"], "MTGの進め方");
   const weekdays = Array.isArray(body.meeting_weekdays) ? body.meeting_weekdays.map(String).join(",") : "";
@@ -96,6 +105,7 @@ export async function insertProject(env, user, body, { includeCreator = true } =
   const members = [...new Set([...(includeCreator ? [user.id] : []), ...memberList(body)])];
   if (!members.length) throw new HttpError(400, "メンバーを1人以上選んでください");
   await assertUsers(env, members);
+  const channel = discordChannel(body.discord_channel_id);
   const now = Date.now();
   const row = await env.DB.prepare(
     `INSERT INTO projects (name, type, description, doc_url, memo_doc_url, script_doc_url, share_doc_url, start_date, presentation_date, current_stage, meeting_mode,
@@ -127,6 +137,7 @@ export async function insertProject(env, user, body, { includeCreator = true } =
     ...checklist,
     ...regularMeetingStatements(env, row, now),
   ]);
+  if (channel) await env.DB.prepare("UPDATE projects SET discord_channel_id = ? WHERE id = ?").bind(channel, row.id).run();
   await notify(env, members, `【${row.name}】PJのメンバーになりました`, `#/projects/${row.id}`, { dm: false, except: user.id });
   return row.id;
 }
@@ -237,6 +248,7 @@ async function updateProject({ request, env, user, params, ctx }) {
   const members = memberList(body);
   if (!members.length) throw new HttpError(400, "メンバーを1人以上選んでください");
   await assertUsers(env, members);
+  const channel = "discord_channel_id" in body ? discordChannel(body.discord_channel_id) : null;
   const { results: before } = await env.DB.prepare("SELECT user_id FROM project_members WHERE project_id = ?").bind(project.id).all();
   const added = members.filter((uid) => !before.some((b) => b.user_id === uid));
 
@@ -248,6 +260,7 @@ async function updateProject({ request, env, user, params, ctx }) {
     f.meeting_time, f.meeting_interval, f.meeting_duration, f.meeting_place, Date.now(), project.id,
     int(body.version, { label: "版" })).run();
   assertUpdated(res, "このPJ");
+  if (channel !== null) await env.DB.prepare("UPDATE projects SET discord_channel_id = ? WHERE id = ?").bind(channel, project.id).run();
 
   const updated = { ...project, ...f, status };
   const stmts = [

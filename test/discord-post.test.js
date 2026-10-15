@@ -141,6 +141,32 @@ test("日程調整：画面そっくりの画像を付け直す。古い状態�
   await assert.rejects(post({ kind: "p", id: 1, version: "x", png }, { id: "u9", isAdmin: false }), /PJメンバー/);
 });
 
+test("Botがあれば、日程調整はPJのチャンネルに投稿して書き直す", async () => {
+  const { env, DB } = await setup();
+  DB.raw.exec("CREATE TABLE projects (id INTEGER PRIMARY KEY, name TEXT, discord_channel_id TEXT NOT NULL DEFAULT '')");
+  DB.raw.exec("CREATE TABLE project_members (project_id INTEGER, user_id TEXT)");
+  DB.raw.exec(readFileSync(new URL("../migrations/0039_schedule_polls.sql", import.meta.url), "utf8"));
+  DB.raw.exec("INSERT INTO projects VALUES (1, '防災PJ', '1559199970996002968'); INSERT INTO project_members VALUES (1, 'u1')");
+  DB.raw.exec("INSERT INTO schedule_polls (id, project_id, created_by, created_at) VALUES (1, 1, 'u1', 0)");
+  const botEnv = { ...env, DISCORD_WEBHOOK_URL: "", DISCORD_BOT_TOKEN: "bot-token" };
+  const calls = [];
+  globalThis.fetch = async (url, { method, headers }) => {
+    calls.push({ url, method, auth: headers?.Authorization });
+    return new Response(JSON.stringify({ id: "900000000000000002", channel_id: "1559199970996002968" }), { status: 200 });
+  };
+  const res = await handler("POST", "/api/discord-posts")({
+    request: new Request("https://example.com/x", { method: "POST", body: JSON.stringify({ kind: "p", id: 1 }), headers: { "Content-Type": "application/json" } }),
+    env: botEnv, user: { id: "u1", isAdmin: false },
+  });
+  assert.ok(calls[0].url.endsWith("/channels/1559199970996002968/messages"));
+  assert.equal(calls[0].auth, "Bot bot-token");
+  assert.ok(res.url.endsWith("/1559199970996002968/900000000000000002"));
+  DB.raw.exec("INSERT INTO schedule_poll_slots (id, poll_id, starts_at) VALUES (1, 1, '2026-11-05T23:00'); INSERT INTO schedule_poll_answers VALUES (1, 'u1', 'yes', 1)");
+  await refreshDiscord(botEnv, null, "p", 1);
+  assert.ok(calls.at(-1).url.endsWith("/channels/1559199970996002968/messages/900000000000000002"));
+  assert.equal(calls.at(-1).method, "PATCH");
+});
+
 test("管理者でない人は、アンケートを投稿できない。Webhookがなければ何もしない", async () => {
   const { env } = await setup();
   fakeDiscord();

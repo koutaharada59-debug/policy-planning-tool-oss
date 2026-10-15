@@ -121,7 +121,7 @@ async function boot() {
   document.getElementById("boot-loading")?.remove();
   if (!session.user) return showLanding(session);
   const me = await api("/api/me");
-  Object.assign(state, { me: me.user, users: me.users, types: me.types });
+  Object.assign(state, { me: me.user, users: me.users, types: me.types, guildId: session.guildId || "" });
   document.getElementById("account").innerHTML = `
     <a class="account-me" href="#/me" data-nav="me" title="${esc(me.user.name)}（マイページ）" aria-label="マイページ">${avatar(me.user)}</a>
     <a class="button small" href="/auth/logout">ログアウト</a>`;
