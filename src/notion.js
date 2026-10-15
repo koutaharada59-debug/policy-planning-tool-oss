@@ -16,14 +16,16 @@ export function notionPageId(url) {
   return m ? m[1] : null;
 }
 
-const rich = (text) => [{ type: "text", text: { content: String(text).slice(0, 1900) } }];
+// Notionは1つの文字のかたまりが2000字まで。長い文章は切り捨てずに、1900字ずつに分けて送る
+const chunks = (s) => { const out = []; for (let i = 0; i < s.length; i += 1900) out.push(s.slice(i, i + 1900)); return out; };
+const rich = (text) => chunks(String(text)).slice(0, 100).map((content) => ({ type: "text", text: { content } }));
 // **太字** *斜体* ~~取り消し~~ `コード` [文字](URL) とURLを、Notionの書式つき文字にする（リンクはNotionでもクリックで開ける）
 const INLINE = /\*\*([^*]+)\*\*|~~([^~]+)~~|`([^`]+)`|\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)|(https?:\/\/[^\s<>"']+)|(?<![*])\*([^*\s][^*]*)\*/g;
 function inline(text) {
   const out = [];
   const push = (content, annotations = {}, link = null) => {
     if (!content) return;
-    out.push({ type: "text", text: { content: content.slice(0, 1900), ...(link ? { link: { url: link } } : {}) }, annotations });
+    for (const part of chunks(content)) out.push({ type: "text", text: { content: part, ...(link ? { link: { url: link } } : {}) }, annotations });
   };
   let last = 0;
   const s = String(text);

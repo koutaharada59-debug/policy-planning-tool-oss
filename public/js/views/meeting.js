@@ -54,7 +54,7 @@ export async function renderMeeting(el, id) {
 
       <section class="card" data-live="agenda">
         <div class="section-head"><h2>今回話し合うこと <span class="live-badge" data-badge="agenda"></span></h2><span class="row-left">${canEdit ? `<button type="button" class="copy-btn" data-history="agenda" title="これまでに保存した内容">🕘 履歴</button>` : ""}${copyButton("agenda")}</span></div>
-        <label><textarea name="agenda" data-rich rows="3" maxlength="5000" aria-label="今回話し合うこと" ${canEdit ? "" : "disabled"} placeholder="・先行事例の共有&#10;・課題の絞り込み">${esc(minute?.agenda)}</textarea>
+        <label><textarea name="agenda" data-rich rows="3" maxlength="50000" aria-label="今回話し合うこと" ${canEdit ? "" : "disabled"} placeholder="・先行事例の共有&#10;・課題の絞り込み">${esc(minute?.agenda)}</textarea>
           <small class="counter" data-for="agenda"></small></label>
       </section>
 
@@ -62,7 +62,7 @@ export async function renderMeeting(el, id) {
 
       <section class="card" data-live="summary">
         <div class="section-head"><h2>話し合いの概要 <span class="live-badge" data-badge="summary"></span></h2><span class="row-left">${canEdit ? `<button type="button" class="copy-btn" data-history="summary" title="これまでに保存した内容">🕘 履歴</button>` : ""}${copyButton("summary")}</span></div>
-        <label><textarea name="summary" data-rich rows="3" maxlength="10000" aria-label="話し合いの概要" ${ro} placeholder="決まったこと・方向性だけを数行で">${esc(minute?.summary)}</textarea>
+        <label><textarea name="summary" data-rich rows="3" maxlength="50000" aria-label="話し合いの概要" ${ro} placeholder="決まったこと・方向性だけを数行で">${esc(minute?.summary)}</textarea>
           <small class="counter" data-for="summary"></small></label>
       </section>
 

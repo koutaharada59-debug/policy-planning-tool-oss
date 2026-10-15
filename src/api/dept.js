@@ -1,5 +1,5 @@
 // 部門の定例：事務連絡（部門長・副部門長）・各PJの進捗共有（PJメンバー）・メモ・定例のあとのイベント
-import { HttpError, readJson, clean, int, oneOf, assertUpdated, todayJst, reqDate, reqDateTime } from "../util.js";
+import { HttpError, readJson, clean, int, oneOf, assertUpdated, todayJst, reqDate, reqDateTime, longText } from "../util.js";
 import { addDays } from "../project-types.js";
 import { regularOccurrences } from "../schedule.js";
 import { loadProject, requireAdmin, requireEditor } from "./common.js";
@@ -161,10 +161,10 @@ async function updateDeptMeeting({ request, env, user, params, ctx }) {
   const body = await readJson(request);
   const cur = await env.DB.prepare("SELECT * FROM dept_meetings WHERE id = ?").bind(params.id).first();
   if (!cur) throw new HttpError(404, "定例が見つかりません");
-  const notice = "notice" in body ? clean(body.notice, 5000) : cur.notice;
-  const memo = "memo" in body ? clean(body.memo, 10000) : cur.memo;
-  const news = "news" in body ? clean(body.news, 5000) : cur.news;
-  const exchange = "exchange" in body ? clean(body.exchange, 5000) : cur.exchange;
+  const notice = "notice" in body ? longText(body.notice, 30000, "事務連絡") : cur.notice;
+  const memo = "memo" in body ? longText(body.memo, 50000, "メモ") : cur.memo;
+  const news = "news" in body ? longText(body.news, 30000, "ニュース勉強会") : cur.news;
+  const exchange = "exchange" in body ? longText(body.exchange, 30000, "意見交換会") : cur.exchange;
   const layout = "layout" in body ? cleanLayout(String(body.layout || "")) : cur.layout;
   const event = "event" in body ? (body.event ? oneOf(body.event, EVENTS, "イベント") : "") : cur.event;
   const now = Date.now();
@@ -222,7 +222,7 @@ async function saveReport({ request, env, user, params }) {
   await requireEditor(env, user, project.id);
   const body = await readJson(request);
   const meetingId = (await openMeeting(env))?.id || null;
-  const values = [clean(body.done, 3000), clean(body.next, 3000), clean(body.issues, 3000), user.id, Date.now()];
+  const values = [longText(body.done, 20000, "やったこと"), longText(body.next, 20000, "次にやること"), longText(body.issues, 20000, "困っていること"), user.id, Date.now()];
   const version = int(body.version, { min: 0, label: "版" });
   const res = version === 0
     ? await env.DB.prepare(
@@ -268,9 +268,9 @@ async function saveNotice({ request, env, user }) {
   requireAdmin(user, "事務連絡を書けるのは、部門長・副部門長です");
   const body = await readJson(request);
   const day = body.day ? reqDate(body.day, "定例の日") : null;
-  const notice = clean(body.notice, 5000);
-  const news = clean(body.news, 5000);
-  const exchange = clean(body.exchange, 5000);
+  const notice = longText(body.notice, 30000, "事務連絡");
+  const news = longText(body.news, 30000, "ニュース勉強会");
+  const exchange = longText(body.exchange, 30000, "意見交換会");
   const layout = cleanLayout(String(body.layout || ""));
   const version = int(body.version, { min: 0, label: "版" });
   const now = Date.now();

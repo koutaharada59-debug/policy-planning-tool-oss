@@ -21,3 +21,10 @@ test("議事録をNotionのブロックにする", () => {
   assert.equal(blocks[3].bulleted_list_item.rich_text[0].text.content, "課題を絞る");
   assert.equal(blocks[8].to_do.rich_text[0].text.content, "事例を3件（山田・10/19まで）");
 });
+
+test("長い段落も切り捨てずにNotionへ送る", async () => {
+  const { minutesBlocks } = await import("../src/notion.js");
+  const text = "あ".repeat(4500);
+  const blocks = JSON.stringify(minutesBlocks({ summary: text }));
+  assert.equal((blocks.match(/あ/g) || []).length, 4500);
+});

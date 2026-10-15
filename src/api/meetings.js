@@ -1,5 +1,5 @@
 // MTG日程・議事録・ICS
-import { HttpError, readJson, clean, reqDateTime, optDate, int, nowJst, shortDateTime } from "../util.js";
+import { HttpError, readJson, clean, longText, reqDateTime, optDate, int, nowJst, shortDateTime } from "../util.js";
 import { notifyProject } from "../notify.js";
 import { trashStatement, meetingSnapshot } from "./trash.js";
 import { ASSIGNEE_COLUMNS, readAssignees, setAssigneeStatements, notifyNewAssignees } from "../task-assignees.js";
@@ -293,6 +293,8 @@ async function listRevisions({ env, user, params, url }) {
   return { revisions: results };
 }
 
+const MINUTES_MAX = 50000; // 議事録の1つの欄の上限（字）
+
 // 議事録を保存する。送られてきた項目だけを書き換える（自動保存は1項目ずつ送る）
 async function saveMinutes({ request, env, user, params, ctx }) {
   const meeting = await loadMeeting(env, params.id);
@@ -307,8 +309,8 @@ async function saveMinutes({ request, env, user, params, ctx }) {
     if (holder && f === "todos") throw new HttpError(409, `${holder.name || "ほかの人"}さんが入力中です。書き終わるまで待ってください`);
   }
   const cols = [];
-  if ("agenda" in body) cols.push(["agenda", clean(body.agenda, 5000)]);
-  if ("summary" in body) cols.push(["summary", clean(body.summary, 10000)]);
+  if ("agenda" in body) cols.push(["agenda", longText(body.agenda, MINUTES_MAX, "今回話し合うこと")]);
+  if ("summary" in body) cols.push(["summary", longText(body.summary, MINUTES_MAX, "話し合いの概要")]);
   // base：送った人の画面が最後に知っていた内容。そのあとDBの内容が変わっていたら（ほかの人の保存・古い画面からの保存）、
   // 上書きして消さずに両方を残す。merged：両方を残した項目 → その内容（画面に映し直す）
   const merged = {};
@@ -319,8 +321,8 @@ async function saveMinutes({ request, env, user, params, ctx }) {
     for (const c of cols) {
       const [name, mine] = c;
       if (!current || typeof base[name] !== "string") continue;
-      const m = mergeText(clean(base[name], 10000), mine, current[name]);
-      if (m.text !== mine) { c[1] = m.text.slice(0, name === "agenda" ? 5000 : 10000); merged[name] = c[1]; }
+      const m = mergeText(String(base[name]), mine, current[name]);
+      if (m.text !== mine) { c[1] = m.text; merged[name] = c[1]; }
     }
   }
 

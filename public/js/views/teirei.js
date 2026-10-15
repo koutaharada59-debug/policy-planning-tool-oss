@@ -138,7 +138,7 @@ export async function renderTeirei(el, id) {
   const layout = parseLayout(m.layout);
   const textSec = (k, empty) => `<section class="card" data-sec="${k}">
         <div class="section-head"><h2>${FIXED[k]}</h2><span class="row-left">${secTools(k, canEdit)}</span></div>
-        ${canEdit ? `<textarea name="${k}" data-rich rows="${k === "notice" ? 5 : 3}" maxlength="5000" aria-label="${FIXED[k]}">${esc(m[k])}</textarea>`
+        ${canEdit ? `<textarea name="${k}" data-rich rows="${k === "notice" ? 5 : 3}" maxlength="30000" aria-label="${FIXED[k]}">${esc(m[k])}</textarea>`
           : m[k] ? richView(m[k]) : `<p class="muted">${empty}</p>`}
       </section>`;
   const SECTION = {
@@ -177,7 +177,7 @@ export async function renderTeirei(el, id) {
 
       ${m.memo ? `<section class="card">
         <div class="section-head"><h2>📝 メモ</h2></div>
-        ${canEdit ? `<textarea name="memo" data-rich rows="4" maxlength="10000" aria-label="メモ">${esc(m.memo)}</textarea>` : `<div class="rich-view">${richHtml(m.memo)}</div>`}
+        ${canEdit ? `<textarea name="memo" data-rich rows="4" maxlength="50000" aria-label="メモ">${esc(m.memo)}</textarea>` : `<div class="rich-view">${richHtml(m.memo)}</div>`}
       </section>` : ""}
 
       <div class="form-actions sticky">
@@ -275,7 +275,7 @@ export async function renderReport(el, projectId) {
     <div class="page-heading left"><h1>📝 ${esc(p.name)}</h1>
       <p>${meeting ? `${fmtDate(meeting.held_on)}の定例` : "次の定例"}で共有する進捗です。いまの工程：${stageLabel(p)}・<a href="#/projects/${p.id}">PJ画面へ</a></p></div>
     <form class="card form" id="report">
-      ${FIELDS.map(([k, label]) => `<div class="field"><div class="section-head"><strong>${label}</strong></div><textarea name="${k}" data-rich rows="4" maxlength="3000" aria-label="${label}">${esc(report[k])}</textarea></div>`).join("")}
+      ${FIELDS.map(([k, label]) => `<div class="field"><div class="section-head"><strong>${label}</strong></div><textarea name="${k}" data-rich rows="4" maxlength="20000" aria-label="${label}">${esc(report[k])}</textarea></div>`).join("")}
       <div class="form-actions">
         ${report.updated_at ? `<span class="muted small">最終更新：${esc(report.updated_by_name || "")}・${fmtDateTime(jstDateTime(report.updated_at))}</span>` : ""}
         <span class="muted small auto-status" id="auto-status">自動で保存されます</span>
@@ -329,7 +329,7 @@ export async function renderTeireiNotice(el) {
         ? `<section class="card" data-sec="reports"><div class="section-head"><h2>${FIXED.reports}</h2>${secTools("reports", true)}</div>
             <p class="muted small">各PJが「進捗を書く」で書いたものが、PJごとのトグルで自動で入ります。</p></section>`
         : FIXED[k] ? `<section class="card" data-sec="${k}"><div class="section-head"><h2>${FIXED[k]}</h2>${secTools(k, true)}</div>
-            <textarea name="${k}" data-rich rows="${k === "notice" ? 6 : 3}" maxlength="5000" aria-label="${FIXED[k]}">${esc(d[k])}</textarea></section>`
+            <textarea name="${k}" data-rich rows="${k === "notice" ? 6 : 3}" maxlength="30000" aria-label="${FIXED[k]}">${esc(d[k])}</textarea></section>`
         : customSection(k, layout.custom[k], true, richView)).join("")}
         ${addSectionBox()}</div>
       <div class="form-actions sticky">

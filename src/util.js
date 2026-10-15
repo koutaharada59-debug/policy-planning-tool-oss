@@ -26,6 +26,13 @@ export function clean(value, max) {
   return typeof value === "string" ? value.trim().slice(0, max) : "";
 }
 
+// 長い文章（議事録など）：上限を超えたら切り捨てずにエラーにする（黙って切ると、書いた分が消えてしまう）
+export function longText(value, max, label) {
+  const v = typeof value === "string" ? value.trim() : "";
+  if (v.length > max) throw new HttpError(400, `「${label}」が長すぎます（${max.toLocaleString()}字まで。いま${v.length.toLocaleString()}字）。分けて書いてください`);
+  return v;
+}
+
 export function required(value, max, label) {
   const v = clean(value, max);
   if (!v) throw new HttpError(400, `${label}を入力してください`);

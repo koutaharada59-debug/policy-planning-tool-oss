@@ -29,7 +29,7 @@ export async function api(path, { method = "GET", body } = {}) {
     headers: { "Content-Type": "application/json" },
     body: body === undefined ? undefined : JSON.stringify(body),
     credentials: "same-origin",
-  });
+  }).catch(() => { throw new Error("通信できませんでした。電波・接続を確かめてください"); });
   return handleResponse(raw.status, raw.ok, await raw.json().catch(() => ({})));
 }
 
