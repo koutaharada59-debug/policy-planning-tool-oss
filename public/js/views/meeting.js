@@ -11,6 +11,9 @@ export async function renderMeeting(el, id) {
   const { meeting: m, minute, project: p, previous, canEdit } = data;
   // 「議事録を見る」で開いたときは読むだけ。ただし「今回話し合うこと」はMTGの前に書いておける
   const viewOnly = hashQuery().get("mode") === "view";
+  // MTG中：「MTGを始める・再開する」から開いたとき（?start=1）だけ。タイマーを動かし、MTGを始めた時刻を残し、「MTGを終える」を出す
+  // PJ画面・カレンダーなどから議事録を開いたときは、確認と書き直しだけ（タイマーは動かさない）
+  const inMeeting = !viewOnly && hashQuery().get("start") === "1";
   const ro = canEdit && !viewOnly ? "" : "disabled";
   const baseRo = ro;
   // 同時編集の状態。locked：ほかの人が書いている項目 → その人の名前
@@ -30,7 +33,7 @@ export async function renderMeeting(el, id) {
 
   el.innerHTML = `
     <nav class="breadcrumb"><a href="#/projects/${p.id}">${esc(p.name)}</a> / 議事録</nav>
-    ${viewOnly ? "" : timerHtml(`meeting-${m.id}`, { bar: true })}
+    ${inMeeting ? timerHtml(`meeting-${m.id}`, { bar: true }) : ""}
     <div class="page-heading left">
       <h1>${fmtDateTime(m.starts_at)} のMTG</h1>
       <p class="live-line small"><span id="live-viewers"></span> <span class="muted" id="live-status">${canEdit ? "自動で保存・みんなで同時に書けます" : ""}</span></p>
@@ -83,7 +86,8 @@ export async function renderMeeting(el, id) {
       <div class="form-actions sticky">
         ${canEdit || m.notion_url ? `<button type="button" id="notion-make" class="notion-btn" title="${m.notion_url ? "Notionの議事録を開く" : "Notionに議事録を作る"}">📝<span class="hide-sm"> ${m.notion_url ? "Notionの議事録を開く" : "Notionに議事録を作る"}</span></button>` : ""}
         ${canEdit ? `<button class="${viewOnly ? "primary" : ""}" type="submit">${viewOnly ? "話すことを保存" : "保存する"}</button>` : ""}
-        ${canEdit && !viewOnly ? `<button class="primary" type="button" id="end-meeting">✅ MTGを終える</button>` : ""}
+        ${canEdit && inMeeting ? `<button class="primary" type="button" id="end-meeting">✅ MTGを終える</button>` : ""}
+        ${canEdit && !viewOnly && !inMeeting ? `<a class="button primary" href="#/meetings/${m.id}?from=project&start=1" title="タイマーを動かして、MTGを始めます">▶ MTGを始める</a>` : ""}
       </div>
       <div class="card notion-setup" id="notion-setup" hidden>
         <strong>このPJのNotionページを登録</strong>
@@ -144,7 +148,7 @@ export async function renderMeeting(el, id) {
   // 次回の日程が決められないとき：日程調整アンケート
   const spBox = el.querySelector("#sp-links");
   if (spBox) schedulePollLinks(spBox, p.id, canEdit).catch(() => {});
-  if (!viewOnly) bindTimer(el, `meeting-${m.id}`, { auto: true });
+  if (inMeeting) bindTimer(el, `meeting-${m.id}`, { auto: true });
   const todoBox = el.querySelector("#todos");
   const defaultDue = () => (data.nextMeeting ? data.nextMeeting.starts_at.slice(0, 10) : addDays(m.starts_at.slice(0, 10), 7));
 
@@ -429,8 +433,8 @@ export async function renderMeeting(el, id) {
     live.busy = true;
     try {
       const askedAt = Date.now();
-      const r = await api(`/api/meetings/${m.id}/live`, { method: "POST", body: { field: live.focus, start: !viewOnly && !live.started } });
-      if (r.started_at) {
+      const r = await api(`/api/meetings/${m.id}/live`, { method: "POST", body: { field: live.focus, start: inMeeting && !live.started } });
+      if (r.started_at && inMeeting) {
         live.started = true;
         syncTimerStart(`meeting-${m.id}`, r.started_at);
       }

@@ -47,7 +47,7 @@ export async function renderStart(el) {
         ${p.upcoming.length ? `<ul class="planned-list">${p.upcoming.map((m, i) => `
           <li><div><strong>${fmtDateTime(m.starts_at)}</strong>${m.starts_at.startsWith(today) ? `<span class="tag">今日</span>` : ""}
             ${m.place ? `<span class="muted small">${esc(m.place)}</span>` : ""}</div>
-            <a class="button ${i === 0 ? "primary" : ""}" href="#/meetings/${m.id}?from=${from}">このMTGを始める</a></li>`).join("")}</ul>`
+            <a class="button ${i === 0 ? "primary" : ""}" href="#/meetings/${m.id}?from=${from}&start=1">このMTGを始める</a></li>`).join("")}</ul>`
           : `<p class="muted small">予定されているMTGはありません。臨時で始めてください。</p>`}
         <div class="form-actions">${back}</div>
       </div>`);
@@ -59,7 +59,7 @@ export async function renderStart(el) {
         <ul class="planned-list">${p.recent.map((m, i) => `
           <li><div><strong>${fmtDateTime(m.starts_at)}</strong>${m.has_minutes ? "" : `<span class="tag">議事録なし</span>`}
             ${m.place ? `<span class="muted small">${esc(m.place)}</span>` : ""}</div>
-            <a class="button ${i === 0 ? "primary" : ""}" href="#/meetings/${m.id}?from=${from}">このMTGを再開する</a></li>`).join("")}</ul>
+            <a class="button ${i === 0 ? "primary" : ""}" href="#/meetings/${m.id}?from=${from}&start=1">このMTGを再開する</a></li>`).join("")}</ul>
         <div class="form-actions">${back}</div>
       </div>`);
     };
@@ -80,7 +80,7 @@ export async function renderStart(el) {
         busy(e.submitter, () => api(`/api/projects/${p.id}/meetings`, { method: "POST", body: { starts_at: startsAt, place: box.place.value } }))
           .then((res) => {
             toast(`${fmtDateTime(startsAt)} のMTGを始めました`);
-            location.hash = `#/meetings/${res.id}?from=${from}`;
+            location.hash = `#/meetings/${res.id}?from=${from}&start=1`;
           }).catch(() => {});
       });
     };
