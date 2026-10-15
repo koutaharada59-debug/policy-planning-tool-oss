@@ -1070,22 +1070,22 @@ label.chip-check[hidden]{display:none}
 ::view-transition-group(main){animation:none}
 ::view-transition-old(main),::view-transition-new(main){height:100%;object-fit:none;object-position:50% 0}
 /* 奥の画面へ進む（PJを開く・MTGを開くなど）：ぬるっと、下から少し上がって出る */
-::view-transition-old(main){animation:vt-out .14s ease-in both}
-::view-transition-new(main){animation:vt-in .24s cubic-bezier(.2,.8,.2,1) both}
+::view-transition-old(main){animation:vt-out .06s ease-in both}
+::view-transition-new(main){animation:vt-in .12s cubic-bezier(.2,.8,.2,1) both}
 /* 下のメニューで横に移る・戻る：パッと（短いクロスフェードだけ、動きなし） */
-html[data-vt="lateral"]::view-transition-old(main),html[data-vt="back"]::view-transition-old(main){animation:vt-out .08s linear both}
-html[data-vt="lateral"]::view-transition-new(main),html[data-vt="back"]::view-transition-new(main){animation:vt-fade .12s linear both}
+html[data-vt="lateral"]::view-transition-old(main),html[data-vt="back"]::view-transition-old(main){animation:vt-out .04s linear both}
+html[data-vt="lateral"]::view-transition-new(main),html[data-vt="back"]::view-transition-new(main){animation:vt-fade .06s linear both}
 @keyframes vt-fade{from{opacity:0}}
-html[data-vt="right"]::view-transition-old(main){animation:vt-out-left .2s ease-in both}
-html[data-vt="right"]::view-transition-new(main){animation:vt-in-right .26s cubic-bezier(.2,.8,.2,1) both}
-html[data-vt="left"]::view-transition-old(main){animation:vt-out-right .2s ease-in both}
-html[data-vt="left"]::view-transition-new(main){animation:vt-in-left .26s cubic-bezier(.2,.8,.2,1) both}
+html[data-vt="right"]::view-transition-old(main){animation:vt-out-left .08s ease-in both}
+html[data-vt="right"]::view-transition-new(main){animation:vt-in-right .12s cubic-bezier(.2,.8,.2,1) both}
+html[data-vt="left"]::view-transition-old(main){animation:vt-out-right .08s ease-in both}
+html[data-vt="left"]::view-transition-new(main){animation:vt-in-left .12s cubic-bezier(.2,.8,.2,1) both}
 @keyframes vt-out{to{opacity:0}}
-@keyframes vt-in{from{opacity:0;transform:translateY(6px)}}
-@keyframes vt-out-left{to{opacity:0;transform:translateX(-32px)}}
-@keyframes vt-in-right{from{opacity:0;transform:translateX(32px)}}
-@keyframes vt-out-right{to{opacity:0;transform:translateX(32px)}}
-@keyframes vt-in-left{from{opacity:0;transform:translateX(-32px)}}
+@keyframes vt-in{from{opacity:0;transform:translateY(3px)}}
+@keyframes vt-out-left{to{opacity:0;transform:translateX(-16px)}}
+@keyframes vt-in-right{from{opacity:0;transform:translateX(16px)}}
+@keyframes vt-out-right{to{opacity:0;transform:translateX(16px)}}
+@keyframes vt-in-left{from{opacity:0;transform:translateX(-16px)}}
 /* PJ画面の「どうやって選ばれたか」 */
 .pj-origin{margin-top:6px}
 .pj-origin summary{cursor:pointer}
@@ -1097,7 +1097,7 @@ html[data-vt="left"]::view-transition-new(main){animation:vt-in-left .26s cubic-
 .page-heading .view-switch .view-switch-arrow{position:absolute;top:50%;margin-top:-20px}
 .page-heading .view-switch .view-switch-arrow.is-right{left:100%;margin-left:6px}
 .page-heading .view-switch .view-switch-arrow.is-left{right:100%;margin-right:6px}
-#tab-body.tab-in{animation:vt-fade .12s linear}
+#tab-body.tab-in{animation:vt-fade .06s linear}
 /* 読み込み中の画面：跳ねる点 ＋ 光が流れる枠 */
 .loading-screen{display:flex;flex-direction:column;align-items:center;gap:10px;padding:48px 0 24px;color:var(--muted);font-weight:700;animation:vt-in .2s ease-out}
 .loading-screen p{margin:0;font-size:13px}
@@ -1117,17 +1117,17 @@ html[data-vt="left"]::view-transition-new(main){animation:vt-in-left .26s cubic-
 /* ---------- 全体のアニメーション（動きを減らす設定の人には付けない） ---------- */
 @media (prefers-reduced-motion: no-preference){
   /* 画面を開いたとき：カードや行が、少しずつ下からふわっと出る */
-  @keyframes rise-in{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+  @keyframes rise-in{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:none}}
   #app.entering .page-heading,
   #app.entering .card,
   #app.entering .choice,
   #app.entering .list-item,
-  #app.entering .timeline > li{animation:rise-in .32s cubic-bezier(.2,.8,.2,1) both}
-  #app.entering :is(.card,.choice,.list-item,.timeline > li):nth-child(2){animation-delay:.04s}
-  #app.entering :is(.card,.choice,.list-item,.timeline > li):nth-child(3){animation-delay:.08s}
-  #app.entering :is(.card,.choice,.list-item,.timeline > li):nth-child(4){animation-delay:.12s}
-  #app.entering :is(.card,.choice,.list-item,.timeline > li):nth-child(5){animation-delay:.16s}
-  #app.entering :is(.card,.choice,.list-item,.timeline > li):nth-child(n+6){animation-delay:.2s}
+  #app.entering .timeline > li{animation:rise-in .16s cubic-bezier(.2,.8,.2,1) both}
+  #app.entering :is(.card,.choice,.list-item,.timeline > li):nth-child(2){animation-delay:.02s}
+  #app.entering :is(.card,.choice,.list-item,.timeline > li):nth-child(3){animation-delay:.04s}
+  #app.entering :is(.card,.choice,.list-item,.timeline > li):nth-child(4){animation-delay:.06s}
+  #app.entering :is(.card,.choice,.list-item,.timeline > li):nth-child(5){animation-delay:.08s}
+  #app.entering :is(.card,.choice,.list-item,.timeline > li):nth-child(n+6){animation-delay:.1s}
 
   /* ボタン：押すと少し沈む、乗せると少し浮く */
   button,.button{transition:transform .12s ease,box-shadow .15s ease,background-color .15s ease,border-color .15s ease,color .15s ease}

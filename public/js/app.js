@@ -105,7 +105,9 @@ const loadingScreen = () => `<div class="loading loading-screen" role="status" a
   <div class="skeleton" aria-hidden="true"><span class="sk-title"></span><span></span><span></span><span class="sk-short"></span></div>
 </div>`;
 // ふわっと切り替えるか（ビュー遷移に対応したブラウザで、動きを減らす設定にしていないとき）
-const smoothSwitch = () => Boolean(document.startViewTransition) && !matchMedia("(prefers-reduced-motion: reduce)").matches;
+// 切り替えの動きが始まらない画面（アプリ内ブラウザなど）では、一度わかったら、それからは動きを付けない（待たせない）
+let vtBroken = false;
+const smoothSwitch = () => !vtBroken && Boolean(document.startViewTransition) && !matchMedia("(prefers-reduced-motion: reduce)").matches;
 
 async function boot() {
   const session = await api("/api/session");
@@ -354,7 +356,7 @@ export async function route() {
       void el.offsetWidth;
       el.classList.add("entering");
       clearTimeout(el._enterTimer);
-      el._enterTimer = setTimeout(() => el.classList.remove("entering"), 700);
+      el._enterTimer = setTimeout(() => el.classList.remove("entering"), 350);
     };
     const onFirstContent = (cb) => {
       const ready = () => seq === routeSeq && el.firstElementChild && el.firstElementChild !== oldFirst && !el.firstElementChild.classList.contains("loading-screen");
@@ -374,17 +376,19 @@ export async function route() {
           if (called) return;
           called = true;
           window.scrollTo(0, 0);
-          // 0.12秒で出来なければ、前の画面は残さず「読み込み中」の画面へ切り替える（違う画面が見えたままにしない）
-          const done = await Promise.race([render().then(() => true, () => true), new Promise((r) => setTimeout(() => r(false), 120))]);
+          // 0.08秒で出来なければ、前の画面は残さず「読み込み中」の画面へ切り替える（違う画面が見えたままにしない）
+          const done = await Promise.race([render().then(() => true, () => true), new Promise((r) => setTimeout(() => r(false), 80))]);
           if (!done && stillOld()) showLoading();
         });
         // 次の画面へすぐ移ったときなどに「飛ばした」と出るのは問題ないので、エラーにしない
         t.ready.catch(() => {});
         t.finished.catch(() => {}).finally(() => { if (seq === routeSeq) delete document.documentElement.dataset.vt; });
         // 画面が描かれない状態（裏のタブなど）で切り替えが始まらないときは、動きを飛ばしてそのまま描く
-        await Promise.race([t.updateCallbackDone.catch(() => {}), new Promise((r) => setTimeout(r, 700))]);
+        // （アプリ内ブラウザなどで動きが始まらないと、ここで待たされる。0.2秒で見切って、すぐ描く）
+        await Promise.race([t.updateCallbackDone.catch(() => {}), new Promise((r) => setTimeout(r, 200))]);
         if (!called) {
           called = true;
+          vtBroken = true;
           t.skipTransition();
           window.scrollTo(0, 0);
           render();
@@ -393,7 +397,7 @@ export async function route() {
         await viewDone;
       } else {
         if (!sameScreen) {
-          loadingTimer = setTimeout(() => { if (stillOld()) showLoading(); }, 120);
+          loadingTimer = setTimeout(() => { if (stillOld()) showLoading(); }, 80);
           onFirstContent(playEnter);
         }
         await render();
