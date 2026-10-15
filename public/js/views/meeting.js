@@ -1,6 +1,6 @@
 // 議事録：前回の宿題（自動引き継ぎ）／話し合うこと／概要／キーワード／次回までにやること
 // 詳細なフィードバックはGoogleドキュメントに残す運用なので、入力欄は短くしている
-import { api, esc, state, fmtDateTime, fmtDate, busy, toast, memberOptions, dueBadge, addDays, embedUrl, membersFirst, copyForNotion, copyButton, bindCopyButtons, hashQuery, timerHtml, bindTimer, clearTimer, syncTimerStart, confirmDialog, guardPending, putUnsent, settleUnsent, restoreUnsent, setSaveAlert, saveAlertText, celebrateProgress, setProgressHint, skipButton, bindSkipButtons, assigneePicker, idsOf, forgetUnsaved } from "../lib.js";
+import { api, esc, state, fmtDateTime, fmtDate, busy, toast, memberOptions, dueBadge, addDays, embedUrl, membersFirst, copyForNotion, copyButton, bindCopyButtons, hashQuery, timerHtml, bindTimer, clearTimer, syncTimerStart, confirmDialog, guardPending, putUnsent, settleUnsent, restoreUnsent, setSaveAlert, saveAlertText, reportSaveTrouble, celebrateProgress, setProgressHint, skipButton, bindSkipButtons, assigneePicker, idsOf, forgetUnsaved } from "../lib.js";
 import { enhanceRich } from "../rich.js";
 import { schedulePollLinks } from "./schedule-poll.js";
 
@@ -270,6 +270,7 @@ export async function renderMeeting(el, id) {
         const sentRows = f === "todos" ? new Map(sent.todos.map((t) => [t.key, rowSig(t)])) : null;
         const res = await api(`/api/meetings/${m.id}/minutes`, { method: "PUT", body, keepalive });
         live.touched[f] = Date.now();
+        if (live.retries[f] >= 2) reportSaveTrouble(`MTGの議事録（${FIELD_LABEL[f]}）が一時的に保存できず、${live.retries[f]}回やり直して保存できました`);
         if (live.retries[f]) { live.retries[f] = 0; if (!form.isConnected) toast("✓ MTGの議事録を保存できました"); }
         if (!Object.values(live.retries).some((n) => n > 0)) setSaveAlert(alertId, null);
         if (f !== "todos") {

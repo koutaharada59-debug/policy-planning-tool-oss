@@ -705,6 +705,10 @@ window.addEventListener("error", (e) => {
   if (/^Script error\.?$/.test(e.message || "") && !e.error) return;
   reportClientError(e.message, e.error?.stack);
 });
+// 保存が通信の不調で何度か失敗したあと、保存できたとき：管理者メニューの「エラーの記録」に残す（どこで電波が切れやすいか分かるように）
+export function reportSaveTrouble(text) {
+  reportClientError(`💾 ${text}`, "");
+}
 window.addEventListener("unhandledrejection", (e) => {
   const r = e.reason;
   if (r?.silent) return; // 確認画面の「キャンセル」など
@@ -925,6 +929,7 @@ export function autoSave(form, save, { status, delay = 1500, key = null, label =
     const sending = valuesOf(textFields(form)); // いま送る内容（保存中に書き足した分は、次の保存で送る）
     running = Promise.resolve().then(save).then(() => {
       if (failed && !form.isConnected) toast(`✓ ${label}を保存できました`);
+      if (failed >= 2) reportSaveTrouble(`${label}が一時的に保存できず、${failed}回やり直して保存できました`);
       failed = 0;
       setSaveAlert(alertId, null);
       savedValues = sending;
