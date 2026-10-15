@@ -123,6 +123,12 @@ export async function renderAdmin(el) {
       <div id="accounts-body"><p class="muted">読み込み中…</p></div>
     </details>`);
   el.querySelector("#accounts").addEventListener("toggle", (e) => { if (e.target.open && !e.target.dataset.loaded) loadAccounts(el.querySelector("#accounts-body"), person); e.target.dataset.loaded = "1"; });
+  el.insertAdjacentHTML("beforeend", `
+    <details class="section" id="discord-hooks">
+      <summary><h2 style="display:inline">📣 Discordの投稿先</h2> <small class="muted">PJごとのウェブフックとスレッド</small></summary>
+      <div id="discord-hooks-body"><p class="muted">読み込み中…</p></div>
+    </details>`);
+  el.querySelector("#discord-hooks").addEventListener("toggle", (e) => { if (e.target.open && !e.target.dataset.loaded) loadDiscordHooks(el.querySelector("#discord-hooks-body")); e.target.dataset.loaded = "1"; });
   bindNotionBackfill(el.querySelector("#notion-backfill"));
   bindStaffing(el, data, () => renderAdmin(el));
   const ROLE_LABEL = { heads: "部門長", reps: "代表" };
@@ -200,6 +206,36 @@ async function bindNotionBackfill(box) {
     } finally {
       bindNotionBackfill(box);
     }
+  });
+}
+
+// Discordの投稿先：PJごとに、ウェブフックのURL（パスワードと同じ扱い。登録したら画面には出さない）と、いつもの投稿先のスレッドID
+// アンケート・日程調整の「📣 Discordに投稿」で、このスレッドに1回投稿し、回答のたびに同じメッセージを書き直す（新しいスレッドは作らない）
+async function loadDiscordHooks(box) {
+  const d = await api("/api/admin/discord-hooks");
+  box.innerHTML = `
+    <p class="muted small">ウェブフックは、PJのDiscordチャンネルの「⚙ チャンネルの編集 → 連携サービス → ウェブフック」で作り、「ウェブフックURLをコピー」したものを貼ります。
+      スレッドIDは、そのチャンネルの中の既存のスレッド（スレッドを右クリック →「IDをコピー」、またはスレッドのリンク）です。新しいスレッドは作りません。
+      ウェブフックのURLは、登録すると画面には出しません（変えるときは貼り直します）。</p>
+    <div class="table-wrap"><table class="accounts discord-hooks">
+      <thead><tr><th>PJ</th><th>ウェブフック</th><th>スレッドID</th><th></th></tr></thead>
+      <tbody>${d.projects.map((p) => `<tr data-pj="${p.id}">
+        <td>${esc(p.name)}</td>
+        <td><input type="password" autocomplete="off" data-k="webhook_url" placeholder="${p.has_webhook ? "✓ 登録済み（変えるときだけ貼る）" : "https://discord.com/api/webhooks/…"}" aria-label="${esc(p.name)}のウェブフックのURL">
+          ${p.has_webhook ? `<button type="button" class="link-btn danger small" data-remove>外す</button>` : ""}</td>
+        <td><input data-k="thread_id" inputmode="numeric" value="${esc(p.thread_id)}" placeholder="例：1559199970996002968" aria-label="${esc(p.name)}のスレッドID"></td>
+        <td><button type="button" class="small primary" data-save>保存</button></td>
+      </tr>`).join("")}</tbody>
+    </table></div>`;
+  box.querySelectorAll("tr[data-pj]").forEach((tr) => {
+    const save = (b, extra = {}) => busy(b, () => api(`/api/admin/discord-hooks/${tr.dataset.pj}`, {
+      method: "PUT", body: { webhook_url: tr.querySelector("[data-k=webhook_url]").value, thread_id: tr.querySelector("[data-k=thread_id]").value, ...extra },
+    })).then(() => { toast("保存しました"); loadDiscordHooks(box); }).catch(() => {});
+    tr.querySelector("[data-save]").addEventListener("click", (e) => save(e.currentTarget));
+    tr.querySelector("[data-remove]")?.addEventListener("click", async (e) => {
+      if (!await confirmDialog("このPJのウェブフックを外しますか？\nこれまでの投稿は、書き直されなくなります。", { ok: "外す" })) return;
+      save(e.currentTarget, { remove_webhook: true, webhook_url: "" });
+    });
   });
 }
 

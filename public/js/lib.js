@@ -969,35 +969,63 @@ export function autoSave(form, save, { status, delay = 1500, key = null, label =
 
 // ---------- Discordに貼ると回答状況が出るリンク（src/share.js） ----------
 // kind：a（アンケート）／ r（PJ決め）／ p（日程調整アンケート）
-// 横に「📣 Discordに投稿」（投稿すると、回答が入るたびにDiscordの投稿が書き直される。src/discord-post.js）
+// 横に「📣 Discordに投稿」（アンケート・日程調整）：PJごとのウェブフックで既存のスレッドに1回投稿し、回答が入るたびに書き直す（src/discord-post.js）
 export const shareButton = (kind, id) =>
   `<button type="button" class="link-btn share-btn" data-share="${esc(kind)}" data-share-id="${Number(id)}" title="Discordに貼ると、いまの回答状況がカードで出ます">🔗 Discord用にリンクをコピー</button>`
-  + `<span class="discord-post" data-dp="${esc(kind)}" data-dp-id="${Number(id)}"></span>`;
-const DP_LABEL = { a: "アンケート", r: "PJ決め", p: "日程調整アンケート" };
+  + (["a", "p"].includes(kind) ? `<span class="discord-post" data-dp="${esc(kind)}" data-dp-id="${Number(id)}"></span>` : "");
+const DP_LABEL = { a: "アンケート", p: "日程調整アンケート" };
+const dpCache = new WeakMap();
 async function drawDiscordPost(box) {
   box.dataset.ready = "1";
   const { dp: kind, dpId: id } = box.dataset;
   const st = await api(`/api/discord-posts?kind=${encodeURIComponent(kind)}&id=${id}`).catch(() => null);
   if (!st || !box.isConnected) return;
+  dpCache.set(box, st);
   const latest = st.posts[0];
   box.innerHTML = [
     latest?.url ? `<a class="link-btn" href="${esc(latest.url)}" target="_blank" rel="noopener">💬 Discordの投稿を開く（回答状況を自動で更新中）</a>` : "",
-    !st.canPost ? "" : st.configured
-      ? `<button type="button" class="link-btn" data-dp-post>📣 ${latest ? "もう一度Discordに投稿" : "Discordに投稿（回答状況がリアルタイムで更新）"}</button>`
-      : `<span class="muted small">📣 Discordへの自動投稿は、投稿先（Webhook）を設定すると使えます</span>`,
+    !st.canPost ? "" : st.targets.length
+      ? `<button type="button" class="link-btn" data-dp-post>📣 ${latest ? "別のスレッドにも投稿" : "Discordのスレッドに投稿（回答状況がリアルタイムで更新）"}</button>`
+      : `<span class="muted small">📣 Discordへの投稿は、管理者メニューでPJのウェブフックを登録すると使えます</span>`,
   ].filter(Boolean).join(" ");
 }
 // 画面に「Discordに投稿」の場所が出たら、投稿してあるかを読み込む
 new MutationObserver(() => document.querySelectorAll(".discord-post:not([data-ready])").forEach(drawDiscordPost))
   .observe(document.documentElement, { childList: true, subtree: true });
+
+// 投稿先を選ぶ（PJ＝ウェブフック、スレッドID）。決めたら { project_id, thread_id }、やめたら null
+function askDiscordTarget(kind, targets) {
+  return new Promise((resolve) => {
+    const back = document.createElement("div");
+    back.className = "dialog-backdrop";
+    back.innerHTML = `<form class="dialog form" role="dialog" aria-modal="true" aria-label="Discordに投稿">
+      <p>この${DP_LABEL[kind]}の回答状況を、Discordの既存のスレッドに投稿します。<br>回答が入るたびに、同じメッセージが自動で書き直されます（新しいスレッドは作りません）。</p>
+      ${kind === "a" ? `<label>どのPJのウェブフックで投稿するか<select name="project">${targets.map((t) => `<option value="${t.id}">${esc(t.name)}</option>`).join("")}</select></label>` : `<p class="small muted">投稿先：${esc(targets[0].name)}のチャンネル</p>`}
+      <label>スレッドID <small class="muted">スレッドを右クリック →「IDをコピー」、またはスレッドのリンク</small>
+        <input name="thread" inputmode="numeric" required value="${esc(targets[0].thread_id || "")}" placeholder="例：1559199970996002968"></label>
+      <div class="form-actions"><button type="button" data-no>キャンセル</button><button class="primary">投稿する</button></div>
+    </form>`;
+    const form = back.querySelector("form");
+    const sel = form.querySelector("[name=project]");
+    sel?.addEventListener("change", () => { form.thread.value = targets.find((t) => String(t.id) === sel.value)?.thread_id || ""; });
+    const done = (v) => { back.remove(); resolve(v); };
+    back.addEventListener("click", (e) => { if (e.target === back || e.target.closest("[data-no]")) done(null); });
+    form.addEventListener("submit", (e) => { e.preventDefault(); done({ project_id: Number(sel ? sel.value : targets[0].id), thread_id: form.thread.value.trim() }); });
+    document.body.append(back);
+    form.thread.focus();
+  });
+}
 document.addEventListener("click", async (e) => {
   const b = e.target.closest?.("[data-dp-post]");
   if (!b) return;
   const box = b.closest(".discord-post");
   const { dp: kind, dpId: id } = box.dataset;
-  if (!await confirmDialog(`Discordのチャンネルに、この${DP_LABEL[kind]}の回答状況を投稿しますか？\n回答が入るたびに、投稿の人数や結果が自動で書き直されます。`, { ok: "投稿する" })) return;
-  busy(b, () => api("/api/discord-posts", { method: "POST", body: { kind, id: Number(id) } })).then(() => {
-    toast("Discordに投稿しました。回答が入るたびに自動で更新されます");
+  const st = dpCache.get(box);
+  if (!st?.targets.length) return;
+  const target = await askDiscordTarget(kind, st.targets);
+  if (!target) return;
+  busy(b, () => api("/api/discord-posts", { method: "POST", body: { kind, id: Number(id), ...target } })).then(() => {
+    toast("Discordのスレッドに投稿しました。回答が入るたびに自動で更新されます");
     drawDiscordPost(box);
     // 日程調整は、画面そっくりの画像を付ける（画面がもう一度読み込んで送る）
     box.dispatchEvent(new CustomEvent("discord-posted", { bubbles: true, detail: { kind, id } }));
