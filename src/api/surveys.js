@@ -3,6 +3,7 @@ import { HttpError, readJson, clean, required, int, oneOf, nowJst } from "../uti
 import { requireAdmin } from "./common.js";
 import { runIrv } from "../rcv.js";
 import { stvResults } from "../stv.js";
+import { refreshDiscord } from "../discord-post.js";
 
 export const routes = [
   ["GET", "/api/surveys", listSurveys],
@@ -112,7 +113,7 @@ export function tallySurvey(s, answers) {
   return out;
 }
 
-async function saveAnswer({ request, env, user, params }) {
+async function saveAnswer({ request, env, user, params, ctx }) {
   const s = await loadSurvey(env, params.id);
   if (s.kind !== "other") throw new HttpError(400, "PJ決めアンケートは、PJ決めの画面で投票してください");
   if (s.closed_at) throw new HttpError(400, "このアンケートは締め切りました");
@@ -125,24 +126,27 @@ async function saveAnswer({ request, env, user, params }) {
     `INSERT INTO survey_answers (survey_id, user_id, answer, updated_at) VALUES (?, ?, ?, ?)
      ON CONFLICT (survey_id, user_id) DO UPDATE SET answer = excluded.answer, updated_at = excluded.updated_at`
   ).bind(s.id, user.id, answer, Date.now()).run();
+  refreshDiscord(env, ctx, "a", s.id); // Discordに投稿してあれば、回答状況を書き直す
   return { ok: true };
 }
 
 // 締め切る・再開する（管理者）
-async function updateSurvey({ request, env, user, params }) {
+async function updateSurvey({ request, env, user, params, ctx }) {
   requireAdmin(user, "アンケートを締め切れるのは、管理者です");
   const s = await loadSurvey(env, params.id);
   const body = await readJson(request);
   await env.DB.prepare("UPDATE surveys SET closed_at = ? WHERE id = ?").bind(body.closed ? s.closed_at || Date.now() : null, s.id).run();
+  refreshDiscord(env, ctx, "a", s.id);
   return { ok: true };
 }
 
-async function deleteSurvey({ env, user, params }) {
+async function deleteSurvey({ env, user, params, ctx }) {
   requireAdmin(user, "アンケートを削除できるのは、管理者です");
   const s = await loadSurvey(env, params.id);
   await env.DB.batch([
     env.DB.prepare("DELETE FROM survey_answers WHERE survey_id = ?").bind(s.id),
     env.DB.prepare("DELETE FROM surveys WHERE id = ?").bind(s.id),
   ]);
+  refreshDiscord(env, ctx, "a", s.id); // Discordの投稿は「削除されました」にする
   return { ok: true };
 }

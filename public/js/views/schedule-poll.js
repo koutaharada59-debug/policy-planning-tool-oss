@@ -1,5 +1,6 @@
 // 日程調整アンケート：候補の日時を並べて作る／○△× で答える／いちばん集まった日時に決める
 import { api, esc, shareButton, avatar, busy, toast, confirmDialog, fmtDateTime, state, addDays, celebrate } from "../lib.js";
+import { sendPollImage } from "../poll-image.js";
 
 const MARK = { yes: "○", maybe: "△", no: "×" };
 const LABEL = { yes: "行ける", maybe: "たぶん", no: "無理" };
@@ -92,6 +93,10 @@ export async function renderSchedulePoll(el, id) {
     </form>
     ${waiting.length && !closed ? `<p class="muted small">まだ答えていない人：${waiting.map((m) => esc(m.name)).join("、")}</p>` : ""}
     ${canEdit && !closed ? `<p><button type="button" class="link-btn danger" id="sp-close">決めずに締め切る</button></p>` : ""}`;
+
+  // Discordに投稿してあれば、いまの状態の「画面そっくりの画像」を作って、投稿を書き直す
+  if (d.discord) sendPollImage(d).catch(() => {});
+  el.querySelector(".page-heading")?.addEventListener("discord-posted", () => renderSchedulePoll(el, id));
 
   const form = el.querySelector("#answers");
   const left = () => {

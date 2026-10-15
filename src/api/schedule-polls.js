@@ -3,6 +3,7 @@
 import { HttpError, readJson, clean, int, reqDateTime, shortDateTime, nowJst } from "../util.js";
 import { loadProject, requireEditor } from "./common.js";
 import { notifyProject } from "../notify.js";
+import { refreshDiscord, hasDiscordPost, pollVersion } from "../discord-post.js";
 
 export const routes = [
   ["GET", "/api/schedule-polls/mine", myPolls],
@@ -74,13 +75,15 @@ async function getPoll({ env, user, params }) {
     env.DB.prepare("SELECT u.id, u.name, u.avatar FROM project_members pm JOIN users u ON u.id = pm.user_id WHERE pm.project_id = ? ORDER BY u.name").bind(project.id).all(),
   ]);
   const canEdit = user.isAdmin || members.results.some((m) => m.id === user.id);
+  // Discordに投稿してあれば、答えた人の画面が、画面そっくりの画像を作って送る（version：そのときの状態の印）
+  const discord = canEdit && !poll.closed_at && await hasDiscordPost(env, "p", poll.id) ? { version: await pollVersion(env, poll.id) } : null;
   return {
-    poll, slots: slots.results, answers: answers.results, members: members.results, canEdit,
+    poll, slots: slots.results, answers: answers.results, members: members.results, canEdit, discord,
     project: { id: project.id, name: project.name, meeting_mode: project.meeting_mode },
   };
 }
 
-async function saveAnswers({ request, env, user, params }) {
+async function saveAnswers({ request, env, user, params, ctx }) {
   const poll = await loadPoll(env, params.id);
   await requireEditor(env, user, poll.project_id);
   if (poll.closed_at) throw new HttpError(400, "このアンケートは締め切りました");
@@ -98,11 +101,12 @@ async function saveAnswers({ request, env, user, params }) {
   }
   if (!stmts.length) throw new HttpError(400, "○△× を1つ以上選んでください");
   await env.DB.batch(stmts);
+  refreshDiscord(env, ctx, "p", poll.id); // Discordに投稿してあれば、回答状況を書き直す
   return { ok: true };
 }
 
 // 決める：選んだ候補の日時でMTGを作り、アンケートを締め切って、メンバーに知らせる
-async function decidePoll({ request, env, user, params }) {
+async function decidePoll({ request, env, user, params, ctx }) {
   const poll = await loadPoll(env, params.id);
   const project = await loadProject(env, poll.project_id);
   await requireEditor(env, user, project.id);
@@ -118,13 +122,15 @@ async function decidePoll({ request, env, user, params }) {
   ).bind(project.id, slot.starts_at, poll.duration_min, place, user.id, Date.now()).first();
   await env.DB.prepare("UPDATE schedule_polls SET meeting_id = ? WHERE id = ?").bind(row.id, poll.id).run();
   await notifyProject(env, project, `日程調整の結果、次回MTGが決まりました：${shortDateTime(slot.starts_at)}`, `#/meetings/${row.id}`, user.id, { dm: true });
+  refreshDiscord(env, ctx, "p", poll.id);
   return { ok: true, meeting_id: row.id, starts_at: slot.starts_at };
 }
 
 // 決めずに締め切る（取りやめ）
-async function closePoll({ env, user, params }) {
+async function closePoll({ env, user, params, ctx }) {
   const poll = await loadPoll(env, params.id);
   await requireEditor(env, user, poll.project_id);
   await env.DB.prepare("UPDATE schedule_polls SET closed_at = ? WHERE id = ? AND closed_at IS NULL").bind(Date.now(), poll.id).run();
+  refreshDiscord(env, ctx, "p", poll.id);
   return { ok: true };
 }

@@ -10,7 +10,7 @@
 import { HttpError, nowJst } from "./util.js";
 import { tallySurvey, METHODS } from "./api/surveys.js";
 
-const KIND = { a: "アンケート", r: "PJ決め", p: "日程調整アンケート" };
+export const KIND = { a:"アンケート", r: "PJ決め", p: "日程調整アンケート" };
 const WEEK = "日月火水木金土";
 
 export const routes = [["GET", "/api/share-link", shareLink]];
@@ -49,8 +49,8 @@ const when = (dt) => {
 };
 const left = (answered, total) => (total > answered ? `（あと${total - answered}人）` : total ? "（全員回答）" : "");
 
-// カードの中身：{ title, description, to（人が押したときに開く画面） }
-async function card(env, kind, id) {
+// カードの中身：{ title, description, to（人が押したときに開く画面）, stats（回答した人数・答える人の数。Discordの投稿のグラフに使う） }
+export async function card(env, kind, id) {
   if (kind === "a") return surveyCard(env, id);
   if (kind === "r") return roundCard(env, id);
   if (kind === "p") return pollCard(env, id);
@@ -86,7 +86,7 @@ async function surveyCard(env, id) {
     lines.push(`決め方：${(METHODS[survey.method] || "").replace(/（.*）/, "")}${survey.method === "stv" ? `（${survey.seats}つ決める）` : ""}・選択肢 ${survey.options.length}つ`);
   }
   if (survey.description) lines.push(survey.description.slice(0, 120));
-  return { title: `📊 ${survey.title}`, description: lines.join("\n"), to: `/#/surveys/${id}` };
+  return { title: `📊 ${survey.title}`, description: lines.join("\n"), to: `/#/surveys/${id}`, stats: survey.closed_at ? null : { answered: answers.length, total: dept } };
 }
 
 async function roundCard(env, id) {
@@ -102,7 +102,8 @@ async function roundCard(env, id) {
     r.deadline ? `締め切り：${when(r.deadline)}` : "締め切り：まだ決まっていません",
     `決めるPJの数：${r.seats}つ`,
   ];
-  return { title: `🗳️ ${r.title}`, description: lines.join("\n"), to: `/#/seeds/${id}` };
+  const dept = closed ? 0 : (await env.DB.prepare("SELECT COUNT(*) AS n FROM users WHERE is_dept = 1").first())?.n || 0;
+  return { title: `🗳️ ${r.title}`, description: lines.join("\n"), to: `/#/seeds/${id}`, stats: dept ? { answered: voters?.n || 0, total: dept } : null };
 }
 
 async function pollCard(env, id) {
@@ -131,7 +132,7 @@ async function pollCard(env, id) {
     if (score[0] && score[0].yes + score[0].maybe > 0) lines.push(`いちばん多い候補：${when(score[0].s.starts_at)}（○${score[0].yes} △${score[0].maybe}）`);
     lines.push(`候補 ${slots.results.length}つ`);
   }
-  return { title: `🗓 ${poll.project_name}：次回MTGの日程調整`, description: lines.join("\n"), to: `/#/schedule-polls/${id}` };
+  return { title: `🗓 ${poll.project_name}：次回MTGの日程調整`, description: lines.join("\n"), to: `/#/schedule-polls/${id}`, stats: poll.closed_at ? null : { answered, total } };
 }
 
 const escAttr = (s) => String(s).replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\n/g, "&#10;");

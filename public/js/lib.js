@@ -969,8 +969,40 @@ export function autoSave(form, save, { status, delay = 1500, key = null, label =
 
 // ---------- Discordに貼ると回答状況が出るリンク（src/share.js） ----------
 // kind：a（アンケート）／ r（PJ決め）／ p（日程調整アンケート）
+// 横に「📣 Discordに投稿」（投稿すると、回答が入るたびにDiscordの投稿が書き直される。src/discord-post.js）
 export const shareButton = (kind, id) =>
-  `<button type="button" class="link-btn share-btn" data-share="${esc(kind)}" data-share-id="${Number(id)}" title="Discordに貼ると、いまの回答状況がカードで出ます">🔗 Discord用にリンクをコピー</button>`;
+  `<button type="button" class="link-btn share-btn" data-share="${esc(kind)}" data-share-id="${Number(id)}" title="Discordに貼ると、いまの回答状況がカードで出ます">🔗 Discord用にリンクをコピー</button>`
+  + `<span class="discord-post" data-dp="${esc(kind)}" data-dp-id="${Number(id)}"></span>`;
+const DP_LABEL = { a: "アンケート", r: "PJ決め", p: "日程調整アンケート" };
+async function drawDiscordPost(box) {
+  box.dataset.ready = "1";
+  const { dp: kind, dpId: id } = box.dataset;
+  const st = await api(`/api/discord-posts?kind=${encodeURIComponent(kind)}&id=${id}`).catch(() => null);
+  if (!st || !box.isConnected) return;
+  const latest = st.posts[0];
+  box.innerHTML = [
+    latest?.url ? `<a class="link-btn" href="${esc(latest.url)}" target="_blank" rel="noopener">💬 Discordの投稿を開く（回答状況を自動で更新中）</a>` : "",
+    !st.canPost ? "" : st.configured
+      ? `<button type="button" class="link-btn" data-dp-post>📣 ${latest ? "もう一度Discordに投稿" : "Discordに投稿（回答状況がリアルタイムで更新）"}</button>`
+      : `<span class="muted small">📣 Discordへの自動投稿は、投稿先（Webhook）を設定すると使えます</span>`,
+  ].filter(Boolean).join(" ");
+}
+// 画面に「Discordに投稿」の場所が出たら、投稿してあるかを読み込む
+new MutationObserver(() => document.querySelectorAll(".discord-post:not([data-ready])").forEach(drawDiscordPost))
+  .observe(document.documentElement, { childList: true, subtree: true });
+document.addEventListener("click", async (e) => {
+  const b = e.target.closest?.("[data-dp-post]");
+  if (!b) return;
+  const box = b.closest(".discord-post");
+  const { dp: kind, dpId: id } = box.dataset;
+  if (!await confirmDialog(`Discordのチャンネルに、この${DP_LABEL[kind]}の回答状況を投稿しますか？\n回答が入るたびに、投稿の人数や結果が自動で書き直されます。`, { ok: "投稿する" })) return;
+  busy(b, () => api("/api/discord-posts", { method: "POST", body: { kind, id: Number(id) } })).then(() => {
+    toast("Discordに投稿しました。回答が入るたびに自動で更新されます");
+    drawDiscordPost(box);
+    // 日程調整は、画面そっくりの画像を付ける（画面がもう一度読み込んで送る）
+    box.dispatchEvent(new CustomEvent("discord-posted", { bubbles: true, detail: { kind, id } }));
+  }).catch(() => {});
+});
 document.addEventListener("click", async (e) => {
   const b = e.target.closest?.("[data-share]");
   if (!b) return;

@@ -7,6 +7,7 @@ import { syncSurveyRound, surveyLinked } from "../survey-sync.js";
 import { notify } from "../notify.js";
 import { notionConfigured, createProjectPage } from "../notion.js";
 import { syncPeopleLater } from "../notion-people.js";
+import { refreshDiscord } from "../discord-post.js";
 
 export const routes = [
   ["GET", "/api/rounds", listRounds],
@@ -98,7 +99,7 @@ async function createRound({ request, env, user }) {
   return { id: row.id };
 }
 
-async function updateRound({ request, env, user, params }) {
+async function updateRound({ request, env, user, params, ctx }) {
   requireAdmin(user, "PJ決めの設定の変更");
   const round = await loadRound(env, params.id);
   const body = await readJson(request);
@@ -107,6 +108,7 @@ async function updateRound({ request, env, user, params }) {
   await env.DB.prepare("UPDATE seed_rounds SET title = ?, deadline = ?, seats = ?, archived = ? WHERE id = ?")
     .bind(f.title, round.source === "survey" ? round.deadline : f.deadline, f.seats, body.archived ? 1 : 0, round.id).run();
   const carried = !round.archived && body.archived ? await carryOverSeeds(env, user, round) : 0;
+  refreshDiscord(env, ctx, "r", round.id);
   return { ok: true, carried };
 }
 
@@ -221,7 +223,7 @@ function seedFields(body, user) {
   return f;
 }
 
-async function createSeed({ request, env, user, params }) {
+async function createSeed({ request, env, user, params, ctx }) {
   const round = await loadRound(env, params.id);
   assertNotLinked(round);
   if (isClosed(round)) throw new HttpError(403, "締め切り後は種を投稿できません");
@@ -233,6 +235,7 @@ async function createSeed({ request, env, user, params }) {
     `INSERT INTO seeds (round_id, title, description, tag, categories, created_by, sort, created_at, updated_at)
      VALUES (?1, ?2, ?3, ?4, ?5, ?6, (SELECT COALESCE(MAX(sort), 0) + 1 FROM seeds WHERE round_id = ?1), ?7, ?7) RETURNING id`
   ).bind(round.id, f.title, f.description, f.tag, f.categories || "[]", user.id, now).first();
+  refreshDiscord(env, ctx, "r", round.id);
   return { id: row.id };
 }
 
@@ -271,7 +274,7 @@ async function updateSeed({ request, env, user, params }) {
   return { ok: true };
 }
 
-async function deleteSeed({ env, user, params }) {
+async function deleteSeed({ env, user, params, ctx }) {
   const seed = await loadManageableSeed(env, user, params.id);
   await env.DB.batch([
     env.DB.prepare("DELETE FROM seed_votes WHERE seed_id = ?").bind(seed.id),
@@ -285,11 +288,12 @@ async function deleteSeed({ env, user, params }) {
        WHERE round_id = ?`
     ).bind(seed.round_id),
   ]);
+  refreshDiscord(env, ctx, "r", seed.round_id);
   return { ok: true };
 }
 
 // 自分の投票をまるごと置き換える。order は第1希望から順に並べた種のID（選ばないものは入れない）
-async function saveBallot({ request, env, user, params }) {
+async function saveBallot({ request, env, user, params, ctx }) {
   const round = await loadRound(env, params.id);
   assertNotLinked(round);
   if (isClosed(round)) throw new HttpError(403, "この募集は締め切られました");
@@ -311,6 +315,7 @@ async function saveBallot({ request, env, user, params }) {
       env.DB.prepare("INSERT INTO seed_votes (round_id, user_id, seed_id, rank, created_at) VALUES (?, ?, ?, ?, ?)")
         .bind(round.id, user.id, id, i + 1, now)),
   ]);
+  refreshDiscord(env, ctx, "r", round.id); // Discordに投稿してあれば、投票人数を書き直す
   return { ok: true };
 }
 
