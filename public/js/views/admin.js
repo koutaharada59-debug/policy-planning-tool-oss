@@ -217,6 +217,11 @@ async function loadDiscordHooks(box) {
     <p class="muted small">ウェブフックは、PJのDiscordチャンネルの「⚙ チャンネルの編集 → 連携サービス → ウェブフック」で作り、「ウェブフックURLをコピー」したものを貼ります。
       スレッドIDは、そのチャンネルの中の既存のスレッド（スレッドを右クリック →「IDをコピー」、またはスレッドのリンク）です。新しいスレッドは作りません。
       ウェブフックのURLは、登録すると画面には出しません（変えるときは貼り直します）。</p>
+    <div class="row-left" style="margin:8px 0 12px">
+      <input type="password" autocomplete="off" id="hook-all" placeholder="https://discord.com/api/webhooks/…" aria-label="全PJに登録するウェブフックのURL" style="flex:1;min-width:220px">
+      <button type="button" class="small primary" id="hook-all-save">全PJに同じウェブフックを登録</button>
+    </div>
+    <p class="muted small" style="margin-top:-6px">全PJのスレッドが同じフォーラム（チャンネル）にあるときは、ウェブフックは1つで足ります。スレッドIDはPJごとのものがそのまま使われます。</p>
     <div class="table-wrap"><table class="accounts discord-hooks">
       <thead><tr><th>PJ</th><th>ウェブフック</th><th>スレッドID</th><th></th></tr></thead>
       <tbody>${d.projects.map((p) => `<tr data-pj="${p.id}">
@@ -227,6 +232,14 @@ async function loadDiscordHooks(box) {
         <td><button type="button" class="small primary" data-save>保存</button></td>
       </tr>`).join("")}</tbody>
     </table></div>`;
+  box.querySelector("#hook-all-save").addEventListener("click", async (e) => {
+    const url = box.querySelector("#hook-all").value.trim();
+    if (!url) return toast("ウェブフックのURLを貼ってください", "error");
+    if (!await confirmDialog(`このウェブフックを、${d.projects.length}つのPJすべてに登録しますか？\n（スレッドIDはPJごとのものを使います）`, { ok: "全PJに登録" })) return;
+    busy(e.currentTarget, async () => {
+      for (const pj of d.projects) await api(`/api/admin/discord-hooks/${pj.id}`, { method: "PUT", body: { webhook_url: url } });
+    }).then(() => { toast("全PJに登録しました"); loadDiscordHooks(box); }).catch(() => {});
+  });
   box.querySelectorAll("tr[data-pj]").forEach((tr) => {
     const save = (b, extra = {}) => busy(b, () => api(`/api/admin/discord-hooks/${tr.dataset.pj}`, {
       method: "PUT", body: { webhook_url: tr.querySelector("[data-k=webhook_url]").value, thread_id: tr.querySelector("[data-k=thread_id]").value, ...extra },
