@@ -966,3 +966,27 @@ export function autoSave(form, save, { status, delay = 1500, key = null, label =
   guardPending(form, () => edits > 0 || Boolean(running), run);
   return { flush: run, pending: () => edits > 0 || Boolean(running) };
 }
+
+// ---------- Discordに貼ると回答状況が出るリンク（src/share.js） ----------
+// kind：a（アンケート）／ r（PJ決め）／ p（日程調整アンケート）
+export const shareButton = (kind, id) =>
+  `<button type="button" class="link-btn share-btn" data-share="${esc(kind)}" data-share-id="${Number(id)}" title="Discordに貼ると、いまの回答状況がカードで出ます">🔗 Discord用にリンクをコピー</button>`;
+document.addEventListener("click", async (e) => {
+  const b = e.target.closest?.("[data-share]");
+  if (!b) return;
+  const get = () => api(`/api/share-link?kind=${encodeURIComponent(b.dataset.share)}&id=${b.dataset.shareId}`).then((r) => r.url);
+  try {
+    // iPhoneでは、押してから時間がたつとコピーできないので、URLを待つ形でコピーを始めておく
+    if (window.ClipboardItem && navigator.clipboard?.write) {
+      await navigator.clipboard.write([new ClipboardItem({ "text/plain": get().then((u) => new Blob([u], { type: "text/plain" })) })]);
+    } else {
+      await copyText(await get());
+    }
+    toast("Discord用のリンクをコピーしました。Discordに貼ると、いまの回答状況がカードで出ます");
+  } catch (err) {
+    // コピーできないとき：URLを出して、自分でコピーしてもらう
+    const url = await get().catch(() => "");
+    if (url) prompt("このリンクをコピーして、Discordに貼ってください", url);
+    else toast(err.message || "リンクを作れませんでした", "error");
+  }
+});

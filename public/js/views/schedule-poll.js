@@ -1,5 +1,5 @@
 // 日程調整アンケート：候補の日時を並べて作る／○△× で答える／いちばん集まった日時に決める
-import { api, esc, avatar, busy, toast, confirmDialog, fmtDateTime, state, addDays, celebrate } from "../lib.js";
+import { api, esc, shareButton, avatar, busy, toast, confirmDialog, fmtDateTime, state, addDays, celebrate } from "../lib.js";
 
 const MARK = { yes: "○", maybe: "△", no: "×" };
 const LABEL = { yes: "行ける", maybe: "たぶん", no: "無理" };
@@ -70,7 +70,7 @@ export async function renderSchedulePoll(el, id) {
     <nav class="breadcrumb"><a href="#/projects/${p.id}">${esc(p.name)}</a> / 日程調整アンケート</nav>
     <div class="page-heading left"><h1>🗓 次回MTGの日程調整</h1>
       <p>${closed ? (poll.meeting_id ? `決まりました。<a href="#/meetings/${poll.meeting_id}">次回MTGを開く</a>` : "締め切りました。") : "行ける日時に ○、たぶん行けるなら △、無理なら × を押してください。"}
-        <span class="muted small">回答 ${answered.size} / ${members.length}人</span></p>
+        <span class="muted small">回答 ${answered.size} / ${members.length}人</span> ${shareButton("p", poll.id)}</p>
       ${poll.note ? `<p class="survey-desc">${esc(poll.note)}</p>` : ""}</div>
 
     <form class="card" id="answers">

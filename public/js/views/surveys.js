@@ -1,5 +1,5 @@
 // ホームのアンケート：管理者が追加（PJ決めアンケート／その他のアンケート）、みんなが答える、結果を見る
-import { api, esc, state, avatar, busy, toast, confirmDialog, fmtDateTime, jstDateTime, celebrate } from "../lib.js";
+import { api, esc, shareButton, state, avatar, busy, toast, confirmDialog, fmtDateTime, jstDateTime, celebrate } from "../lib.js";
 
 const METHODS = {
   majority: ["多数決", "1つだけ選ぶ。いちばん多いものに決まる"],
@@ -117,7 +117,7 @@ export async function renderSurvey(el, id) {
   el.innerHTML = `
     <nav class="breadcrumb"><a href="#/">ホーム</a> / アンケート</nav>
     <div class="page-heading"><h1>📊 ${esc(s.title)}</h1>
-      <p><span class="tag">${mLabel}${s.method === "stv" ? `・${s.seats}つ決める` : ""}</span> ${closed ? `<span class="tag">締め切り</span>` : `<span class="due is-soon">受付中</span>`} <span class="muted small">回答 ${d.count}人</span></p></div>
+      <p><span class="tag">${mLabel}${s.method === "stv" ? `・${s.seats}つ決める` : ""}</span> ${closed ? `<span class="tag">締め切り</span>` : `<span class="due is-soon">受付中</span>`} <span class="muted small">回答 ${d.count}人</span> ${shareButton("a", s.id)}</p></div>
     ${s.description ? `<p class="survey-desc">${esc(s.description)}</p>` : ""}
     ${closed ? "" : `<form class="card form" id="answer">
       <p class="muted small">${ranked(s.method) ? "希望の順に押してください（押した順が 1位・2位…。もう一度押すと外れます）" : mNote}</p>

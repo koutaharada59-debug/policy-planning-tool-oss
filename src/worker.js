@@ -17,11 +17,12 @@ import { routes as surveyRoutes } from "./api/surveys.js";
 import { routes as notionBackfillRoutes } from "./api/notion-backfill.js";
 import { routes as schedulePollRoutes } from "./api/schedule-polls.js";
 import { routes as trashRoutes } from "./api/trash.js";
+import { routes as shareRoutes, handleShare } from "./share.js";
 import { runDailyReminders } from "./cron.js";
 import { reportError } from "./monitor.js";
 
 // [メソッド, パス（:id は数字）, ハンドラ]。ハンドラは (ctx) => Response | data
-const ROUTES = [...overviewRoutes, ...projectRoutes, ...taskRoutes, ...meetingRoutes, ...seedRoutes, ...hearingRoutes, ...adminRoutes, ...researchRoutes, ...presentationRoutes, ...deptRoutes, ...searchRoutes, ...timelineRoutes, ...surveyRoutes, ...notionBackfillRoutes, ...schedulePollRoutes, ...trashRoutes].map(([method, path, handler]) => [
+const ROUTES = [...overviewRoutes, ...projectRoutes, ...taskRoutes, ...meetingRoutes, ...seedRoutes, ...hearingRoutes, ...adminRoutes, ...researchRoutes, ...presentationRoutes, ...deptRoutes, ...searchRoutes, ...timelineRoutes, ...surveyRoutes, ...notionBackfillRoutes, ...schedulePollRoutes, ...trashRoutes, ...shareRoutes].map(([method, path, handler]) => [
   method,
   new RegExp(`^${path.replace(/:(\w+)/g, "(?<$1>\\d+)")}$`),
   handler,
@@ -33,6 +34,8 @@ export default {
     try {
       if (url.pathname.startsWith("/auth/")) return await handleAuth(request, env, url);
       if (url.pathname.startsWith("/api/")) return await handleApi(request, env, url, ctx);
+      // Discordに貼ったときのカード（ログインなし。src/share.js）
+      if (url.pathname.startsWith("/s/")) return await handleShare(request, env, url);
       return env.ASSETS.fetch(request);
     } catch (err) {
       if (err instanceof HttpError) return json({ error: err.message }, err.status);

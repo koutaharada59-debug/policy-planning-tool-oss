@@ -1,5 +1,5 @@
 // PJ決め（工程0）：政策の種 → 投票（ランク付け）→ 開票（RCV）→ PJ化と人員の割り振り
-import { api, esc, state, avatar, fmtDate, fmtDateTime, jstDateTime, busy, toast, formData, hashQuery, nextMonday, confirmDialog, bindMemberFilter, guardForm, markSaved, viewSwitch, bindViewSwitch } from "../lib.js";
+import { api, esc, shareButton, state, avatar, fmtDate, fmtDateTime, jstDateTime, busy, toast, formData, hashQuery, nextMonday, confirmDialog, bindMemberFilter, guardForm, markSaved, viewSwitch, bindViewSwitch } from "../lib.js";
 
 import { openSeedBox } from "./projects.js";
 
@@ -79,7 +79,7 @@ export async function renderRound(el, id) {
     <div class="page-heading">${viewSwitch("seeds")}
       <p class="round-name"><strong>${esc(round.title)}</strong>
         <span class="due ${round.closed ? "" : "is-soon"}">${round.closed ? "締め切りました" : round.deadline ? `${fmtDateTime(round.deadline)} 締め切り` : "受付中"}</span></p>
-      <p class="small">投票 ${data.respondents}人・<a href="#/seeds?all=1">ほかのPJ決めを見る</a></p>
+      <p class="small">投票 ${data.respondents}人・<a href="#/seeds?all=1">ほかのPJ決めを見る</a> ${shareButton("r", round.id)}</p>
     </div>
     ${linked ? `<div class="notice survey-link">
       <span>🔗 ${round.closed ? "種と投票は<strong>希望PJアンケート</strong>から取り込みました" : "<strong>希望PJアンケートと連動</strong>中（投票はアンケートで）"}</span>
